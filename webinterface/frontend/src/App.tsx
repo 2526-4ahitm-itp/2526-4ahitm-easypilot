@@ -1,14 +1,25 @@
+import "./App.css";
+import Navbar from "./components/Navbar";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import './App.css'
-
-function App() {
-
-  return (
-    <>
-        <h1 className="text-3xl underline font-extrabold text-red-500">Hello World to our Drone Project</h1>
-
-    </>
-  )
+function SimulatorPage() {
+    return <h1>Simulator</h1>;
 }
 
-export default App
+function DocsPage() {
+    return <h1>Dokumentation</h1>;
+}
+
+function App() {
+    return (
+        <BrowserRouter>
+            <Navbar />
+            <Routes>
+                <Route path="/simulator" element={<SimulatorPage />} />
+                <Route path="/docs" element={<DocsPage />} />
+            </Routes>
+        </BrowserRouter>
+    );
+}
+
+export default App;
