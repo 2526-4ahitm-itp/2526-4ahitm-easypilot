@@ -1,0 +1,37 @@
+= Protokoll der Sitzung
+:subtitle: Sprint Planning - 25.11.2025
+:author: David Windischbauer, Simon Eder
+:date: 25.11.2025
+:status: Entwurf
+
+== 1. Basisinformationen
+
+|===
+|Datum |Uhrzeit |Ort
+|25.11.2025| 9:00 - 9:20 |Virtuell / Meet
+|Teilnehmer |Entschuldigt
+|David Windischbauer, Simon Eder |/
+|===
+
+== 2. Sprint Backlog und User Story
+
+
+### User Story: Live-Telemetrie in 3D-Visualisierung
+
+*Als Drohnenpilot möchte ich den Live Zustand der Drohne mit den Live Telemetriedaten in einem 3D Modell auf einem Dashboard sehen können, um eine Grundlage für spätere Simulationen zu haben.*
+
+### Definition of Done (Akzeptanzkriterien)
+
+Die folgenden Kriterien müssen für die Abnahme der User Story erfüllt sein:
+
+* **Echtzeit-Aktualisierung (Motordrehzahl):** Wenn die Motordrehzahl erhöht wird, sehe ich innerhalb **20 Millisekunden** die neuen Werte am 3D Modell.
+* **Datenintegration:** Alle relevanten Live-Telemetriedaten (Position, Orientierung, Geschwindigkeit, Akkuzustand) werden korrekt und vollständig an das Dashboard übertragen.
+* **3D-Modell:** Das 3D-Modell der Drohne spiegelt die Roll-, Nick- und Gierwinkel in Echtzeit wider.
+* **Export:** Die aufgezeichneten Telemetriedaten können zur Verwendung in externen Simulationswerkzeugen exportiert werden.
+
+== 3. Nächste Schritte
+
+* **Aufgabe 1 (David):** Erstellung des Prototyps für die Datenschnittstelle (MAVLink) und Messung der Latenz.
+* **Aufgabe 2 (Simon, David):** Erstellung eines simplen Frontends mit React Three Fiber mit dem besteheden 3D Modell.
+* **Aufgabe 3 (Simon):** Implementierung der Echtzeit-Datenübertragung vom Backend zum Frontend mittels WebSockets.
+* **Aufgabe 4 (David):** Integration der Live-Telemetriedaten in das 3D-Modell und Validierung der Echtzeit-Aktualisierung.
