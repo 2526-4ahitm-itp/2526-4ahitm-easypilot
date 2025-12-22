@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 
-const modelPath = '/models/drohne.gltf';
+const modelPath = '/models/drohne-compressed.glb';
 
 export function Model(props) {
 
@@ -50,9 +50,9 @@ export function Model(props) {
             const { roll, pitch, yaw } = rotation;
 
             meshRef.current.rotation.set(
-                pitch, // X-Achse (Nicken vor/zurück)
-                yaw,   // Y-Achse (Gieren links/rechts)
-                roll   // Z-Achse (Rollen links/rechts)
+                pitch,
+                yaw,
+                roll
             );
 
         }
