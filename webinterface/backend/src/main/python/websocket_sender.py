@@ -5,12 +5,10 @@ import serial
 import struct
 import math
 
-# --- KONFIGURATION ---
 SERIAL_PORT = 'COM3'
 BAUD_RATE = 115200
 MSP_ATTITUDE = 108
 
-# Wir öffnen den Serial Port GLOBAL (nur einmal!)
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
     print(f" Serial Port {SERIAL_PORT} erfolgreich geöffnet.")
@@ -77,9 +75,9 @@ async def telemetry_server(websocket):
             await asyncio.sleep(0.016)
 
     except websockets.exceptions.ConnectionClosed:
-
+        print("🔌 Ein Client hat die Verbindung getrennt.")
     except Exception as e:
-
+        print(f"⚠️ Fehler im Loop: {e}")
 
 async def main():
     if ser is None:
