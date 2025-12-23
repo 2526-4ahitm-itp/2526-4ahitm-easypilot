@@ -1,0 +1,53 @@
+= Sprint Review – Sprint 1 / KW 49
+:toc:
+:toclevels: 2
+
+== Allgemeine Informationen
+
+[cols="1,3"]
+|===
+| Sprint | Sprint 1
+| Zeitraum | 8.12.2025 – 21.12.2025
+| Datum Review | 22.12.2025
+| Teilnehmer | Simon Eder, David Windischbauer
+|===
+
+== Ziel des Sprints
+
+Kurzbeschreibung der Ziele, die für diesen Sprint definiert wurden.
+
+** User Story: Live-Telemetrie in 3D-Visualisierung
+*Als Drohnenpilot möchte ich den Live Zustand der Drohne mit den Live Telemetriedaten in einem 3D Modell auf einem Dashboard sehen können, um eine Grundlage für spätere Simulationen zu haben.*
+
+== Umgesetzte Inhalte (Done)
+
+
+
+* Feature A – Live Telemetrie via MAVLink und Websockets
+
+Optional mit Status:
+
+[cols="3,1"]
+|===
+| Aufgabe | Status
+| MAVLink Anbindung | Done
+| Live Telemtetrie | Done
+| Rendering 3D Model | Done
+| Performace increase Renderer | Done
+|===
+
+== Nicht umgesetzte Inhalte
+
+== Ergebnisse / Demo
+
+image::../img/review1[]
+
+== Feedback
+
+== Erkenntnisse
+
+
+
+
+== Ausblick auf nächsten Sprint
+
