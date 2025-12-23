@@ -1,66 +1,135 @@
-# easypilot
+image::./images/banner.png[EasyPilot]
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+image:[https://img.shields.io/badge/Raspberry_Pi-Project-red?style=for-the-badge[](https://img.shields.io/badge/Raspberry_Pi-Project-red?style=for-the-badge[)]
+image:[https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge[](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge[)]
+image:[https://img.shields.io/badge/Drone-Autopilot-lightblue?style=for-the-badge[](https://img.shields.io/badge/Drone-Autopilot-lightblue?style=for-the-badge[)]
+image:[https://img.shields.io/badge/Telemetry-WiFi%2FLora-04668d?style=for-the-badge[](https://img.shields.io/badge/Telemetry-WiFi%2FLora-04668d?style=for-the-badge[)]
+image:[https://img.shields.io/badge/Camera-Streaming-green?style=for-the-badge[](https://img.shields.io/badge/Camera-Streaming-green?style=for-the-badge[)]
+image:[https://img.shields.io/badge/YOLO-Object_Detection-yellow?style=for-the-badge[](https://img.shields.io/badge/YOLO-Object_Detection-yellow?style=for-the-badge[)]
+image:[https://img.shields.io/badge/MIT-License-blue?style=for-the-badge[](https://img.shields.io/badge/MIT-License-blue?style=for-the-badge[)]
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+---
 
-## Running the application in dev mode
+NOTE: This README is subject to further change during development of the project
 
-You can run your application in dev mode that enables live coding using:
+== 📘 Project Description
 
-```shell script
-./mvnw quarkus:dev
+*EasyPilot* is a modular DIY drone/autopilot platform built around a Raspberry Pi.
+It provides real-time telemetry, camera streaming, ESC/motor control, optional YOLOv8 object detection, and a safe experimentation environment for autonomous flight.
+
+Main features:
+
+* Raspberry Pi as the main compute unit
+* Live video streaming (RTSP/MJPEG)
+* Telemetry via WiFi or LoRa
+* ESC/motor output control
+* IMU-based stabilization (MPU6050/9250)
+* Optional YOLO object detection pipeline
+* Expandable ground-station interface
+
+== 🛠️ Installation
+
+=== 📦 Requirements
+
+* Raspberry Pi 4 or newer
+* Python 3.10+
+* Pi Camera or USB Camera
+* ESCs + motors
+* IMU sensor (recommended)
+* WiFi or LoRa module
+
+---
+
+=== 🐍 Install on Raspberry Pi
+Clone the project:
+
+```bash
+git clone https://github.com/yourname/easypilot
+cd easypilot
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+Install dependencies:
 
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
-./mvnw package
+```bash
+pip install -r requirements.txt
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+Enable the camera:
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+```bash
+sudo raspi-config
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+Navigate to *Interface Options → Camera*.
 
-## Creating a native executable
+=== 📡 Telemetry Setup
+Start the telemetry server:
 
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
+```bash
+python3 telemetry/telemetry_server.py
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+Connect from the ground station:
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+```bash
+python3 telemetry/telemetry_client.py
 ```
 
-You can then execute your native executable with: `./target/easypilot-1.0-SNAPSHOT-runner`
+== 🎥 Camera Streaming
+Start the camera stream:
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+```bash
+python3 camera/stream.py
+```
 
-## Related Guides
+This exposes an RTSP or MJPEG stream (defined in `config.yaml`).
 
-- REST ([guide](https://quarkus.io/guides/rest)): A Jakarta REST implementation utilizing build time processing and Vert.x. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it.
+== 🤖 YOLOv8 Object Detection
+Run detection on live stream:
 
-## Provided Code
+```bash
+python3 vision/detect.py --source stream
+```
 
-### REST
+Models are stored under `models/`.
 
-Easily start your REST Web Services
+== 🛩️ Motor / ESC Control
+Arm the system:
 
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+```bash
+python3 control/arm.py
+```
+
+Test output signals:
+
+```bash
+python3 control/test_output.py
+```
+
+== 📁 Project Structure
+
+```
+📦 easypilot
+ ┣ camera/
+ ┣ control/
+ ┣ telemetry/
+ ┣ vision/
+ ┣ utils/
+ ┗ config.yaml
+```
+
+== 🎓 How to Use
+
+1. Start telemetry
+2. Start camera stream
+3. (Optional) start YOLO
+4. Use ground station to control/monitor the drone
+
+== 👥 Team
+Developer 💻 – DU
+
+== 📄 License
+MIT License
+
+== 📘 Additional Documentation
+More documentation coming soon…

@@ -45,7 +45,7 @@ async def telemetry_server(websocket):
 
 
     if ser is None:
-        await websocket.send(json.dumps({"error": "Keine Drohne verbunden"}))
+        await websocket.send(json.dumps({"error": "No Drone Found"}))
         return
 
     try:
@@ -75,9 +75,9 @@ async def telemetry_server(websocket):
             await asyncio.sleep(0.016)
 
     except websockets.exceptions.ConnectionClosed:
-        print("🔌 Ein Client hat die Verbindung getrennt.")
+        print("Client closed COnnection.")
     except Exception as e:
-        print(f"⚠️ Fehler im Loop: {e}")
+        print(f"")
 
 async def main():
     if ser is None:
