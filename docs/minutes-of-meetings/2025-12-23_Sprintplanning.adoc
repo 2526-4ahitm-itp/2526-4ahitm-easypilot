@@ -1,0 +1,37 @@
+= Protokoll der Sitzung
+:subtitle: Sprint Planning - 25.11.2025
+:author: David Windischbauer, Simon Eder
+:date: 25.11.2025
+:status: Entwurf
+
+== 1. Basisinformationen
+
+|===
+|Datum |Uhrzeit |Ort
+|25.11.2025| 15:45 - 16:00 |Meet
+|Teilnehmer
+| David Windischbauer, Simon Eder | HTL Leonding
+|===
+
+== 2. Sprint Backlog und User Story
+
+
+### User Story: Live-Telemetrie in 3D-Visualisierung
+
+* Als Drohnenpilot möchte ich mittels einem Raspberr Pi eine Tonleiter bzw Melodie wie bei einer Taurus Lokomotive abspielen können, um zu Testen ob die Motoren individuell ansteuerbar sind.
+### Definition of Done (Akzeptanzkriterien)
+
+Die folgenden Kriterien müssen für die Abnahme der User Story erfüllt sein:
+
+* Voreingespielte Sequenz von Tönen wird abgespielt.
+* Jeder Motor kann individuell angesteuert werden.
+* Die Tonhöhe und Dauer der Töne kann angepasst werden.
+* Sequenzdauer ist inviduell anpassbar.
+
+
+== 3. Nächste Schritte
+
+* **Aufgabe 1 (David):** Ersten Test der Motorsteuerung durchführen.
+* **Aufgabe 2 (Simon, David):** Analyse von MavLink Pyhton Library für die Motorsteuerung.
+* **Aufgabe 3 (Simon):** Steuern von einzelnen Motoren mittels MavLink Befehlen von Tonleiter.
+* **Aufgabe 4 (David):** Erstellung von Sequenzen für die Tonleiter. (2D Array)
