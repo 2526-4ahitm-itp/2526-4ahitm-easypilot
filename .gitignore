@@ -58,3 +58,5 @@ nb-configuration.xml
 # Docker
 *.dockerignore
 .dockerignore
+
+/api/node_modules
