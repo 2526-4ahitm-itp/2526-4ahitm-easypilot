@@ -6,3 +6,5 @@ npm test
 _node modules need to be Added_
 
 ** To Write requests in the requests.http file you can use {{host}} in it
+
+if you want to test the code coverage use mvn jacoco:report for backend
