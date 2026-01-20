@@ -1,0 +1,6 @@
+* to start testing the requests
+* in requests.http just run
+----
+npm test
+----
+_node modules need to be Added_
