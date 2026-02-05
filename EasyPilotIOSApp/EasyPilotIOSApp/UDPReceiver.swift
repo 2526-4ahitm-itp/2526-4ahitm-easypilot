@@ -4,9 +4,15 @@ import Combine
 
 class UDPReceiver: ObservableObject {
     @Published var receivedMessage: String = "Warte auf Daten..."
-    @Published var x: Double = 0.0
-    @Published var y: Double = 0.0
-    @Published var z: Double = 0.0
+
+    // Attitude (in Radians)
+    @Published var roll: Double = 0.0
+    @Published var pitch: Double = 0.0
+    @Published var yaw: Double = 0.0
+
+    // Motor Data (1000 - 2000)
+    @Published var m1: Int = 1000
+    @Published var m4: Int = 1000
 
     var listener: NWListener?
     let port: NWEndpoint.Port = 5000
@@ -19,9 +25,6 @@ class UDPReceiver: ObservableObject {
         do {
             let parameters = NWParameters.udp
             parameters.allowLocalEndpointReuse = true
-
-            // Optional: Wenn Broadcast empfangen werden soll, muss das ggf. konfiguriert werden.
-            // Standard UDP Listener sollte aber auf 0.0.0.0 lauschen.
 
             listener = try NWListener(using: parameters, on: port)
 
@@ -59,10 +62,7 @@ class UDPReceiver: ObservableObject {
             }
 
             if error == nil {
-                // Weiterhin auf dieser "Verbindung" lauschen
                 self.receive(on: connection)
-            } else {
-                print("Empfangsfehler: \(String(describing: error))")
             }
         }
     }
@@ -70,17 +70,21 @@ class UDPReceiver: ObservableObject {
     func parseJSON(_ jsonString: String) {
         guard let data = jsonString.data(using: .utf8) else { return }
 
-        struct GyroData: Codable {
-            let x: Double
-            let y: Double
-            let z: Double
+        struct TelemetryData: Codable {
+            let roll: Double?
+            let pitch: Double?
+            let yaw: Double?
+            let m1: Int?
+            let m4: Int?
         }
 
         do {
-            let decoded = try JSONDecoder().decode(GyroData.self, from: data)
-            self.x = decoded.x
-            self.y = decoded.y
-            self.z = decoded.z
+            let decoded = try JSONDecoder().decode(TelemetryData.self, from: data)
+            if let r = decoded.roll { self.roll = r }
+            if let p = decoded.pitch { self.pitch = p }
+            if let y = decoded.yaw { self.yaw = y }
+            if let m1Val = decoded.m1 { self.m1 = m1Val }
+            if let m4Val = decoded.m4 { self.m4 = m4Val }
         } catch {
             print("JSON Decode Error: \(error)")
         }
