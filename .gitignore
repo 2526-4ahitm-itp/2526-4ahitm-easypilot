@@ -58,3 +58,7 @@ nb-configuration.xml
 # Docker
 *.dockerignore
 .dockerignore
+
+node_modules
+
+/api/package-lock.json
