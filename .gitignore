@@ -60,5 +60,4 @@ nb-configuration.xml
 .dockerignore
 
 node_modules
-
-/api/package-lock.json
+package-lock.json
