@@ -20,7 +20,8 @@
 
 ### 3.1 Dashboard (Hauptansicht)
 *   **Visualisierung:** Anzeige der aktuellen Lage der Drohne mittels eines 3D-Modells.
-    *   *Ressource:* `webinterface/frontend/public/models/drohne-compressed.glb`
+    *   *Ressource:* `webinterface/frontend/public/models/drohne-compressed.glb` (Kopiert nach iOS-Projekt).
+    *   *Technische Implementierung:* iOS SceneKit unterstützt `.glb` nicht nativ. Daher wird das Swift Package **GLTFSceneKit** (https://github.com/magicIEN/GLTFSceneKit.git) verwendet, um das Modell im DashboardView zu laden.
 *   **Telemetrie:**
     *   Echtzeit-Darstellung der Gyro-Daten (Ausrichtung: Pitch, Roll, Yaw).
     *   Statusanzeige der Sensoren (verbunden/aktiv).

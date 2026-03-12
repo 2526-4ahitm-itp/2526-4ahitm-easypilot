@@ -6,6 +6,6 @@ struct DroneTelemetry: Codable {
     let roll: Float
     let pitch: Float
     let yaw: Float
-    let m1: Int
-    let m4: Int
+    let m1: Int?
+    let m4: Int?
 }
