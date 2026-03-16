@@ -2,9 +2,18 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-// WiFi Configuration
-const char* ssid = "Sim";
-const char* password = "123456789";
+// WiFi Configuration via Build Flags
+// If SECRETS_WIFI_SSID is not defined in platformio.ini, fallback to defaults
+#ifndef SECRETS_WIFI_SSID
+#define SECRETS_WIFI_SSID "Sim"
+#endif
+
+#ifndef SECRETS_WIFI_PASS
+#define SECRETS_WIFI_PASS "123456789"
+#endif
+
+const char* ssid = SECRETS_WIFI_SSID;
+const char* password = SECRETS_WIFI_PASS;
 
 // UDP Configuration
 WiFiUDP udp;
