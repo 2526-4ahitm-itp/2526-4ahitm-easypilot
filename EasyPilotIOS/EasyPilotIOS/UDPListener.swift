@@ -6,39 +6,45 @@ import Combine
 class UDPListener: ObservableObject {
     private var listener: NWListener?
     private var pingTimer: Timer?
+    private var timeoutTimer: Timer?
     private var broadcastConnection: NWConnection?
     
     /// The latest telemetry data received from the drone.
-    /// Published to update the UI automatically.
     @Published var telemetry: DroneTelemetry?
+    
+    /// Whether the app is currently receiving data.
+    @Published var isConnected: Bool = false
     
     /// Starts listening for UDP packets on port 4242.
     func startListening() {
         guard listener == nil else { return }
         
         do {
-            // Create a listener for UDP on port 4242
             let parameters = NWParameters.udp
             parameters.allowLocalEndpointReuse = true
             let port = NWEndpoint.Port(integerLiteral: 4242)
             
             listener = try NWListener(using: parameters, on: port)
             
-            listener?.stateUpdateHandler = { state in
+            listener?.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
                 switch state {
                 case .ready:
                     print("UDP Listener ready and listening on port 4242")
                     self.startPinging()
                 case .failed(let error):
                     print("UDP Listener failed with error: \(error)")
+                    self.isConnected = false
                 case .cancelled:
                     print("UDP Listener cancelled")
+                    self.isConnected = false
                 default:
                     break
                 }
             }
             
-            listener?.newConnectionHandler = { newConnection in
+            listener?.newConnectionHandler = { [weak self] newConnection in
+                guard let self = self else { return }
                 newConnection.start(queue: .main)
                 self.receive(on: newConnection)
             }
@@ -50,7 +56,6 @@ class UDPListener: ObservableObject {
         }
     }
     
-    /// Starts broadcasting a PING message to port 4242 to help the ESP32 discover our IP address.
     private func startPinging() {
         let endpoint = NWEndpoint.hostPort(host: "255.255.255.255", port: 4242)
         let parameters = NWParameters.udp
@@ -60,8 +65,7 @@ class UDPListener: ObservableObject {
         pingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
-            if self.telemetry != nil {
-                // If we already received data, stop pinging
+            if self.isConnected {
                 self.pingTimer?.invalidate()
                 self.pingTimer = nil
                 self.broadcastConnection?.cancel()
@@ -71,29 +75,29 @@ class UDPListener: ObservableObject {
             
             let message = "PING".data(using: .utf8)!
             self.broadcastConnection?.send(content: message, completion: .idempotent)
-            print("Sent broadcast PING to ESP32")
         }
     }
     
-    /// Recursively receives messages on a connection.
     private func receive(on connection: NWConnection) {
-        connection.receiveMessage { (data, context, isComplete, error) in
+        connection.receiveMessage { [weak self] (data, context, isComplete, error) in
+            guard let self = self else { return }
+            
             if let data = data {
                 self.decodeData(data)
             }
             
             if error == nil {
-                // Continue listening on this connection
                 self.receive(on: connection)
             } else {
                 print("Error receiving data: \(String(describing: error))")
+                DispatchQueue.main.async {
+                    self.isConnected = false
+                }
             }
         }
     }
     
-    /// Decodes the received JSON data into a DroneTelemetry object.
     private func decodeData(_ data: Data) {
-        // Ignore our own PING messages
         if let stringData = String(data: data, encoding: .utf8), stringData == "PING" {
             return
         }
@@ -104,11 +108,19 @@ class UDPListener: ObservableObject {
             
             DispatchQueue.main.async {
                 self.telemetry = newData
+                self.isConnected = true
+                self.resetTimeout()
             }
         } catch {
-            print("JSON Decoding Error: \(error)")
-            if let stringData = String(data: data, encoding: .utf8) {
-                print("Raw data received: \(stringData)")
+            // Silently ignore decoding errors for now to avoid spam
+        }
+    }
+    
+    private func resetTimeout() {
+        timeoutTimer?.invalidate()
+        timeoutTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.isConnected = false
             }
         }
     }
