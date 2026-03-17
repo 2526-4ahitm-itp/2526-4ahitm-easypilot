@@ -2,72 +2,51 @@ import SwiftUI
 import SceneKit
 
 /// The main dashboard view for the EasyPilot app.
-/// Displays real-time telemetry data and a 3D model of the drone.
+/// Displays real-time telemetry data and a 3D model of the drone with a modern UI.
 struct DashboardView: View {
     @StateObject var udpListener = UDPListener()
     @State private var droneScene: SCNScene?
     
+    // Theme Colors
+    private let backgroundColor = Color(red: 0.05, green: 0.05, blue: 0.07)
+    private let cardBackground = Color.white.opacity(0.05)
+    private let accentColor = Color.blue
+    private let warningColor = Color.orange
+    private let dangerColor = Color.red
+    private let successColor = Color.green
+
     var body: some View {
-        VStack {
-            Text("Drone Dashboard")
-                .font(.largeTitle)
-                .padding()
+        ZStack {
+            // Background
+            backgroundColor.ignoresSafeArea()
             
-            // 3D Model View
-            if let scene = droneScene {
-                SceneView(
-                    scene: scene,
-                    options: [.autoenablesDefaultLighting, .allowsCameraControl]
-                )
-                .frame(height: 300)
-                .background(Color.black) // Make background completely black
-                .cornerRadius(10)
-                .padding()
-                .onChange(of: udpListener.telemetry?.roll) { _ in
-                    updateSceneRotation(scene: scene)
-                }
-            } else {
-                Text("Loading 3D Model...")
-                    .frame(height: 300)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.black)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .padding()
-            }
-            
-            // Telemetry Data Display
-            if let data = udpListener.telemetry {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Telemetry Data")
-                        .font(.headline)
-                    
-                    HStack {
-                        Text("Roll: \(String(format: "%.2f", data.roll))")
-                        Spacer()
-                        Text("Pitch: \(String(format: "%.2f", data.pitch))")
-                        Spacer()
-                        Text("Yaw: \(String(format: "%.2f", data.yaw))")
-                    }
-                    
-                    HStack {
-                        Text("Motor 1: \(data.m1 ?? 0)")
-                        Spacer()
-                        Text("Motor 4: \(data.m4 ?? 0)")
-                    }
-                }
-                .padding()
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(10)
-                .padding()
+            VStack(spacing: 20) {
+                // Header: Status and Title
+                headerView
                 
-            } else {
-                Text("Waiting for data...")
-                    .foregroundColor(.gray)
-                    .padding()
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // 3D Model View Card
+                        drone3DCard
+                        
+                        // Telemetry Grid
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
+                            TelemetryCard(title: "ROLL", value: String(format: "%.1f°", udpListener.telemetry?.roll ?? 0), icon: "arrow.left.and.right")
+                            TelemetryCard(title: "PITCH", value: String(format: "%.1f°", udpListener.telemetry?.pitch ?? 0), icon: "arrow.up.and.down")
+                            TelemetryCard(title: "YAW", value: String(format: "%.1f°", udpListener.telemetry?.yaw ?? 0), icon: "rotate.right")
+                            TelemetryCard(title: "BATTERY", 
+                                          value: udpListener.telemetry?.voltage != nil ? String(format: "%.1fV", udpListener.telemetry!.voltage!) : "--.-V", 
+                                          icon: "battery.100",
+                                          color: batteryColor)
+                        }
+                        .padding(.horizontal)
+                        
+                        // Motor Status Card
+                        motorStatusCard
+                    }
+                    .padding(.bottom, 20)
+                }
             }
-            
-            Spacer()
         }
         .onAppear {
             udpListener.startListening()
@@ -75,51 +54,130 @@ struct DashboardView: View {
         }
     }
     
-    /// Loads the SceneKit scene only once when the view appears.
+    // MARK: - Subviews
+    
+    private var headerView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("EasyPilot")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(udpListener.isConnected ? successColor : dangerColor)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: udpListener.isConnected ? successColor : dangerColor, radius: 4)
+                    
+                    Text(udpListener.isConnected ? "CONNECTED" : "DISCONNECTED")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundColor(udpListener.isConnected ? successColor : dangerColor)
+                }
+            }
+            
+            Spacer()
+            
+            // Battery Shortcut in Header
+            if let voltage = udpListener.telemetry?.voltage {
+                HStack(spacing: 4) {
+                    Image(systemName: "battery.75")
+                        .foregroundColor(batteryColor)
+                    Text(String(format: "%.1fV", voltage))
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(cardBackground))
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 10)
+    }
+    
+    private var drone3DCard: some View {
+        VStack {
+            if let scene = droneScene {
+                SceneView(
+                    scene: scene,
+                    options: [.autoenablesDefaultLighting, .allowsCameraControl]
+                )
+                .frame(height: 350)
+                .onChange(of: udpListener.telemetry?.roll) { _ in
+                    updateSceneRotation(scene: scene)
+                }
+            } else {
+                VStack {
+                    ProgressView()
+                        .tint(.white)
+                    Text("Initializing Avionics...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .padding(.top)
+                }
+                .frame(height: 350)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal)
+    }
+    
+    private var motorStatusCard: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("MOTOR OUTPUT")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.gray)
+            
+            HStack(spacing: 20) {
+                MotorBar(label: "M1", value: udpListener.telemetry?.m1 ?? 1000)
+                MotorBar(label: "M2", value: udpListener.telemetry?.m2 ?? 1000)
+                MotorBar(label: "M3", value: udpListener.telemetry?.m3 ?? 1000)
+                MotorBar(label: "M4", value: udpListener.telemetry?.m4 ?? 1000)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal)
+    }
+    
+    private var batteryColor: Color {
+        guard let voltage = udpListener.telemetry?.voltage else { return .gray }
+        if voltage < 14.0 { return dangerColor }
+        if voltage < 15.0 { return warningColor }
+        return successColor
+    }
+
+    // MARK: - Scene Management
+    
     private func loadScene() {
-        guard droneScene == nil else { return } // Only load once
+        guard droneScene == nil else { return }
         
         DispatchQueue.global(qos: .userInitiated).async {
             var scene: SCNScene
             if let url = Bundle.main.url(forResource: "drohne-compressed", withExtension: "usdz") {
                 do {
                     scene = try SCNScene(url: url, options: nil)
-                    
-                    // Add a default camera to the scene to guarantee visibility
-                    let cameraNode = SCNNode()
-                    cameraNode.camera = SCNCamera()
-                    // USDZ bounds are ~2 meters, position camera at normal distance
-                    cameraNode.position = SCNVector3(x: 0, y: 1, z: 2.5)
-                    let lookAtConstraint = SCNLookAtConstraint(target: scene.rootNode)
-                    cameraNode.constraints = [lookAtConstraint]
-                    scene.rootNode.addChildNode(cameraNode)
-                    
-                    // Add directional lighting because exported files often lack light sources
-                    let lightNode = SCNNode()
-                    lightNode.light = SCNLight()
-                    lightNode.light?.type = .omni
-                    lightNode.position = SCNVector3(x: 0, y: 10, z: 10)
-                    scene.rootNode.addChildNode(lightNode)
-                    
-                    let ambientLightNode = SCNNode()
-                    ambientLightNode.light = SCNLight()
-                    ambientLightNode.light?.type = .ambient
-                    ambientLightNode.light?.intensity = 500 // Moderate ambient light
-                    scene.rootNode.addChildNode(ambientLightNode)
-                    
-                    // USDZ natively scales correctly most of the time
-                    let droneNode = scene.rootNode.childNodes.first(where: { $0.camera == nil && $0.light == nil }) ?? scene.rootNode
-                    droneNode.scale = SCNVector3(1.0, 1.0, 1.0) 
-                    
-                    // Force the scene background to clear so it inherits the SwiftUI color
-                    scene.background.contents = UIColor.clear
-                    
+                    setupSceneNodes(scene: scene)
                 } catch {
                     print("Failed to load USDZ scene: \(error)")
                     scene = self.createFallbackScene()
                 }
             } else {
-                print("Could not find drohne-compressed.usdz in bundle")
                 scene = self.createFallbackScene()
             }
             
@@ -129,16 +187,40 @@ struct DashboardView: View {
         }
     }
     
-    /// Updates the rotation of the existing scene based on telemetry data.
+    private func setupSceneNodes(scene: SCNScene) {
+        // Camera setup
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(x: 0, y: 0.5, z: 2.0)
+        let lookAtConstraint = SCNLookAtConstraint(target: scene.rootNode)
+        cameraNode.constraints = [lookAtConstraint]
+        scene.rootNode.addChildNode(cameraNode)
+        
+        // Lighting setup
+        let ambientLight = SCNNode()
+        ambientLight.light = SCNLight()
+        ambientLight.light?.type = .ambient
+        ambientLight.light?.intensity = 400
+        scene.rootNode.addChildNode(ambientLight)
+        
+        let directionalLight = SCNNode()
+        directionalLight.light = SCNLight()
+        directionalLight.light?.type = .directional
+        directionalLight.light?.intensity = 800
+        directionalLight.position = SCNVector3(x: 5, y: 10, z: 5)
+        directionalLight.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 4, 0)
+        scene.rootNode.addChildNode(directionalLight)
+        
+        scene.background.contents = UIColor.clear
+    }
+    
     private func updateSceneRotation(scene: SCNScene) {
         if let data = udpListener.telemetry {
-            // Assuming the ESP32 sends degrees as per the .ino file analysis, convert to radians
             let degToRad: Float = .pi / 180.0
             let roll = CGFloat(data.roll * degToRad)
             let pitch = CGFloat(data.pitch * degToRad)
             let yaw = CGFloat(data.yaw * degToRad)
             
-            // Look for the primary object node (usually the first child of the root node)
             let droneNode = scene.rootNode.childNodes.first(where: { $0.camera == nil && $0.light == nil }) ?? scene.rootNode
             
             SCNTransaction.begin()
@@ -150,47 +232,93 @@ struct DashboardView: View {
     
     private func createFallbackScene() -> SCNScene {
         let fallbackScene = SCNScene()
-        
-        let box = SCNBox(width: 1, height: 0.2, length: 1, chamferRadius: 0)
-        box.firstMaterial?.diffuse.contents = UIColor.red
-        box.firstMaterial?.isDoubleSided = true
+        let box = SCNBox(width: 1, height: 0.1, length: 1, chamferRadius: 0.05)
+        box.firstMaterial?.diffuse.contents = UIColor.systemBlue
         let node = SCNNode(geometry: box)
-        node.position = SCNVector3(0, 0, 0)
         fallbackScene.rootNode.addChildNode(node)
-        
-        // Add a default camera to the scene to guarantee visibility
-        let cameraNode = SCNNode()
-        cameraNode.camera = SCNCamera()
-        cameraNode.position = SCNVector3(x: 0, y: 1, z: 3)
-        // point camera at the box
-        let lookAtConstraint = SCNLookAtConstraint(target: node)
-        cameraNode.constraints = [lookAtConstraint]
-        fallbackScene.rootNode.addChildNode(cameraNode)
-        
-        // Add a light so the box is visible even if options fail
-        let lightNode = SCNNode()
-        lightNode.light = SCNLight()
-        lightNode.light?.type = .omni
-        lightNode.position = SCNVector3(0, 10, 10)
-        fallbackScene.rootNode.addChildNode(lightNode)
-        
-        // Add an ambient light
-        let ambientLightNode = SCNNode()
-        ambientLightNode.light = SCNLight()
-        ambientLightNode.light?.type = .ambient
-        ambientLightNode.light?.color = UIColor.darkGray
-        fallbackScene.rootNode.addChildNode(ambientLightNode)
-        
-        // Ensure background is visible
-        fallbackScene.background.contents = UIColor.lightGray
-        
-        print("Fallback scene created.")
+        setupSceneNodes(scene: fallbackScene)
         return fallbackScene
+    }
+}
+
+// MARK: - Components
+
+struct TelemetryCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    var color: Color = .blue
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(color)
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(value)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+                
+                Text(title)
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct MotorBar: View {
+    let label: String
+    let value: Int
+    
+    private let minPWM = 1000
+    private let maxPWM = 2000
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.1))
+                    
+                    let percentage = CGFloat(max(0, min(1, Double(value - minPWM) / Double(maxPWM - minPWM))))
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(LinearGradient(colors: [.blue, .cyan], startPoint: .top, endPoint: .bottom))
+                        .frame(height: geo.size.height * percentage)
+                }
+            }
+            .frame(width: 12, height: 80)
+            
+            Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.gray)
+            
+            Text("\(value)")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
 struct DashboardView_Previews: PreviewProvider {
     static var previews: some View {
         DashboardView()
+            .preferredColorScheme(.dark)
     }
 }
