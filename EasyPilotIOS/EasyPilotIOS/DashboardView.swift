@@ -8,7 +8,7 @@ struct DashboardView: View {
     @State private var droneScene: SCNScene?
     
     // Theme Colors
-    private let backgroundColor = Color(red: 0.05, green: 0.05, blue: 0.07)
+    private let backgroundColor = Color(red:  0.05, green: 0.05, blue: 0.07)
     private let cardBackground = Color.white.opacity(0.05)
     private let accentColor = Color.blue
     private let warningColor = Color.orange
