@@ -2,13 +2,8 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 
-// WiFi Configuration via Build Flags (or fallback)
-#ifndef SECRETS_WIFI_SSID
-#define SECRETS_WIFI_SSID "Sim"
-#endif
-#ifndef SECRETS_WIFI_PASS
-#define SECRETS_WIFI_PASS "123456789"
-#endif
+// Include the auto-generated secrets (created by load_secrets.py)
+#include "secrets_auto.h"
 
 const char* ssid = SECRETS_WIFI_SSID;
 const char* password = SECRETS_WIFI_PASS;
@@ -16,9 +11,7 @@ const char* password = SECRETS_WIFI_PASS;
 // ==========================================
 // NGROK KONFIGURATION
 // ==========================================
-// HIER trägst du die Ngrok-Adresse ein, die du bekommst (OHNE https://)
-// z.B. "1234-56-78-90.ngrok-free.app"
-const char* ngrokHost = "7d8f-2001-871-22e-db71-4993-da01-cfcb-644e.ngrok-free.app"; 
+const char* ngrokHost = SECRETS_NGROK_HOST; 
 const int ngrokPort = 443; // 443 für HTTPS/WSS (sichere Verbindung)
 
 WebSocketsClient webSocket;
@@ -54,11 +47,20 @@ void setup() {
   Serial.println("\n--- ESP32 Booting Up (WebSocket Mode) ---");
 
   Serial.printf("Connecting to WiFi: %s\n", ssid);
+  
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
+  int counter = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    counter++;
+    
+    if (counter > 60) {
+      Serial.println("\nConnection timeout! Rebooting...");
+      ESP.restart();
+    }
   }
   Serial.println("\nWiFi connected!");
   Serial.print("IP address: ");
@@ -66,7 +68,12 @@ void setup() {
 
   // WebSocket starten
   // wss:// (secure) Verbindung zu Ngrok auf Port 443
-  webSocket.beginSSL(ngrokHost, ngrokPort, "/");
+  webSocket.setExtraHeaders("ngrok-skip-browser-warning: true\r\n");
+  
+  // WICHTIG: Das "" (leere String) am Ende deaktiviert die Zertifikatsprüfung,
+  // wodurch der ESP32 nicht mehr den ngrok-EOF Fehler wirft.
+  webSocket.beginSSL(ngrokHost, ngrokPort, "/", "", "");
+  
   webSocket.onEvent(webSocketEvent);
 
   // Automatischer Reconnect alle 5 Sekunden, falls die Verbindung abbricht
