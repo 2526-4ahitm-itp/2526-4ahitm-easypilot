@@ -17,7 +17,11 @@ async def handle_esp_connection(websocket):
             print(f"Received from ESP32: {message}")
             
             # Forward the exact same JSON string via UDP Broadcast
-            sock.sendto(message.encode('utf-8'), (UDP_IP, UDP_PORT))
+            encoded_msg = message.encode('utf-8')
+            sock.sendto(encoded_msg, (UDP_IP, UDP_PORT))
+            
+            # Also send to localhost just in case you are testing in the iOS Simulator on this Mac
+            sock.sendto(encoded_msg, ("127.0.0.1", UDP_PORT))
             
     except websockets.exceptions.ConnectionClosed:
         print("[-] ESP32 Disconnected")

@@ -62,17 +62,8 @@ class UDPListener: ObservableObject {
         broadcastConnection = NWConnection(to: endpoint, using: parameters)
         broadcastConnection?.start(queue: .main)
         
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            
-            if self.isConnected {
-                self.pingTimer?.invalidate()
-                self.pingTimer = nil
-                self.broadcastConnection?.cancel()
-                self.broadcastConnection = nil
-                return
-            }
-            
             let message = "PING".data(using: .utf8)!
             self.broadcastConnection?.send(content: message, completion: .idempotent)
         }
@@ -83,6 +74,7 @@ class UDPListener: ObservableObject {
             guard let self = self else { return }
             
             if let data = data {
+                // print("Received data size: \(data.count)")
                 self.decodeData(data)
             }
             
@@ -112,7 +104,10 @@ class UDPListener: ObservableObject {
                 self.resetTimeout()
             }
         } catch {
-            // Silently ignore decoding errors for now to avoid spam
+            print("JSON Decoding Error: \(error)")
+            if let stringData = String(data: data, encoding: .utf8) {
+                print("Raw data received: \(stringData)")
+            }
         }
     }
     
