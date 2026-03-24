@@ -1,0 +1,11 @@
+# Sprint 1: Dashboard & Real-time Visualization
+
+**User Story:**
+As a drone pilot, I want to connect my iPhone to the drone via WLAN and see its real-time orientation as gyro numhers in the dashboard, so that I can monitor the drone's physical state remotely.
+
+**Acceptance Criteria:**
+
+*   **WLAN Connection:** The iOS app successfully establishes a connection (UDP or WebSocket) to the ESP32.
+*   **Data Reception:** The app receives live gyro data (Roll, Pitch, Yaw) sent from the Flight Controller via the ESP32.
+*   **Real-time Synchronization:** Numbers change in real-time, mirroring the physical movements of the drone (latency < 200ms).
+*   **Connection Status:** The dashboard displays a clear indicator showing whether the drone is connected or disconnected.
