@@ -7,17 +7,12 @@
 
 const char* ssid = SECRETS_WIFI_SSID;
 const char* password = SECRETS_WIFI_PASS;
-
-// ==========================================
-// NGROK KONFIGURATION
-// ==========================================
 const char* ngrokHost = SECRETS_NGROK_HOST; 
-const int ngrokPort = 443; // 443 für HTTPS/WSS (sichere Verbindung)
+const int ngrokPort = SECRETS_NGROK_PORT;
 
 WebSocketsClient webSocket;
 bool isConnected = false;
 
-// Event-Handler für WebSocket-Ereignisse
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
     case WStype_DISCONNECTED:
@@ -25,11 +20,10 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       isConnected = false;
       break;
     case WStype_CONNECTED:
-      Serial.printf("[WS] Connected to url: %s\n", payload);
+      Serial.printf("[WS] Connected to Server on port %d!\n", ngrokPort);
       isConnected = true;
       break;
     case WStype_TEXT:
-      Serial.printf("[WS] Message from Server: %s\n", payload);
       break;
     case WStype_BIN:
     case WStype_ERROR:      
@@ -44,7 +38,9 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n--- ESP32 Booting Up (WebSocket Mode) ---");
+  Serial.println("\n--- ESP32 Booting Up (TCP Tunnel Mode) ---");
+
+  WiFi.setSleep(false); // Stabilisiert die WLAN-Verbindung
 
   Serial.printf("Connecting to WiFi: %s\n", ssid);
   
@@ -56,7 +52,6 @@ void setup() {
     delay(500);
     Serial.print(".");
     counter++;
-    
     if (counter > 60) {
       Serial.println("\nConnection timeout! Rebooting...");
       ESP.restart();
@@ -66,23 +61,23 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  // WebSocket starten
-  // wss:// (secure) Verbindung zu Ngrok auf Port 443
-  webSocket.setExtraHeaders("ngrok-skip-browser-warning: true\r\n");
+  String hostStr = String(ngrokHost);
+  hostStr.replace("tcp://", ""); // Nur für den Fall, dass es in der secrets.ini steht
   
-  // WICHTIG: Das "" (leere String) am Ende deaktiviert die Zertifikatsprüfung,
-  // wodurch der ESP32 nicht mehr den ngrok-EOF Fehler wirft.
-  webSocket.beginSSL(ngrokHost, ngrokPort, "/", "", "");
+  Serial.print("Connecting via raw TCP to WebSocket at: ");
+  Serial.print(hostStr);
+  Serial.print(":");
+  Serial.println(ngrokPort);
+  
+  // WICHTIG: Komplett unverschlüsselt (begin statt beginSSL) auf den dynamischen TCP-Port
+  webSocket.begin(hostStr.c_str(), ngrokPort, "/");
   
   webSocket.onEvent(webSocketEvent);
-
-  // Automatischer Reconnect alle 5 Sekunden, falls die Verbindung abbricht
   webSocket.setReconnectInterval(5000);
   
-  Serial.println("WebSocket Client started, waiting for connection...");
+  Serial.println("WebSocket Client started...");
 }
 
-// Simulation Data
 float roll = 0.0;
 float pitch = 0.0;
 float yaw = 0.0;
@@ -92,19 +87,16 @@ int m1 = 1000;
 int m2 = 1000;
 int m3 = 1000;
 int m4 = 1000;
-float voltage = 16.8; // 4S fully charged
+float voltage = 16.8; 
 int batteryPercentage = 100;
 
 unsigned long lastSendTime = 0;
 
 void loop() {
-  // WebSocket am Leben erhalten
   webSocket.loop();
 
-  // Alle 100ms Daten senden, WENN verbunden
   if (isConnected && millis() - lastSendTime > 100) {
     
-    // Create JSON payload
     String jsonPayload = "{\"roll\": " + String(roll) +
                          ", \"pitch\": " + String(pitch) +
                          ", \"yaw\": " + String(yaw) + 
@@ -115,29 +107,22 @@ void loop() {
                          ", \"voltage\": " + String(voltage, 2) +
                          ", \"batteryPercentage\": " + String(batteryPercentage) + "}";
 
-    // Sende die Daten an den Ngrok-Server (der sie dann an den Python-Relay leitet)
     webSocket.sendTXT(jsonPayload);
-    // Serial.println("Sent: " + jsonPayload); // Optional: Kommentar entfernen für Debugging
-
     lastSendTime = millis();
 
-    // Simulate changing gyro data
     roll += increment;
     pitch += increment * 0.5;
     yaw += increment * 0.2;
     if (abs(roll) > 90.0) increment = -increment;
     
-    // Simulate fluctuating motors (1000 to 2000 PWM)
     m1 = random(1100, 1800);
     m2 = random(1100, 1800);
     m3 = random(1100, 1800);
     m4 = random(1100, 1800);
     
-    // Simulate battery drain slowly
     voltage -= 0.005;
     if (voltage < 13.0) voltage = 16.8; 
     
-    // Calculate percentage based on 13.0V (0%) and 16.8V (100%)
     batteryPercentage = (int)((voltage - 13.0) / (16.8 - 13.0) * 100);
     if (batteryPercentage < 0) batteryPercentage = 0;
     if (batteryPercentage > 100) batteryPercentage = 100;
