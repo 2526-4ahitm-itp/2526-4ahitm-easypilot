@@ -19,28 +19,14 @@ release.properties
 .certs/
 
 # ==========================
-# Node / Frontend
+# Node / Frontend / Dependencies
 # ==========================
-/frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/.vite/
-
-# ==========================
-# IDE / Editor
-# ==========================
-# IntelliJ
-.idea/
-*.iml
-*.iws
-# Eclipse
-.project
-.classpath
-.settings/
-# VS Code
-.vscode/
-# NetBeans
-nb-configuration.xml
+**/node_modules/
+**/package-lock.json
+**/dist/
+.env
+.env.*
+**/ .vite/
 
 # ==========================
 # Xcode / iOS / macOS
@@ -56,7 +42,6 @@ build/
 *.mode2v3
 *.perspectivev3
 xcuserdata/
-# Code Injection & Fast-lane (optional, but good to have)
 .DS_Store
 *.ipa
 *.app
@@ -75,13 +60,26 @@ xcuserdata/
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/tasks.json
-PlatformIO/Projects/EasyPilotIOS/secrets.ini
-PlatformIO/Projects/easypilot/secrets.ini
+**/secrets.ini
+
+# ==========================
+# IDE / Editor
+# ==========================
+.idea/
+*.iml
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+nb-configuration.xml
+*.swp
+*.swo
+*.orig
+*.rej
 
 # ==========================
 # AI / Environment
 # ==========================
-.env
-.env.*
 .gemini/tmp/
 .gemini/memory.json
