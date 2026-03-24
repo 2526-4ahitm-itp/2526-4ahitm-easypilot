@@ -5,10 +5,11 @@ import SceneKit
 /// Displays real-time telemetry data and a 3D model of the drone with a modern UI.
 struct DashboardView: View {
     @StateObject var udpListener = UDPListener()
+    @StateObject var motionManager = MotionManager()
     @State private var droneScene: SCNScene?
     
     // Theme Colors
-    private let backgroundColor = Color(red:  0.05, green: 0.05, blue: 0.07)
+    private let backgroundColor = Color(red: 0.05, green: 0.05, blue: 0.07)
     private let cardBackground = Color.white.opacity(0.05)
     private let accentColor = Color.blue
     private let warningColor = Color.orange
@@ -41,16 +42,28 @@ struct DashboardView: View {
                         }
                         .padding(.horizontal)
                         
+                        // iPhone Motion Indicator Card (NEW for Sprint 3)
+                        iphoneMotionCard
+                        
                         // Motor Status Card
                         motorStatusCard
                     }
                     .padding(.bottom, 20)
                 }
             }
+            
+            // Safe Test Overlay
+            if abs(motionManager.pitch) > 45 || abs(motionManager.roll) > 45 {
+                safeTestOverlay
+            }
         }
         .onAppear {
             udpListener.startListening()
+            motionManager.startUpdates()
             loadScene()
+        }
+        .onDisappear {
+            motionManager.stopUpdates()
         }
     }
     
@@ -102,7 +115,7 @@ struct DashboardView: View {
                     scene: scene,
                     options: [.autoenablesDefaultLighting, .allowsCameraControl]
                 )
-                .frame(height: 350)
+                .frame(height: 300)
                 .onChange(of: udpListener.telemetry?.roll) { _ in
                     updateSceneRotation(scene: scene)
                 }
@@ -115,7 +128,7 @@ struct DashboardView: View {
                         .foregroundColor(.gray)
                         .padding(.top)
                 }
-                .frame(height: 350)
+                .frame(height: 300)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -130,10 +143,66 @@ struct DashboardView: View {
         .padding(.horizontal)
     }
     
+    private var iphoneMotionCard: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading) {
+                Text("IPHONE MOTION")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.gray)
+                
+                HStack(spacing: 15) {
+                    VStack(alignment: .leading) {
+                        Text(String(format: "%.1f°", motionManager.pitch))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                        Text("PITCH")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text(String(format: "%.1f°", motionManager.roll))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                        Text("ROLL")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Visual indicator of iPhone tilt
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                    .frame(width: 40, height: 70)
+                
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(accentColor)
+                    .frame(width: 30, height: 50)
+                    .rotationEffect(.degrees(motionManager.roll))
+                    .offset(y: CGFloat(-motionManager.pitch / 2))
+            }
+            .padding(.trailing, 10)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal)
+    }
+    
     private var motorStatusCard: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("MOTOR OUTPUT")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(.gray)
             
             HStack(spacing: 20) {
@@ -153,6 +222,24 @@ struct DashboardView: View {
                 )
         )
         .padding(.horizontal)
+    }
+    
+    private var safeTestOverlay: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("SAFE TEST MODE ACTIVE")
+                    .font(.system(size: 14, weight: .black))
+            }
+            .padding()
+            .background(warningColor)
+            .foregroundColor(.black)
+            .cornerRadius(10)
+            .shadow(radius: 10)
+            .padding(.bottom, 50)
+        }
+        .transition(.move(edge: .bottom))
     }
     
     private var batteryColor: Color {
@@ -241,7 +328,7 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - Components
+// MARK: - Components (TelemetryCard and MotorBar remain unchanged from previous versions)
 
 struct TelemetryCard: View {
     let title: String
