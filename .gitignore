@@ -59,4 +59,10 @@ nb-configuration.xml
 *.dockerignore
 .dockerignore
 
+<<<<<<< HEAD
 /api/node_modules
+=======
+node_modules
+package-lock.json
+PlatformIO/Projects/EasyPilotIOS/secrets.ini
+>>>>>>> 5794655b0aaa0c58c398d1d59f296287c533bc69

@@ -1,0 +1,22 @@
+du bist gemini, ich will eine IOS app haben in der eine drohne kontrolliert wird via wlan. also von einem beliebigen iphone im selben netz wie der esp derverbunden ist mit dem flight controoller auf der drohne
+dieser flight controller kann verschiedene daten senden so wie einfache daten wie motoren ansteuerungs % oder gyro ausrichtung. jetzt kümmerre ich mich nicht um die drohne.
+mein Ziel ist es eine App zu entwickeln die das jetzige projekt auf ios spiegelt bzw. ausbaut. wichtig ist das das Projekt gut handlich für ein handy ist.
+es wird in swift programmiert und ich habe ein github projekt. jetzt für den ramen des projekts werde ich nur auf ep<nummer die itteriert wird>-ios-app-...
+schreibe mir alle meine spezifikationen die mein projekt beschreiben in das spezifikationen.txt im root folder. und frage mich alles was unklar ist über das
+jetzige projekt, egal wie klein die unklarheit ist du musst mich über alles ausfragen. am ende soll ich eine file haben die ich in jede ai oder jedem herzeigen kann,
+und diese person soll sich sofort auskennen und über den umfang des projektes wissen.
+Wichtig für spätere sprint vorschläge ist das ich alleine im team arbeite und ich 1 wöchige sprints absolviere.
+Die drohne die benutzt wird ist eine Nazgul DC5 ECO 6S WTFPV mit kamera
+beim esp kann man zwischen einem großen oder einem supermini esp32 auswählen aber wahrsheinlich wird es ein esp supermini
+die app soll :
+1. ein Dashboard haben indem die jetzige lage der drohne gezeigt wird mit 3d modell welches du im webinterface/frontend/public/models/drohne-compressed.glb findest.
+1.1 in diesem dashboard wird mit gyro die lage ausgegeben auch den state der jeweiligen sensoren ausgegeben
+1.2 ich kenne mich nicht so gut aus mit drohnen und dessen kameras deswegen weiß ich nicht genau ob man einen live feed der kamara möglich ist
+2 Simulator / controller
+2.1 mit diesem punkt ist gemeint, das man die drohne controllen kann mit handy oder mit handy eine drohne auf einem simulator controllen kann
+2.2 ich habe bedenken bezüglich der machbarkeit von der steuerung über ein handy von einer fpv drohne mittels handy aufheben oder tilten oder so also soll dieser part eher am ende gepushed werden vom projekt
+3 Configuration
+3.1 mit configuration soll die härte der drohne einstellbar sein z.B wann die drohne eingreift bei dem crash avoidance system oder wie viel power auf die motoren soll bei dem auto balancing der drohne
+eben alle einstellbaren sachhen sollen dort sein
+4 Logs
+4.1 in logs könnte man flight daten auswerten vorheriger flüge vielleicht mit kamera aufnahmen sowie die ganzen sensor daten zu den bestimmten zeiten das man dann auch vielleicht den flight wieder abspielen kann dannach
