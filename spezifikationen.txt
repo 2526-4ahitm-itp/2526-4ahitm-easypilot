@@ -1,0 +1,58 @@
+# Projekt-Spezifikationen: EasyPilot iOS App
+
+## 1. Projektübersicht
+**Ziel:** Entwicklung einer iOS-App zur Steuerung und Überwachung einer Drohne über WLAN. Die App dient als Schnittstelle zwischen dem Benutzer (iPhone) und der Drohne (ESP32 + Flight Controller).
+**Entwickler:** Einzelperson
+**Methodik:** 1-wöchige Sprints
+**Plattform:** iOS (Swift)
+**Repository:** GitHub vorhanden (Projektname: `ep<iteration>-ios-app-...`)
+
+## 2. Hardware-Kontext
+*   **Drohne:** Nazgul DC5 ECO 6S WTFPV
+*   **Flight Controller Firmware:** Betaflight
+*   **Onboard-Controller:** ESP32 (wahrscheinlich SuperMini Variante)
+*   **Verbindung:**
+    *   iPhone <-> ESP32: WLAN (UDP/TCP/WebSocket - noch zu definieren)
+    *   ESP32 <-> Flight Controller: UART (Serielle Schnittstelle)
+    *   **Protokoll:** MSP (MultiWii Serial Protocol) - Standard für Betaflight über UART.
+
+## 3. App-Funktionalitäten
+
+### 3.1 Dashboard (Hauptansicht)
+*   **Visualisierung:** Anzeige der aktuellen Lage der Drohne mittels eines 3D-Modells.
+    *   *Ressource:* `webinterface/frontend/public/models/drohne-compressed.glb` (Kopiert nach iOS-Projekt).
+    *   *Technische Implementierung:* iOS SceneKit unterstützt `.glb` nicht nativ. Daher wird das Swift Package **GLTFSceneKit** (https://github.com/magicIEN/GLTFSceneKit.git) verwendet, um das Modell im DashboardView zu laden.
+*   **Telemetrie:**
+    *   Echtzeit-Darstellung der Gyro-Daten (Ausrichtung: Pitch, Roll, Yaw).
+    *   Statusanzeige der Sensoren (verbunden/aktiv).
+    *   Motor-Status (Ansteuerung in %).
+*   **Video:** Kein Live-Feed geplant (Out of Scope).
+
+### 3.2 Simulator / Controller
+*   **Funktion:** Steuerung der physischen Drohne oder einer Drohne in einem Simulator via Smartphone.
+*   **Status:** Experimentell / Niedrige Priorität.
+*   **Herausforderung:** Steuerung einer FPV-Drohne via Touchscreen ist sehr schwierig.
+*   **Simulator-Integration:** Noch nicht definiert ("ka").
+
+### 3.3 Konfiguration
+*   **Ziel:** Anpassung des Flugverhaltens und der Systemeinstellungen über die App.
+*   **Einstellungen:**
+    *   "Härte" der Drohne (PID-Tuning / Rates - vereinfacht dargestellt).
+    *   **Crash Avoidance System:**
+        *   Hardware: Zusätzliche Sensoren (Lidar/Sonar/ToF) werden am ESP32 angeschlossen.
+        *   Software: Einstellung der Eingreif-Schwellenwerte (Distanz).
+    *   Auto-Balancing: Einstellung der Motorleistung/Stabilisierung (Angle/Horizon Mode Parameter).
+
+### 3.4 Logs & Analyse
+*   **Flug-Historie:** Liste vergangener Flüge.
+*   **Auswertung:**
+    *   Speicherung und Visualisierung von Sensordaten (Blackbox-ähnliche Daten).
+    *   "Replay"-Funktion: Visuelles Abspielen des Fluges basierend auf den Logs (3D-Modell Animation).
+
+## 4. Technische Details & Protokolle
+*   **Kommunikation ESP32 <-> FC:** UART ist der Industriestandard und sehr effizient für diese Anwendung. Der ESP32 sendet MSP-Anfragen (MultiWii Serial Protocol) an den FC, um Telemetrie zu lesen (Attitude, Motors, Battery) und RC-Kommandos (AUX-Kanäle, Sticks) zu senden.
+
+## 5. Offene Fragen (Backlog)
+1.  **Simulator:** Welcher Simulator soll unterstützt werden? (Velocidrone, Liftoff, etc. unterstützen oft USB-Controller. Eine Handy-Emulation müsste sich als Bluetooth-Gamepad ausgeben oder über ein Netzwerk-Skript laufen).
+2.  **WLAN-Protokoll:** Wie kommuniziert die App mit dem ESP32? (REST API ist zu langsam für Steuerung, WebSocket oder UDP empfohlen für Telemetrie/Steuerung).
+3.  **Stromversorgung:** Wie wird der ESP32 und die zusätzlichen Sensoren an der Drohne mit Strom versorgt? (Direkt vom FC 5V Pad oder eigenes BEC?)
