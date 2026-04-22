@@ -11,4 +11,8 @@ struct DroneTelemetry: Codable {
     let m4: Int?
     let voltage: Float?
     let batteryPercentage: Int?
+    /// Whether the drone is armed (motors can spin).
+    let armed: Bool?
+    /// Current flight mode: "IDLE", "BALANCE", or "MANUAL".
+    let mode: String?
 }

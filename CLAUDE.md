@@ -4,89 +4,94 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EasyPilot is a drone telemetry and control system consisting of multiple subsystems that communicate in a pipeline: **Betaflight Flight Controller → ESP32 → Python Relay → iOS App / Web Dashboard**.
+EasyPilot is a drone telemetry and control system for an Austrian school project (4AHITM). The active Sprint 3 work focuses on two subsystems:
 
-The communication stack:
-- **Flight Controller ↔ ESP32**: UART using MSP (MultiWii Serial Protocol)
-- **ESP32 → Python Relay**: WebSocket over WLAN
-- **Python Relay → Clients**: UDP broadcast (for iOS app) and WebSocket re-broadcast (for web)
+- **ESP32 firmware** (`PlatformIO/Projects/EasyPilotIOS/`) — WebSocket server + UDP beacon broadcaster
+- **iOS app** (`EasyPilotIOS/`) — SwiftUI app that discovers the ESP32, streams telemetry, and sends flight commands
 
-## Subsystems and Commands
+## Communication Architecture
 
-### Web Frontend (`webinterface/frontend/`)
+```
+ESP32 (WiFi)
+  ├── UDP broadcast "EASYPILOT:<IP>" every 5s on port 4242  →  iOS discovers IP
+  └── WebSocket server on port 81  ←→  iOS sends commands / receives telemetry JSON at 10Hz
+```
+
+There is also an older web frontend + Java backend + Python relay in `webinterface/` — these are **not** the active focus and may be outdated.
+
+## Deploy iOS App
+
 ```bash
-npm run dev      # Start Vite dev server
-npm run build    # Production build
-npm run lint     # ESLint
-npm run preview  # Preview production build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build \
+  -project EasyPilotIOS/EasyPilotIOS.xcodeproj \
+  -scheme EasyPilotIOS \
+  -destination 'id=00008110-001578C00252801E' \
+  -derivedDataPath build \
+  DEVELOPMENT_TEAM=47D26QX4MF && \
+ios-deploy --bundle build/Build/Products/Debug-iphoneos/EasyPilotIOS.app
 ```
 
-### Java Backend (`webinterface/backend/` / root `pom.xml`)
-```bash
-./mvnw quarkus:dev     # Start Quarkus in dev mode (hot reload)
-./mvnw clean package   # Build JAR
-./mvnw test            # Run tests
+Or use the wrapper: `./deploy.sh [DEVICE_UDID]`
+
+## ESP32 Firmware
+
+**Location:** `PlatformIO/Projects/EasyPilotIOS/`  
+**Board:** esp32-c3-supermini  
+**Build/flash:** `pio run` / `pio upload` (PlatformIO CLI or IDE)  
+**WiFi credentials:** `secrets.ini` (not committed) → `load_secrets.py` generates `secrets_auto.h`
+
+**Key libraries** (`platformio.ini`):
+- `links2004/WebSockets@^2.4.1` — WebSocket server
+- `bblanchon/ArduinoJson@^7.0.0` — JSON parsing
+
+**Flight modes** (`src/main.cpp`):
+- `MODE_IDLE` — motors at 1000 PWM, no active control
+- `MODE_BALANCE` — P-controller on roll/pitch; M1(FL)/M2(FR)/M3(RL)/M4(RR) adjusted around `baseThrottle` using `kPRoll`/`kPPitch`
+- `MODE_MANUAL` — motor/attitude values sent directly by iOS
+- `MODE_SOUND` — all 4 motors set to PWM from `TILT_SOUND` packets; 1s timeout stops motors
+
+**Commands received (JSON unless noted):**
+| Command | Notes |
+|---------|-------|
+| `{"cmd":"ARM"}` | Sets `isArmed = true` |
+| `{"cmd":"DISARM"}` | Stops motors, resets to IDLE |
+| `{"cmd":"STOP"}` | Stops motors, goes to IDLE |
+| `{"cmd":"START_BALANCE","baseThrottle":N,"kPRoll":N,"kPPitch":N}` | Starts balance mode |
+| `{"cmd":"START_MANUAL",...all telemetry fields...}` | Starts manual mode |
+| `{"cmd":"START_SOUND","maxPWM":N}` | Starts sound mode, N capped 1000–1500 |
+| `{"cmd":"TILT_SOUND","pwm":N}` | Sets all motors to N; resets 1s timeout |
+| `SAFE_TEST` (plain text) | Runs M1=1050 for 500ms |
+
+**Telemetry broadcast (JSON, 10Hz):**
+```json
+{"roll":0.0,"pitch":0.0,"yaw":0.0,"m1":1000,"m2":1000,"m3":1000,"m4":1000,
+ "voltage":16.8,"batteryPercentage":100,"armed":false,"mode":"IDLE"}
 ```
 
-### Python Relay Server (`webinterface/backend/src/main/python/`)
-```bash
-python relay_server.py      # WebSocket relay (ESP32 → UDP broadcast)
-python websocket_sender.py  # Test data sender
-```
+## iOS App Architecture
 
-### iOS App (`EasyPilotIOS/`)
-Open `EasyPilotIOS.xcodeproj` in Xcode and build/run via Xcode.
+**State ownership:** `ContentView` creates one `@StateObject var wsManager = WebSocketManager()` and passes it as `@ObservedObject` to both tabs. Never create multiple `WebSocketManager` instances.
 
-### API Tests (`api/`)
-```bash
-npm test    # httpyac: runs requests.http against dev environment
-```
+**Key files:**
 
-### Full System Startup
-```bash
-./start_system.sh   # Launches all backend services together
-```
+| File | Role |
+|------|------|
+| `ContentView.swift` | TabView root, owns `WebSocketManager`, calls `start()`/`stop()` |
+| `WebSocketManager.swift` | UDP beacon listener → WebSocket client; publishes `telemetry`, `isConnected`, `esp32IP` |
+| `DashboardView.swift` | Live telemetry display; SceneKit 3D drone model; iPhone motion card; safe-test trigger |
+| `ControlView.swift` | ARM/DISARM (hold-to-arm 1.5s), mode selector, per-mode config, profile save/load, Sound Mode |
+| `DesignSystem.swift` | `EasyPilotTheme`, `GlassCard`, `HorizonIndicator`, `PulsingDot`, `TelemetryCard`, `MotorBar`, `LabeledSlider` |
+| `MotionManager.swift` | CoreMotion at 10Hz; publishes `pitch` and `roll` in degrees |
+| `DroneTelemetry.swift` | `Codable` struct matching ESP32 telemetry JSON |
+| `ControlProfile.swift` | `Codable` profile with command builder methods |
+| `ProfileManager.swift` | Persists profiles to `UserDefaults` (`"easypilot.controlProfiles"`) |
 
-### ESP32 Firmware (`PlatformIO/Projects/EasyPilotIOS/`)
-Use PlatformIO IDE or CLI (`pio run`, `pio upload`) to build and flash.
-The active project is `PlatformIO/Projects/EasyPilotIOS/` (esp32-c3-supermini board).
-WiFi credentials are in `secrets.ini` (not committed); `load_secrets.py` generates `secrets_auto.h`.
+**Sound Mode flow:**
+1. iOS tilt angle = `sqrt(pitch² + roll²)`, clamped to 90°
+2. PWM = `1000 + Int((min(tiltAngle, 45°) / 45°) × (maxSoundPWM - 1000))`
+3. Timer fires at 10Hz → sends `TILT_SOUND`; if tilt > 60° → emergency stop
+4. ESP32 stops motors if no packet arrives for 1s
 
-## Architecture
+## OpenSpec
 
-```
-Betaflight FC (Nazgul DC5 ECO 6S)
-        │ UART / MSP
-        ▼
-    ESP32 (WLAN bridge)
-        │ WebSocket (WLAN)
-        ▼
-relay_server.py (Python)
-    ├── UDP broadcast → iOS App (Swift/UIKit)
-    └── WebSocket → Web Dashboard (React + Three.js)
-```
-
-**Key source locations:**
-- `EasyPilotIOS/EasyPilotIOS/` — Swift source: `ConnectionManager.swift` (UDP/WebSocket), `DashboardView.swift` (telemetry UI with 3D model), motion sensor integration
-- `webinterface/frontend/src/` — React pages (`HomePage.jsx`, `ModelPage.jsx`) and `components/Model.jsx` (Three.js 3D drone viewer using `public/models/drohne-compressed.glb`)
-- `webinterface/backend/src/main/python/relay_server.py` — bridges ESP32 WebSocket stream to UDP broadcast
-- `PlatformIO/src/` — ESP32 firmware reading MSP telemetry from flight controller
-- `openspec/` — OpenAPI specs for the REST backend
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|-----------|
-| iOS App | Swift, UIKit/SwiftUI, UDP sockets |
-| Web UI | React 19, Vite, Three.js, @react-three/fiber, @react-three/drei |
-| Backend API | Java 21, Quarkus 3.28 |
-| Relay | Python 3, `websockets` library |
-| Firmware | C++ / PlatformIO (ESP32) |
-| Protocol | MSP (MultiWii Serial Protocol) over UART |
-
-## Development Notes
-
-- The iOS app receives telemetry via UDP broadcast; the web dashboard connects via WebSocket relay.
-- The 3D drone model (`.glb` / `.usdz`) lives in `webinterface/frontend/public/models/` and is also bundled in the iOS app.
-- MSP protocol parsing happens in the ESP32 firmware (`PlatformIO/`) and must match Betaflight's MSP message format.
-- The `openspec/` directory tracks API contract changes — update it when REST endpoints change.
+Sprint documentation lives in `openspec/changes/sprint-03/`. Do not commit changes unless the user explicitly asks.
