@@ -34,22 +34,9 @@
 		3A9ED7192F508B240047B1C8 /* EasyPilotIOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyPilotIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0DAED9E72F6238D6000DF027 /* Exceptions for "EasyPilotIOS" folder in "EasyPilotIOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"drohne-compressed.glb",
-			);
-			target = 3A9ED7012F508B230047B1C8 /* EasyPilotIOS */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3A9ED7042F508B230047B1C8 /* EasyPilotIOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0DAED9E72F6238D6000DF027 /* Exceptions for "EasyPilotIOS" folder in "EasyPilotIOS" target */,
-			);
 			path = EasyPilotIOS;
 			sourceTree = "<group>";
 		};
@@ -419,6 +406,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47D26QX4MF;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -446,6 +434,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47D26QX4MF;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

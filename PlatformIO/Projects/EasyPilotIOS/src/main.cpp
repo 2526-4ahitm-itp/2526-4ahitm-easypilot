@@ -1,130 +1,135 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WebSocketsClient.h>
+#include <WiFiUDP.h>
 
-// Include the auto-generated secrets (created by load_secrets.py)
 #include "secrets_auto.h"
 
-const char* ssid = SECRETS_WIFI_SSID;
+const char* ssid     = SECRETS_WIFI_SSID;
 const char* password = SECRETS_WIFI_PASS;
-const char* ngrokHost = SECRETS_NGROK_HOST; 
-const int ngrokPort = SECRETS_NGROK_PORT;
 
-WebSocketsClient webSocket;
-bool isConnected = false;
+// UDP: broadcast telemetry on 4242, receive commands on 4243
+const int TELEMETRY_PORT = 4242;
+const int COMMAND_PORT   = 4243;
 
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-  switch(type) {
-    case WStype_DISCONNECTED:
-      Serial.println("[WS] Disconnected!");
-      isConnected = false;
-      break;
-    case WStype_CONNECTED:
-      Serial.printf("[WS] Connected to Server on port %d!\n", ngrokPort);
-      isConnected = true;
-      break;
-    case WStype_TEXT:
-      break;
-    case WStype_BIN:
-    case WStype_ERROR:      
-    case WStype_FRAGMENT_TEXT_START:
-    case WStype_FRAGMENT_BIN_START:
-    case WStype_FRAGMENT:
-    case WStype_FRAGMENT_FIN:
-      break;
+WiFiUDP broadcastUDP;  // outbound – sends telemetry to all local clients
+WiFiUDP commandUDP;    // inbound  – receives commands from the iOS app
+
+// ----- Simulated telemetry state -----
+float roll      = 0.0;
+float pitch     = 0.0;
+float yaw       = 0.0;
+float increment = 0.5;
+
+int   m1 = 1000, m2 = 1000, m3 = 1000, m4 = 1000;
+float voltage           = 16.8;
+int   batteryPercentage = 100;
+
+unsigned long lastSendTime    = 0;
+unsigned long safeTestEndTime = 0;  // non-zero while safe-test is active
+
+// ----- Safe Test -----
+void handleSafeTest() {
+  safeTestEndTime = millis() + 500;  // hold M1=1050 for 500 ms
+  m1 = 1050;
+  Serial.println("[CMD] Safe Test: M1=1050 PWM for 500 ms");
+}
+
+// ----- Command receiver -----
+void checkCommands() {
+  int packetSize = commandUDP.parsePacket();
+  if (packetSize <= 0) return;
+
+  char buf[64];
+  int len = commandUDP.read(buf, sizeof(buf) - 1);
+  buf[len] = '\0';
+
+  String cmd = String(buf);
+  cmd.trim();
+
+  if (cmd == "SAFE_TEST") {
+    handleSafeTest();
+  } else {
+    Serial.printf("[CMD] Unknown command: %s\n", cmd.c_str());
   }
 }
 
+// ----- Setup -----
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n--- ESP32 Booting Up (TCP Tunnel Mode) ---");
+  Serial.println("\n--- ESP32 Booting Up ---");
 
-  WiFi.setSleep(false); // Stabilisiert die WLAN-Verbindung
-
-  Serial.printf("Connecting to WiFi: %s\n", ssid);
-  
+  WiFi.setSleep(false);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  Serial.printf("Connecting to WiFi: %s\n", ssid);
 
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    counter++;
-    if (counter > 60) {
-      Serial.println("\nConnection timeout! Rebooting...");
+    if (++counter > 60) {
+      Serial.println("\nWiFi timeout – rebooting...");
       ESP.restart();
     }
   }
   Serial.println("\nWiFi connected!");
-  Serial.print("IP address: ");
+  Serial.print("Local IP:     ");
   Serial.println(WiFi.localIP());
+  Serial.print("Broadcast IP: ");
+  Serial.println(WiFi.broadcastIP());
 
-  String hostStr = String(ngrokHost);
-  hostStr.replace("tcp://", ""); // Nur für den Fall, dass es in der secrets.ini steht
-  
-  Serial.print("Connecting via raw TCP to WebSocket at: ");
-  Serial.print(hostStr);
-  Serial.print(":");
-  Serial.println(ngrokPort);
-  
-  // WICHTIG: Komplett unverschlüsselt (begin statt beginSSL) auf den dynamischen TCP-Port
-  webSocket.begin(hostStr.c_str(), ngrokPort, "/");
-  
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000);
-  
-  Serial.println("WebSocket Client started...");
+  broadcastUDP.begin(TELEMETRY_PORT);
+  commandUDP.begin(COMMAND_PORT);
+  Serial.printf("UDP telemetry broadcast: port %d\n", TELEMETRY_PORT);
+  Serial.printf("UDP command listener:    port %d\n", COMMAND_PORT);
 }
 
-float roll = 0.0;
-float pitch = 0.0;
-float yaw = 0.0;
-float increment = 0.5;
-
-int m1 = 1000;
-int m2 = 1000;
-int m3 = 1000;
-int m4 = 1000;
-float voltage = 16.8; 
-int batteryPercentage = 100;
-
-unsigned long lastSendTime = 0;
-
+// ----- Loop -----
 void loop() {
-  webSocket.loop();
+  checkCommands();
 
-  if (isConnected && millis() - lastSendTime > 100) {
-    
-    String jsonPayload = "{\"roll\": " + String(roll) +
-                         ", \"pitch\": " + String(pitch) +
-                         ", \"yaw\": " + String(yaw) + 
-                         ", \"m1\": " + String(m1) +
-                         ", \"m2\": " + String(m2) +
-                         ", \"m3\": " + String(m3) +
-                         ", \"m4\": " + String(m4) +
-                         ", \"voltage\": " + String(voltage, 2) +
-                         ", \"batteryPercentage\": " + String(batteryPercentage) + "}";
+  // End safe-test pulse when timer expires
+  if (safeTestEndTime > 0 && millis() > safeTestEndTime) {
+    m1 = 1000;
+    safeTestEndTime = 0;
+    Serial.println("[CMD] Safe Test ended: M1 reset to 1000");
+  }
 
-    webSocket.sendTXT(jsonPayload);
+  if (millis() - lastSendTime > 100) {
+    String localIP = WiFi.localIP().toString();
+
+    String json = "{\"roll\": "               + String(roll, 2)
+                + ", \"pitch\": "             + String(pitch, 2)
+                + ", \"yaw\": "               + String(yaw, 2)
+                + ", \"m1\": "                + String(m1)
+                + ", \"m2\": "                + String(m2)
+                + ", \"m3\": "                + String(m3)
+                + ", \"m4\": "                + String(m4)
+                + ", \"voltage\": "           + String(voltage, 2)
+                + ", \"batteryPercentage\": " + String(batteryPercentage)
+                + ", \"esp32_ip\": \""        + localIP + "\"}";
+
+    broadcastUDP.beginPacket(WiFi.broadcastIP(), TELEMETRY_PORT);
+    broadcastUDP.print(json);
+    broadcastUDP.endPacket();
+
     lastSendTime = millis();
 
-    roll += increment;
+    // Advance simulated values
+    roll  += increment;
     pitch += increment * 0.5;
-    yaw += increment * 0.2;
+    yaw   += increment * 0.2;
     if (abs(roll) > 90.0) increment = -increment;
-    
-    m1 = random(1100, 1800);
+
+    if (safeTestEndTime == 0) m1 = random(1100, 1800);
     m2 = random(1100, 1800);
     m3 = random(1100, 1800);
     m4 = random(1100, 1800);
-    
+
     voltage -= 0.005;
-    if (voltage < 13.0) voltage = 16.8; 
-    
+    if (voltage < 13.0) voltage = 16.8;
     batteryPercentage = (int)((voltage - 13.0) / (16.8 - 13.0) * 100);
-    if (batteryPercentage < 0) batteryPercentage = 0;
-    if (batteryPercentage > 100) batteryPercentage = 100;
+    batteryPercentage = constrain(batteryPercentage, 0, 100);
   }
 }

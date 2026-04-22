@@ -1,5 +1,3 @@
-// Auto-generated
-#define SECRETS_WIFI_SSID "Sim"
-#define SECRETS_WIFI_PASS "123456789"
-#define SECRETS_NGROK_HOST "2.tcp.eu.ngrok.io"
-#define SECRETS_NGROK_PORT 14205
+// Auto-generated — do not edit
+#define SECRETS_WIFI_SSID "ORBI38"
+#define SECRETS_WIFI_PASS "wbdax2hNTv3KCbtsJFV7"
