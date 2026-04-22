@@ -27,6 +27,9 @@ release.properties
 .env
 .env.*
 **/ .vite/
+/api/node_modules
+node_modules
+package-lock.json
 
 # ==========================
 # Xcode / iOS / macOS
@@ -61,6 +64,13 @@ xcuserdata/
 .vscode/launch.json
 .vscode/tasks.json
 **/secrets.ini
+PlatformIO/Projects/EasyPilotIOS/secrets.ini
+
+# ==========================
+# Docker
+# ==========================
+*.dockerignore
+.dockerignore
 
 # ==========================
 # IDE / Editor
