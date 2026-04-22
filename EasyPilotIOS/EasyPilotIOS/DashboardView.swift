@@ -6,7 +6,9 @@ import SceneKit
 struct DashboardView: View {
     @StateObject var udpListener = UDPListener()
     @StateObject var motionManager = MotionManager()
+    @StateObject var connectionManager = ConnectionManager()
     @State private var droneScene: SCNScene?
+    private let commandSender = CommandSender()
     
     // Theme Colors
     private let backgroundColor = Color(red: 0.05, green: 0.05, blue: 0.07)
@@ -53,7 +55,7 @@ struct DashboardView: View {
             }
             
             // Safe Test Overlay
-            if abs(motionManager.pitch) > 45 || abs(motionManager.roll) > 45 {
+            if isSafeTestActive {
                 safeTestOverlay
             }
         }
@@ -64,6 +66,16 @@ struct DashboardView: View {
         }
         .onDisappear {
             motionManager.stopUpdates()
+        }
+        // Propagate discovered ESP32 IP to ConnectionManager
+        .onChange(of: udpListener.esp32IP) { ip in
+            if let ip = ip { connectionManager.updateESP32IP(ip) }
+        }
+        // Send actual UDP command when safe-test threshold is crossed
+        .onChange(of: isSafeTestActive) { active in
+            if active, connectionManager.isLocal, let ip = connectionManager.esp32IP {
+                commandSender.sendSafeTest(to: ip)
+            }
         }
     }
     
@@ -242,6 +254,10 @@ struct DashboardView: View {
         .transition(.move(edge: .bottom))
     }
     
+    private var isSafeTestActive: Bool {
+        abs(motionManager.pitch) > 45 || abs(motionManager.roll) > 45
+    }
+
     private var batteryColor: Color {
         guard let voltage = udpListener.telemetry?.voltage else { return .gray }
         if voltage < 14.0 { return dangerColor }

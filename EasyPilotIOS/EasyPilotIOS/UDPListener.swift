@@ -11,9 +11,12 @@ class UDPListener: ObservableObject {
     
     /// The latest telemetry data received from the drone.
     @Published var telemetry: DroneTelemetry?
-    
+
     /// Whether the app is currently receiving data.
     @Published var isConnected: Bool = false
+
+    /// The local IP of the ESP32, extracted from the `esp32_ip` field in telemetry JSON.
+    @Published var esp32IP: String?
     
     /// Starts listening for UDP packets on port 4242.
     func startListening() {
@@ -101,6 +104,9 @@ class UDPListener: ObservableObject {
             DispatchQueue.main.async {
                 self.telemetry = newData
                 self.isConnected = true
+                if let ip = newData.esp32IP, !ip.isEmpty {
+                    self.esp32IP = ip
+                }
                 self.resetTimeout()
             }
         } catch {
