@@ -1,128 +1,209 @@
 import Foundation
-import Combine
+import simd
 
-/// Phone-side rate-mode flight simulator.
+/// The simulated flight mode, matching what the real ESP32 firmware calls.
+enum SimFlightMode: String, CaseIterable {
+    case rate    = "RATE"
+    case balance = "BALANCE"
+}
+
+/// Rate-mode and balance-mode 3D flight simulator driven by SceneKit's render loop.
 ///
-/// Inputs (set by the joystick view):
-///   throttle  0…1    (left stick up)
-///   yaw      -1…1    (left stick right = positive yaw)
-///   pitch    -1…1    (right stick up = negative pitch / nose-down)
-///   roll     -1…1    (right stick right = positive roll)
-///
-/// Outputs (published):
-///   simRoll / simPitch / simYaw  — degrees
-///   m1…m4                        — PWM 1000–2000
-///   isArmed
+/// Threading model:
+///   tick(dt:)       — called on the SceneKit render thread; updates internal `_` vars only
+///   syncPublished() — called on the main thread; copies `_` vars → @Published for SwiftUI
 class DroneSimulator: ObservableObject {
 
-    // MARK: - Published state
+    // MARK: - Published (SwiftUI, main thread only)
 
     @Published var simRoll:  Double = 0
     @Published var simPitch: Double = 0
     @Published var simYaw:   Double = 0
+    @Published var altitude: Double = 0
+    @Published var speedH:   Double = 0
     @Published var m1: Int = 1000
     @Published var m2: Int = 1000
     @Published var m3: Int = 1000
     @Published var m4: Int = 1000
     @Published var isArmed: Bool = false
 
-    // MARK: - Config (settable from UI)
+    // MARK: - Internal physics state (render thread)
 
+    var _roll:  Double = 0
+    var _pitch: Double = 0
+    var _yaw:   Double = 0
+    var _pos:   SIMD3<Float> = SIMD3(0, groundLevel, 0)
+    var _vel:   SIMD3<Float> = .zero
+    var im1: Int = 1000
+    var im2: Int = 1000
+    var im3: Int = 1000
+    var im4: Int = 1000
+
+    // MARK: - Flight mode + config (written on main thread, read on render thread)
+
+    var flightMode: SimFlightMode = .rate
+
+    // Rate mode
     var maxRollRate:  Double = 360   // °/s at full deflection
     var maxPitchRate: Double = 360
     var maxYawRate:   Double = 200
-    var expo:         Double = 0.35  // passed through from view
+    var expo:         Double = 0.35
 
-    // MARK: - Inputs (written by joystick view)
+    // Balance mode — mirrors real ESP32 firmware params
+    var kPRoll:         Double = 10.0  // same units as ControlProfile.kPRoll
+    var kPPitch:        Double = 10.0  // same units as ControlProfile.kPPitch
+    var maxBalanceAngle: Double = 30.0 // max target tilt at full stick deflection (°)
 
-    var throttle: Double = 0   // 0…1, non-expo
-    var yaw:      Double = 0   // -1…1, already expo-applied
-    var pitch:    Double = 0   // -1…1, already expo-applied (positive = nose up)
-    var roll:     Double = 0   // -1…1, already expo-applied
+    // Converts firmware kP (PWM/°) → simulation (°/s per °):
+    // kP=10, error=10° → 35°/s correction → levels from 10° in ~0.3 s
+    private let kPScale: Double = 0.35
 
-    // MARK: - Private
+    // MARK: - Joystick inputs (written on main thread, read on render thread)
 
-    private var ticker: Timer?
-    private let dt: Double = 1.0 / 20.0   // 20 Hz
+    var throttle: Double = 0   // 0…1
+    var yaw:      Double = 0   // -1…1
+    var pitch:    Double = 0   // -1…1
+    var roll:     Double = 0   // -1…1
+
+    // MARK: - Constants
+
+    static let groundLevel: Float = 0.05
+
+    private let gravity:       Float = 9.81
+    private let maxThrust:     Float = 22.0
+    private let maxHorizAccel: Float = 8.0
+    private let drag:          Float = 0.987
 
     // MARK: - Control
 
     func arm() {
-        guard !isArmed else { return }
-        isArmed = true
-        startTicker()
+        DispatchQueue.main.async { self.isArmed = true }
     }
 
     func disarm() {
-        isArmed = false
-        stopTicker()
-        resetState()
+        DispatchQueue.main.async { self.isArmed = false }
+        resetPhysics()
     }
 
-    // MARK: - Ticker
+    // MARK: - Tick (render thread)
 
-    private func startTicker() {
-        ticker = Timer.scheduledTimer(withTimeInterval: dt, repeats: true) { [weak self] _ in
-            self?.tick()
-        }
-    }
-
-    private func stopTicker() {
-        ticker?.invalidate()
-        ticker = nil
-    }
-
-    private func tick() {
-        let flying = isArmed && throttle > 0.05
-
-        if flying {
-            // Integrate angular rates
-            simRoll  += roll  * maxRollRate  * dt
-            simPitch -= pitch * maxPitchRate * dt  // stick up = nose up = negative pitch
-            simYaw   += yaw   * maxYawRate   * dt
-
-            // Clamp to avoid gimbal-lock territory
-            simRoll  = max(-85, min(85, simRoll))
-            simPitch = max(-85, min(85, simPitch))
-            // yaw wraps
-            if simYaw >  180 { simYaw -= 360 }
-            if simYaw < -180 { simYaw += 360 }
-        } else {
-            // Gravity / level return at 20°/s
-            let returnRate = 20.0 * dt
-            simRoll  = nudgeToward(simRoll,  target: 0, step: returnRate)
-            simPitch = nudgeToward(simPitch, target: 0, step: returnRate)
-        }
-
-        updateMotors(flying: flying)
-    }
-
-    private func nudgeToward(_ v: Double, target: Double, step: Double) -> Double {
-        if abs(v - target) <= step { return target }
-        return v + (v < target ? step : -step)
-    }
-
-    private func updateMotors(flying: Bool) {
-        guard flying else {
-            m1 = 1000; m2 = 1000; m3 = 1000; m4 = 1000
+    func tick(dt: Float) {
+        guard isArmed else {
+            im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
             return
         }
-        let base = 1000 + Int(throttle * 600)   // 1000…1600
-        let rDelta = Int(simRoll  * 0.4)         // ±34 PWM at ±85°
-        let pDelta = Int(simPitch * 0.4)
 
-        // Motor layout: M1=FL, M2=FR, M3=RL, M4=RR
-        m1 = clampPWM(base - rDelta + pDelta)
-        m2 = clampPWM(base + rDelta + pDelta)
-        m3 = clampPWM(base - rDelta - pDelta)
-        m4 = clampPWM(base + rDelta - pDelta)
+        let thr    = Float(throttle)
+        let flying = thr > 0.02
+
+        // ── Attitude update ────────────────────────────────────────────────
+        switch flightMode {
+
+        case .rate:
+            if flying {
+                _roll  += roll  * maxRollRate  * Double(dt)
+                _pitch -= pitch * maxPitchRate * Double(dt)
+                _yaw   += yaw   * maxYawRate   * Double(dt)
+            } else {
+                let ret = 30.0 * Double(dt)
+                _roll  = nudge(_roll,  to: 0, step: ret)
+                _pitch = nudge(_pitch, to: 0, step: ret)
+            }
+
+        case .balance:
+            // Right stick sets a target angle; P-controller drives actual attitude toward it.
+            // Mimics the ESP32 BALANCE mode P-controller: correction = kP × error.
+            // kPScale converts firmware-unit kP to simulation angular velocity.
+            let targetRoll  =  roll  * maxBalanceAngle
+            let targetPitch = -pitch * maxBalanceAngle
+            let rollError   = targetRoll  - _roll
+            let pitchError  = targetPitch - _pitch
+            _roll  += rollError  * kPRoll  * kPScale * Double(dt)
+            _pitch += pitchError * kPPitch * kPScale * Double(dt)
+            // Yaw is always rate-based
+            _yaw += yaw * maxYawRate * Double(dt)
+        }
+
+        _roll  = max(-80, min(80, _roll))
+        _pitch = max(-80, min(80, _pitch))
+        if _yaw >  180 { _yaw -= 360 }
+        if _yaw < -180 { _yaw += 360 }
+
+        // ── World-space position physics (same for both modes) ─────────────
+        let theta = Float(-_yaw) * .pi / 180
+        let vertA = thr * maxThrust - gravity
+        let pFrac = Float(_pitch / 80.0)
+        let rFrac = Float(_roll  / 80.0)
+        let fwdA  = pFrac * maxHorizAccel
+        let latA  = rFrac * maxHorizAccel
+
+        _vel.x += (-sin(theta) * fwdA + cos(theta) * latA) * dt
+        _vel.y +=  vertA * dt
+        _vel.z += (-cos(theta) * fwdA - sin(theta) * latA) * dt
+        _vel   *= drag
+        _pos   += _vel * dt
+
+        if _pos.y < Self.groundLevel {
+            _pos.y = Self.groundLevel
+            if _vel.y < 0 { _vel.y = 0 }
+            _vel.x *= 0.7
+            _vel.z *= 0.7
+        }
+
+        // ── Motor mixing ───────────────────────────────────────────────────
+        let airborne = flying || _pos.y > Self.groundLevel
+        if airborne {
+            let base = 1000 + Int(throttle * 600)
+
+            switch flightMode {
+            case .rate:
+                let rD = Int(_roll  * 0.5)
+                let pD = Int(_pitch * 0.5)
+                im1 = clampPWM(base - rD + pD)
+                im2 = clampPWM(base + rD + pD)
+                im3 = clampPWM(base - rD - pD)
+                im4 = clampPWM(base + rD - pD)
+
+            case .balance:
+                // Visualise P-controller corrections like the real firmware does
+                let tgtRoll  =  roll  * maxBalanceAngle
+                let tgtPitch = -pitch * maxBalanceAngle
+                let rCorr = Int((tgtRoll  - _roll)  * kPRoll  * 0.8)
+                let pCorr = Int((tgtPitch - _pitch) * kPPitch * 0.8)
+                im1 = clampPWM(base - rCorr + pCorr)
+                im2 = clampPWM(base + rCorr + pCorr)
+                im3 = clampPWM(base - rCorr - pCorr)
+                im4 = clampPWM(base + rCorr - pCorr)
+            }
+        } else {
+            im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
+        }
+    }
+
+    // MARK: - Sync to @Published (main thread)
+
+    func syncPublished() {
+        simRoll  = _roll
+        simPitch = _pitch
+        simYaw   = _yaw
+        altitude = Double(max(0, _pos.y - Self.groundLevel))
+        speedH   = Double(sqrt(_vel.x * _vel.x + _vel.z * _vel.z))
+        m1 = im1; m2 = im2; m3 = im3; m4 = im4
+    }
+
+    // MARK: - Private
+
+    private func nudge(_ v: Double, to t: Double, step: Double) -> Double {
+        abs(v - t) <= step ? t : v + (v < t ? step : -step)
     }
 
     private func clampPWM(_ v: Int) -> Int { max(1000, min(2000, v)) }
 
-    private func resetState() {
-        simRoll = 0; simPitch = 0; simYaw = 0
-        m1 = 1000; m2 = 1000; m3 = 1000; m4 = 1000
+    private func resetPhysics() {
+        _roll = 0; _pitch = 0; _yaw = 0
+        _pos  = SIMD3(0, Self.groundLevel, 0)
+        _vel  = .zero
+        im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
         throttle = 0; yaw = 0; pitch = 0; roll = 0
     }
 }

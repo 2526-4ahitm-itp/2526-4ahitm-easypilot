@@ -41,6 +41,16 @@
   - Four motor bars
   - Expo slider
 
+### Phase 6: 3D World Polish (post-initial)
+- [x] 3D scene with gravity physics (throttle needed to hover)
+- [x] Propeller nodes (Prop_1…4) spin via SCNAction, speed tied to motor PWM
+- [x] FPV camera (110° FOV, 15° up-tilt) + chase camera with yaw-aware lerp
+- [x] Landmarks: orange home pad (H marking), 4 cardinal towers (N/S/E/W, 20m), 10m/20m distance rings, 14 trees
+- [x] Fix attitude readout mid-screen: moved into cohesive bottom panel
+- [x] Mini HorizonIndicator floating top-left below arm badge
+- [x] Bottom panel as single frosted-glass slab (telemetry row + sticks)
+- [x] `SimulatorScene.swift` (`UIViewRepresentable`) owns world setup + render delegate
+
 ### Phase 5: Wiring
 - [x] Rename "Control" → "Algorithms" in `ContentView.swift`
 - [x] Add Simulator tab to `ContentView.swift`
