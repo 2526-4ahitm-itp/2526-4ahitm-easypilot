@@ -2,320 +2,402 @@ import SwiftUI
 
 struct SimulatorView: View {
 
-    // MARK: - State
+    @StateObject private var sim            = DroneSimulator()
+    @StateObject private var profileManager = ProfileManager()
 
-    @StateObject private var sim = DroneSimulator()
+    @State private var leftX:  Double = 0
+    @State private var leftY:  Double = 0
+    @State private var rightX: Double = 0
+    @State private var rightY: Double = 0
 
-    // Joystick raw inputs (expo-applied, written into sim each frame)
-    @State private var leftX:  Double = 0   // yaw
-    @State private var leftY:  Double = 0   // throttle (non-centering, inverted: up = 1)
-    @State private var rightX: Double = 0   // roll
-    @State private var rightY: Double = 0   // pitch
-
+    // General settings
     @State private var expo: Double = 0.35
-    @State private var showExpoSlider = false
-    @State private var showLiveHint   = false
-    @State private var liveToggle     = false   // always snaps back
+    @State private var activeCamera: SimCamera = .chase
+    @State private var showExpoSlider   = false
+    @State private var showLiveHint     = false
+    @State private var showThrottleHint = false
+
+    // Flight mode + balance config
+    @State private var flightMode:       SimFlightMode = .rate
+    @State private var kPRoll:           Double = 10.0
+    @State private var kPPitch:          Double = 10.0
+    @State private var maxBalanceAngle:  Double = 30.0
+    @State private var showBalanceCfg    = false
+    @State private var showProfilePicker = false
 
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            EasyPilotTheme.background.ignoresSafeArea()
+        ZStack(alignment: .bottom) {
+            SimulatorScene(sim: sim, activeCamera: activeCamera)
+                .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+            // Top overlay
+            VStack {
+                topBar
+                    .padding(.top, 14)
+                    .padding(.horizontal, 14)
 
-                Divider().background(Color.white.opacity(0.08))
-
-                telemetryStrip
-                    .padding(.horizontal)
-                    .padding(.vertical, 14)
-
-                Divider().background(Color.white.opacity(0.08))
-
-                Spacer()
-
-                joystickArea
+                HStack {
+                    miniHorizon
+                        .padding(.leading, 14)
+                        .padding(.top, 6)
+                    Spacer()
+                }
 
                 Spacer()
-
-                armBar
-                    .padding(.horizontal)
-                    .padding(.bottom, 24)
             }
+
+            // Bottom panel — one cohesive frosted slab
+            bottomPanel
         }
         .onChange(of: leftX)  { _ in pushInputs() }
         .onChange(of: leftY)  { _ in pushInputs() }
         .onChange(of: rightX) { _ in pushInputs() }
         .onChange(of: rightY) { _ in pushInputs() }
         .onChange(of: expo)   { v in sim.expo = v }
-        .onChange(of: liveToggle) { on in
-            if on {
-                liveToggle = false
-                withAnimation { showLiveHint = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showLiveHint = false }
-                }
-            }
-        }
+        .onChange(of: flightMode)      { v in sim.flightMode = v }
+        .onChange(of: kPRoll)          { v in sim.kPRoll = v }
+        .onChange(of: kPPitch)         { v in sim.kPPitch = v }
+        .onChange(of: maxBalanceAngle) { v in sim.maxBalanceAngle = v }
         .onDisappear { sim.disarm() }
         .overlay(alignment: .top) {
             if showLiveHint {
-                Text("Live control available in Sprint 5")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(EasyPilotTheme.warning)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(EasyPilotTheme.cardFill)
-                    .cornerRadius(10)
-                    .padding(.top, 60)
+                toast("Live control — Sprint 5", .warning).padding(.top, 80)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if showThrottleHint {
+                toast("Lower throttle before arming", .danger).padding(.top, 80)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        // Profile picker sheet
+        .confirmationDialog("Load Balance Profile", isPresented: $showProfilePicker, titleVisibility: .visible) {
+            let balanceProfiles = profileManager.profiles.filter { $0.mode == "BALANCE" }
+            if balanceProfiles.isEmpty {
+                Button("No BALANCE profiles saved", role: .cancel) {}
+            } else {
+                ForEach(balanceProfiles) { profile in
+                    Button("\(profile.name)  (kP Roll \(String(format: "%.1f", profile.kPRoll)), Pitch \(String(format: "%.1f", profile.kPPitch)))") {
+                        kPRoll  = profile.kPRoll
+                        kPPitch = profile.kPPitch
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("kP values will be copied into the simulator")
+        }
     }
 
-    // MARK: - Header
+    // MARK: - Top bar
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Simulator")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Text(sim.isArmed ? "ARMED · RATE MODE" : "DISARMED")
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(sim.isArmed ? EasyPilotTheme.danger : Color.white.opacity(0.3))
+                    .frame(width: 8, height: 8)
+                Text(sim.isArmed ? "ARMED" : "DISARMED")
                     .font(.system(size: 11, weight: .black, design: .monospaced))
-                    .foregroundColor(sim.isArmed ? EasyPilotTheme.danger : Color.white.opacity(0.35))
+                    .foregroundColor(sim.isArmed ? EasyPilotTheme.danger : Color.white.opacity(0.45))
                     .tracking(2)
             }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(.ultraThinMaterial).cornerRadius(8)
+
             Spacer()
-            modePill
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    activeCamera = activeCamera == .chase ? .fpv : .chase
+                }
+            } label: {
+                Image(systemName: activeCamera == .fpv ? "video.fill" : "video")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial).cornerRadius(8)
+            }
+
+            // SIM / LIVE
+            HStack(spacing: 0) {
+                modeSegment("SIM", active: true)
+                modeSegment("LIVE", active: false, onTap: { flash($showLiveHint) })
+            }
+            .background(.ultraThinMaterial).cornerRadius(8)
         }
     }
 
-    private var modePill: some View {
-        HStack(spacing: 0) {
-            pillSegment(label: "SIM", active: true)
-            pillSegment(label: "LIVE", active: false, disabled: true)
-        }
-        .background(EasyPilotTheme.cardFill)
-        .cornerRadius(10)
-        .overlay(RoundedRectangle(cornerRadius: 10)
-                    .stroke(EasyPilotTheme.accent.opacity(0.2), lineWidth: 1))
-    }
-
-    private func pillSegment(label: String, active: Bool, disabled: Bool = false) -> some View {
+    private func modeSegment(_ label: String, active: Bool, onTap: (() -> Void)? = nil) -> some View {
         Text(label)
-            .font(.system(size: 11, weight: .black, design: .monospaced))
+            .font(.system(size: 10, weight: .black, design: .monospaced))
             .tracking(1.5)
-            .foregroundColor(active ? .black : (disabled ? Color.white.opacity(0.2) : .white))
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            .foregroundColor(active ? .black : .white.opacity(0.18))
+            .padding(.horizontal, 10).padding(.vertical, 6)
             .background(active ? EasyPilotTheme.accent : Color.clear)
-            .cornerRadius(8)
-            .onTapGesture { if disabled { liveToggle = true } }
+            .cornerRadius(7)
+            .onTapGesture { onTap?() }
     }
 
-    // MARK: - Telemetry strip
+    // MARK: - Mini horizon
 
-    private var telemetryStrip: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 16) {
-                HorizonIndicator(pitch: sim.simPitch, roll: sim.simRoll)
-                    .frame(width: 90, height: 90)
-                    .clipShape(Circle())
-
-                VStack(spacing: 6) {
-                    attitudeRow(label: "ROLL",  value: sim.simRoll)
-                    attitudeRow(label: "PITCH", value: sim.simPitch)
-                    attitudeRow(label: "YAW",   value: sim.simYaw)
-                }
-
-                Spacer()
-
-                throttleIndicator
-            }
-
-            motorBarsRow
-        }
-        .padding(14)
-        .glassCard()
-    }
-
-    private func attitudeRow(label: String, value: Double) -> some View {
-        HStack(spacing: 6) {
-            Text(label)
-                .font(.system(size: 9, weight: .black, design: .monospaced))
-                .foregroundColor(EasyPilotTheme.accent.opacity(0.7))
-                .frame(width: 36, alignment: .leading)
-                .tracking(1)
-            Text(String(format: "%+.1f°", value))
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white)
-        }
-    }
-
-    private var throttleIndicator: some View {
-        VStack(spacing: 4) {
-            Text("THR")
-                .font(.system(size: 9, weight: .black, design: .monospaced))
-                .foregroundColor(EasyPilotTheme.accent.opacity(0.7))
-                .tracking(1)
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(throttleColor)
-                        .frame(height: geo.size.height * CGFloat(max(0, -leftY)))
-                }
-            }
-            .frame(width: 16, height: 60)
-            Text(String(format: "%d%%", Int(max(0, -leftY) * 100)))
+    private var miniHorizon: some View {
+        VStack(spacing: 3) {
+            HorizonIndicator(pitch: sim.simPitch, roll: sim.simRoll)
+                .frame(width: 62, height: 62)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
+            Text(rollLabel)
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white.opacity(0.5))
         }
+        .padding(7)
+        .background(.ultraThinMaterial).cornerRadius(12)
     }
 
-    private var throttleColor: Color {
-        let t = max(0, -leftY)
-        if t < 0.4 { return EasyPilotTheme.success }
-        if t < 0.75 { return EasyPilotTheme.warning }
-        return EasyPilotTheme.danger
+    private var rollLabel: String {
+        let r = sim.simRoll
+        if abs(r) < 1 { return "LEVEL" }
+        return String(format: "%.0f°%@", abs(r), r < 0 ? "L" : "R")
     }
 
-    private var motorBarsRow: some View {
-        HStack(spacing: 10) {
-            ForEach(Array([("M1", sim.m1), ("M2", sim.m2), ("M3", sim.m3), ("M4", sim.m4)].enumerated()), id: \.offset) { _, pair in
-                motorBar(label: pair.0, pwm: pair.1)
-            }
-        }
-    }
+    // MARK: - Bottom panel
 
-    private func motorBar(label: String, pwm: Int) -> some View {
-        let fraction = CGFloat(pwm - 1000) / 1000.0
-        return VStack(spacing: 4) {
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(EasyPilotTheme.accent.opacity(0.8))
-                        .frame(height: geo.size.height * fraction)
-                }
-            }
-            .frame(height: 40)
-            Text(label)
-                .font(.system(size: 9, weight: .black, design: .monospaced))
-                .foregroundColor(Color.white.opacity(0.4))
-            Text("\(pwm)")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.6))
-        }
-    }
-
-    // MARK: - Joystick area
-
-    private var joystickArea: some View {
-        VStack(spacing: 16) {
-            // Expo row
-            HStack(spacing: 10) {
+    private var bottomPanel: some View {
+        VStack(spacing: 0) {
+            // ── Telemetry row ──────────────────────────────────────────────
+            HStack(spacing: 0) {
+                telCell("ROL", String(format: "%+.0f°", sim.simRoll))
+                divider
+                telCell("PCH", String(format: "%+.0f°", sim.simPitch))
+                divider
+                telCell("YAW", String(format: "%+.0f°", sim.simYaw))
+                Spacer()
+                divider
+                telCell("ALT", String(format: "%.1fm", sim.altitude))
+                divider
+                telCell("SPD", String(format: "%.1f", sim.speedH))
+                divider
+                // Expo / RATE settings button
                 Button {
-                    withAnimation { showExpoSlider.toggle() }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if flightMode == .rate {
+                            showExpoSlider.toggle()
+                            showBalanceCfg = false
+                        } else {
+                            showBalanceCfg.toggle()
+                            showExpoSlider = false
+                        }
+                    }
                 } label: {
-                    Label("EXPO \(Int(expo * 100))%",
-                          systemImage: "slider.horizontal.below.square.filled.and.square")
-                        .font(.system(size: 11, weight: .black, design: .monospaced))
-                        .foregroundColor(EasyPilotTheme.accent.opacity(0.8))
-                        .tracking(1)
-                }
-                if showExpoSlider {
-                    Slider(value: $expo, in: 0...0.9)
-                        .tint(EasyPilotTheme.accent)
-                        .frame(maxWidth: 160)
+                    VStack(spacing: 1) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(EasyPilotTheme.accent)
+                        Text(flightMode == .rate ? "EXPO" : "kP")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundColor(EasyPilotTheme.accent.opacity(0.7))
+                            .tracking(1)
+                    }
+                    .padding(.horizontal, 12)
                 }
             }
+            .frame(height: 44)
+            .background(Color.white.opacity(0.04))
 
-            // Sticks
-            HStack {
-                // Left stick: Throttle (Y, lock) + Yaw (X)
-                VStack(spacing: 6) {
-                    VirtualJoystick(label: "THROTTLE / YAW",
-                                    lockY: true,
-                                    expo: expo,
-                                    centerX: $leftX,
-                                    centerY: $leftY)
-                    stickReadout(x: leftX, y: leftY, xLabel: "YAW", yLabel: "THR")
+            separator
+
+            // ── Flight mode selector ───────────────────────────────────────
+            HStack(spacing: 6) {
+                Text("MODE")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.35))
+                    .tracking(1.5)
+
+                HStack(spacing: 2) {
+                    ForEach(SimFlightMode.allCases, id: \.self) { mode in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                flightMode = mode
+                                showExpoSlider = false
+                                showBalanceCfg = false
+                            }
+                        } label: {
+                            Text(mode.rawValue)
+                                .font(.system(size: 10, weight: .black, design: .monospaced))
+                                .tracking(1.2)
+                                .foregroundColor(flightMode == mode ? .black : .white.opacity(0.45))
+                                .padding(.horizontal, 11).padding(.vertical, 5)
+                                .background(flightMode == mode ? EasyPilotTheme.accent : Color.white.opacity(0.06))
+                                .cornerRadius(6)
+                        }
+                    }
+                }
+                .padding(2)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(8)
+
+                if flightMode == .balance {
+                    Spacer()
+                    Text("Self-levelling · stick sets target angle")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.3))
                 }
 
                 Spacer()
-
-                // Right stick: Pitch (Y) + Roll (X)
-                VStack(spacing: 6) {
-                    VirtualJoystick(label: "PITCH / ROLL",
-                                    lockY: false,
-                                    expo: expo,
-                                    centerX: $rightX,
-                                    centerY: $rightY)
-                    stickReadout(x: rightX, y: rightY, xLabel: "ROL", yLabel: "PCH")
-                }
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Color.white.opacity(0.03))
 
-            Text("MODE 2 · RATE")
-                .font(.system(size: 9, weight: .black, design: .monospaced))
-                .foregroundColor(Color.white.opacity(0.2))
-                .tracking(2)
+            // ── Expo slider (RATE mode) ────────────────────────────────────
+            if showExpoSlider {
+                HStack(spacing: 10) {
+                    Text("LINEAR")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.3))
+                    Slider(value: $expo, in: 0...0.9).tint(EasyPilotTheme.accent)
+                    Text("EXPO \(Int(expo * 100))%")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundColor(EasyPilotTheme.accent)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(Color.white.opacity(0.04))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            // ── Balance config (BALANCE mode) ─────────────────────────────
+            if showBalanceCfg {
+                VStack(spacing: 10) {
+                    LabeledSlider(label: "kP Roll",  unit: "", value: $kPRoll,
+                                  range: 1...20, step: 0.5, format: "%.1f")
+                    LabeledSlider(label: "kP Pitch", unit: "", value: $kPPitch,
+                                  range: 1...20, step: 0.5, format: "%.1f")
+                    LabeledSlider(label: "Max Angle", unit: "°", value: $maxBalanceAngle,
+                                  range: 10...60, step: 5)
+
+                    HStack {
+                        Button {
+                            withAnimation { showProfilePicker = true }
+                        } label: {
+                            Label("From saved profile", systemImage: "doc.badge.arrow.up")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(EasyPilotTheme.accent)
+                        }
+                        Spacer()
+                        Button {
+                            kPRoll = 10.0; kPPitch = 10.0; maxBalanceAngle = 30.0
+                        } label: {
+                            Text("Reset")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(Color.white.opacity(0.04))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            separator
+
+            // ── Joysticks + arm ────────────────────────────────────────────
+            HStack(alignment: .center, spacing: 0) {
+                VirtualJoystick(label: "THR / YAW",
+                                lockY: true, expo: expo,
+                                centerX: $leftX, centerY: $leftY)
+                    .padding(.leading, 16)
+
+                Spacer()
+                armButton
+                Spacer()
+
+                VirtualJoystick(label: "PCH / ROL",
+                                lockY: false, expo: expo,
+                                centerX: $rightX, centerY: $rightY)
+                    .padding(.trailing, 16)
+            }
+            .padding(.top, 10).padding(.bottom, 16)
         }
+        .background(.ultraThinMaterial)
     }
 
-    private func stickReadout(x: Double, y: Double, xLabel: String, yLabel: String) -> some View {
-        HStack(spacing: 12) {
-            Text("\(xLabel) \(String(format: "%+.2f", x))")
-            Text("\(yLabel) \(String(format: "%+.2f", y))")
-        }
-        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-        .foregroundColor(Color.white.opacity(0.25))
-    }
+    // MARK: - Arm button
 
-    // MARK: - Arm bar
-
-    private var armBar: some View {
-        HStack {
+    private var armButton: some View {
+        Button {
             if sim.isArmed {
-                Button {
-                    sim.disarm()
-                    leftY = 0  // reset throttle display
-                } label: {
-                    Label("Disarm Simulator", systemImage: "stop.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(EasyPilotTheme.danger)
-                        .cornerRadius(14)
-                }
+                sim.disarm(); leftY = 0; pushInputs()
+            } else if max(0, -leftY) > 0.05 {
+                flash($showThrottleHint)
             } else {
-                Button { sim.arm() } label: {
-                    Label("Arm Simulator", systemImage: "play.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(EasyPilotTheme.success)
-                        .cornerRadius(14)
+                sim.arm()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(sim.isArmed ? EasyPilotTheme.danger : EasyPilotTheme.success)
+                    .frame(width: 64, height: 64)
+                    .shadow(color: (sim.isArmed ? EasyPilotTheme.danger : EasyPilotTheme.success).opacity(0.5),
+                            radius: 12)
+                VStack(spacing: 3) {
+                    Image(systemName: sim.isArmed ? "stop.fill" : "play.fill")
+                        .font(.system(size: 16, weight: .bold))
+                    Text(sim.isArmed ? "DISARM" : "ARM")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .tracking(1.5)
                 }
+                .foregroundColor(.white)
             }
         }
     }
 
-    // MARK: - Input sync
+    // MARK: - Shared sub-views
+
+    private var separator: some View {
+        Rectangle().fill(Color.white.opacity(0.10)).frame(height: 0.5)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(Color.white.opacity(0.08))
+            .frame(width: 0.5).padding(.vertical, 8)
+    }
+
+    private func telCell(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 8, weight: .black, design: .monospaced))
+                .foregroundColor(.white.opacity(0.38)).tracking(1.2)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 11)
+    }
+
+    // MARK: - Helpers
 
     private func pushInputs() {
         sim.yaw      =  leftX
-        sim.throttle =  max(0, -leftY)   // stick up (negative Y) = throttle up
-        sim.pitch    = -rightY            // stick up = nose up (DroneSimulator negates internally)
+        sim.throttle =  max(0, -leftY)
+        sim.pitch    = -rightY
         sim.roll     =  rightX
+    }
+
+    private func flash(_ flag: Binding<Bool>) {
+        withAnimation { flag.wrappedValue = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation { flag.wrappedValue = false }
+        }
+    }
+
+    private enum ToastStyle { case warning, danger }
+
+    private func toast(_ text: String, _ style: ToastStyle) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(style == .warning ? EasyPilotTheme.warning : EasyPilotTheme.danger)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(.ultraThinMaterial).cornerRadius(10)
     }
 }
