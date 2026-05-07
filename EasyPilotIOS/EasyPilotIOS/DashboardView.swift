@@ -5,6 +5,8 @@ struct DashboardView: View {
     @ObservedObject var wsManager: WebSocketManager
     @StateObject private var motionManager = MotionManager()
     @State private var droneScene: SCNScene?
+    @State private var manualIP: String = ""
+    @State private var showIPEntry: Bool = false
 
     var body: some View {
         ZStack {
@@ -62,6 +64,34 @@ struct DashboardView: View {
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundColor(.gray)
                     }
+                    if !wsManager.isConnected {
+                        Button {
+                            showIPEntry.toggle()
+                        } label: {
+                            Text("Enter IP")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(EasyPilotTheme.accent)
+                        }
+                    }
+                }
+                if showIPEntry && !wsManager.isConnected {
+                    HStack(spacing: 6) {
+                        TextField("192.168.x.x", text: $manualIP)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundColor(.white)
+                            .keyboardType(.numbersAndPunctuation)
+                            .autocorrectionDisabled()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        Button("Connect") {
+                            wsManager.connect(toIP: manualIP)
+                            showIPEntry = false
+                        }
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundColor(EasyPilotTheme.accent)
+                        .disabled(manualIP.isEmpty)
+                    }
                 }
                 // Armed + mode badge
                 if wsManager.isConnected {
@@ -76,6 +106,13 @@ struct DashboardView: View {
                                 .font(.system(size: 9, weight: .black, design: .monospaced))
                                 .foregroundColor(EasyPilotTheme.accent)
                         }
+                        let fcLive = wsManager.telemetry?.fc ?? false
+                        Label(fcLive ? "FC LIVE" : "SIM",
+                              systemImage: fcLive
+                                  ? "antenna.radiowaves.left.and.right"
+                                  : "waveform.slash")
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundColor(fcLive ? EasyPilotTheme.success : .gray)
                     }
                 }
             }

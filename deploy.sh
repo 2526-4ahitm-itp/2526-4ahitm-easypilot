@@ -23,6 +23,7 @@ xcodebuild build \
   -scheme "$SCHEME" \
   -destination "id=$DEVICE_UDID" \
   -derivedDataPath "$BUILD_DIR" \
+  -allowProvisioningUpdates \
   DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM"
 
 echo "[deploy] Installing $APP_PATH..."

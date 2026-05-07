@@ -39,6 +39,18 @@ class WebSocketManager: ObservableObject {
         disconnect()
     }
 
+    // MARK: - Manual connection
+
+    /// Bypass beacon discovery and connect directly to a known IP.
+    func connect(toIP ip: String) {
+        guard !ip.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let clean = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async {
+            self.esp32IP = clean
+            self.connectWebSocket(to: clean)
+        }
+    }
+
     // MARK: - Commands
 
     /// Sends "SAFE_TEST" to the ESP32 (debounced: at most once every 2 s).
