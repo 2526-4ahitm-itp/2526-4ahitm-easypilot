@@ -1,3 +1,3 @@
 // Auto-generated — do not edit
-#define SECRETS_WIFI_SSID "Sim"
-#define SECRETS_WIFI_PASS "123456789"
+#define SECRETS_WIFI_SSID "htlleonding-iot"
+#define SECRETS_WIFI_PASS "VAd855|@_K"

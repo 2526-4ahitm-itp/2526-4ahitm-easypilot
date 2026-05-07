@@ -10,9 +10,14 @@ struct ContentView: View {
                     Label("Dashboard", systemImage: "gauge.with.dots.needle.bottom.50percent")
                 }
 
+            SimulatorView()
+                .tabItem {
+                    Label("Simulator", systemImage: "gamecontroller.fill")
+                }
+
             ControlView(wsManager: wsManager)
                 .tabItem {
-                    Label("Control", systemImage: "slider.horizontal.3")
+                    Label("Algorithms", systemImage: "slider.horizontal.3")
                 }
         }
         .tint(EasyPilotTheme.accent)

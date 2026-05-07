@@ -13,6 +13,8 @@ struct DroneTelemetry: Codable {
     let batteryPercentage: Int?
     /// Whether the drone is armed (motors can spin).
     let armed: Bool?
-    /// Current flight mode: "IDLE", "BALANCE", or "MANUAL".
+    /// Current flight mode: "IDLE", "BALANCE", "MANUAL", or "SOUND".
     let mode: String?
+    /// Whether the Betaflight FC is responding to MSP requests over UART.
+    let fc: Bool?
 }
