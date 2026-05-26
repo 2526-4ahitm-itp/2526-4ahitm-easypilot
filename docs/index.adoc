@@ -52,6 +52,13 @@ MAVLink/MAVSDK, Webinterface
 * Dokumentierte Simulator- und Realtests
 * Nachweis der Machbarkeit teilautonomer Systeme auf Consumer-Hardware
 
+== Aktueller Implementierungsstand
+
+NOTE: Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächliche Stand der Implementierung weicht in Teilen ab und wird in OpenSpec (`openspec/`) fortlaufend nachgeführt.
+
+* *iOS-Teilprojekt:* Statt eines Raspberry-Pi-Companion-Computers wird ein *ESP32* (PlatformIO) als Bridge zum Flight Controller verwendet, mit dem *MSP-Protokoll* über UART. Die Kommunikation zur iOS-App ist *hybrid*: lokal direkt per UDP auf Port 4242, remote über ein Python-Relay mit WebSocket-Tunnel (Ngrok). Die iOS-App enthält zusätzlich einen *Phone-Side Simulator* (Mode-2 Joystick, Rate-Mode-Physik) für Steuergefühl ohne reale Drohne. Quellen: `openspec/changes/sprint-03`, `openspec/changes/sprint-04`, `EasyPilotIOS/`, `PlatformIO/`.
+* *Webinterface-Teilprojekt:* Separates Sub-Projekt (`webinterface/`) mit Java-Backend und React-Frontend. Wird nicht über OpenSpec geführt.
+
 == Minutes of Meeting
 
 * link:minutes-of-meetings/2025-11-25_Sprintplanning.html[Sprintplanning – 25.11.2025]

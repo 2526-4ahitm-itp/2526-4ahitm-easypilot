@@ -1,5 +1,12 @@
 # Proposal: Sprint 2 - Real-time MSP Telemetry & Battery Monitoring
 
+> **Status: Superseded / Archived (never implemented).**
+> The real-time MSP telemetry goal was reshaped and delivered by `sprint-03`,
+> which replaced the Mac-Relay-only path with a hybrid local-UDP / remote-Ngrok
+> WebSocket model. Battery monitoring was not carried forward and remains
+> deferred — see the deferred requirement in
+> `openspec/specs/drone-telemetry/spec.md`.
+
 ## Goal
 As a drone pilot, I want to see real data from my Nazgul DC5 (Attitude & Battery) in my iOS App, so that I can monitor the drone's actual flight state without simulation.
 
