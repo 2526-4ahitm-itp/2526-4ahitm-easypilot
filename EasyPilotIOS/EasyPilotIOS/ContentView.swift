@@ -10,7 +10,7 @@ struct ContentView: View {
                     Label("Dashboard", systemImage: "gauge.with.dots.needle.bottom.50percent")
                 }
 
-            SimulatorView()
+            SimulatorView(wsManager: wsManager)
                 .tabItem {
                     Label("Simulator", systemImage: "gamecontroller.fill")
                 }

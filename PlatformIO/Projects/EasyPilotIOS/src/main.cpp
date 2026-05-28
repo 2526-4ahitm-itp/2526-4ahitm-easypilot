@@ -16,6 +16,7 @@ const int BEACON_PORT = 4242;
 const unsigned long TELEMETRY_INTERVAL_MS = 100;   // 10 Hz
 const unsigned long BEACON_INTERVAL_MS    = 5000;
 const unsigned long SOUND_TIMEOUT_MS      = 1000;  // stop motors if no TILT_SOUND for 1 s
+const unsigned long RC_TIMEOUT_MS        = 500;   // stop motors if no RC packet for 500 ms
 const unsigned long FC_TIMEOUT_MS         = 2000;  // mark FC disconnected after 2 s silence
 
 // ── UART to Betaflight FC ──────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ WebSocketsServer wsServer(WS_PORT);
 WiFiUDP beaconUDP;
 
 // ── Flight state ───────────────────────────────────────────────────────────────
-enum FlightMode { MODE_IDLE, MODE_BALANCE, MODE_MANUAL, MODE_SOUND };
+enum FlightMode { MODE_IDLE, MODE_BALANCE, MODE_MANUAL, MODE_SOUND, MODE_RC };
 
 bool       isArmed     = false;
 FlightMode flightMode  = MODE_IDLE;
@@ -59,6 +60,13 @@ int   batteryPercentage = 100;
 int   baseThrottle = 1200;
 float kPRoll       = 10.0f;
 float kPPitch      = 10.0f;
+
+// ── RC mode parameters ─────────────────────────────────────────────────────────
+float         rcTargetRoll     = 0.0f;  // target roll angle  (°, –45…45)
+float         rcTargetPitch    = 0.0f;  // target pitch angle (°, –45…45)
+float         rcYawAdj         = 0.0f;  // yaw PWM contribution (–100…100)
+int           rcThrottle       = 1000;  // base throttle PWM
+unsigned long lastRCPacketMs   = 0;
 
 // ── Sound mode parameters ──────────────────────────────────────────────────────
 int           targetSoundPWM    = 1000;
@@ -184,12 +192,26 @@ void runBalanceMode() {
   m4 = constrain(baseThrottle - (int)rAdj + (int)pAdj, 1000, 2000); // RR
 }
 
+// ── RC P-controller ───────────────────────────────────────────────────────────
+// Same motor layout as BALANCE; target angles come from the phone instead of 0.
+// X-layout: FL=CW, FR=CCW, RL=CCW, RR=CW — yaw mixes accordingly.
+void runRCMode() {
+  float rAdj = (rcTargetRoll  - roll)  * kPRoll;
+  float pAdj = (rcTargetPitch - pitch) * kPPitch;
+  int   yAdj = (int)rcYawAdj;
+  m1 = constrain(rcThrottle + (int)rAdj - (int)pAdj - yAdj, 1000, 2000); // FL  CW
+  m2 = constrain(rcThrottle - (int)rAdj - (int)pAdj + yAdj, 1000, 2000); // FR CCW
+  m3 = constrain(rcThrottle + (int)rAdj + (int)pAdj + yAdj, 1000, 2000); // RL CCW
+  m4 = constrain(rcThrottle - (int)rAdj + (int)pAdj - yAdj, 1000, 2000); // RR  CW
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const char* modeString() {
   switch (flightMode) {
     case MODE_BALANCE: return "BALANCE";
     case MODE_MANUAL:  return "MANUAL";
     case MODE_SOUND:   return "SOUND";
+    case MODE_RC:      return "RC";
     default:           return "IDLE";
   }
 }
@@ -245,6 +267,28 @@ void handleCommand(const char* payload, size_t length) {
     flightMode = MODE_IDLE;
     stopMotors();
     Serial.println("[CMD] STOP");
+    return;
+  }
+
+  if (strcmp(cmd, "START_RC") == 0) {
+    if (!isArmed) { Serial.println("[CMD] Not armed"); return; }
+    if (doc["kPRoll"].is<float>())  kPRoll  = doc["kPRoll"].as<float>();
+    if (doc["kPPitch"].is<float>()) kPPitch = doc["kPPitch"].as<float>();
+    rcTargetRoll = rcTargetPitch = rcYawAdj = 0.0f;
+    rcThrottle   = 1000;
+    lastRCPacketMs = millis();
+    flightMode = MODE_RC; simMode = false;
+    Serial.printf("[CMD] START_RC kPR=%.2f kPP=%.2f\n", kPRoll, kPPitch);
+    return;
+  }
+
+  if (strcmp(cmd, "RC") == 0) {
+    if (!isArmed || flightMode != MODE_RC) return;
+    if (doc["thr"].is<int>())   rcThrottle    = constrain(doc["thr"].as<int>(), 1000, 2000);
+    if (doc["pit"].is<float>()) rcTargetPitch = constrain(doc["pit"].as<float>(), -45.0f, 45.0f);
+    if (doc["rol"].is<float>()) rcTargetRoll  = constrain(doc["rol"].as<float>(), -45.0f, 45.0f);
+    if (doc["yaw"].is<float>()) rcYawAdj      = constrain(doc["yaw"].as<float>(), -100.0f, 100.0f);
+    lastRCPacketMs = millis();
     return;
   }
 
@@ -325,7 +369,9 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
       break;
     case WStype_DISCONNECTED:
       Serial.printf("[WS] #%u disconnected\n", num);
-      if (flightMode == MODE_SOUND) { stopMotors(); flightMode = MODE_IDLE; }
+      if (flightMode == MODE_SOUND || flightMode == MODE_RC) {
+        stopMotors(); flightMode = MODE_IDLE;
+      }
       break;
     case WStype_TEXT:
       handleCommand((const char*)payload, length);
@@ -441,7 +487,14 @@ void loop() {
     if (now - lastSoundPacketMs > SOUND_TIMEOUT_MS) {
       stopMotors();
       Serial.println("[SOUND] Timeout – motors stopped (no packet for 1 s)");
-      // Stay in SOUND mode; resumes when packets arrive again
+    }
+  }
+
+  // ── RC mode: stop if phone stops sending control packets ───────────────────
+  if (flightMode == MODE_RC && isArmed) {
+    if (now - lastRCPacketMs > RC_TIMEOUT_MS) {
+      stopMotors(); flightMode = MODE_IDLE;
+      Serial.println("[RC] Timeout – motors stopped");
     }
   }
 
@@ -451,11 +504,15 @@ void loop() {
     if (isArmed) {
       if (flightMode == MODE_BALANCE) {
         runBalanceMode();
-        applyMotors();   // push computed values to FC via MSP_SET_MOTOR at 10 Hz
+        applyMotors();
       }
-      // MODE_SOUND:  applyMotors() already called in TILT_SOUND handler
-      // MODE_MANUAL: applyMotors() already called in START_MANUAL handler
-      // MODE_IDLE:   motors already at 1000 from stopMotors(); no need to resend each tick
+      if (flightMode == MODE_RC) {
+        runRCMode();
+        applyMotors();
+      }
+      // MODE_SOUND:  applyMotors() called in TILT_SOUND handler
+      // MODE_MANUAL: applyMotors() called in START_MANUAL handler
+      // MODE_IDLE:   motors already at 1000 from stopMotors()
     }
     // Disarmed: motors stay at 1000 from the last stopMotors() / init; no periodic flood
 
