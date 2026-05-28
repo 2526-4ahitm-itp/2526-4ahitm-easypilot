@@ -25,7 +25,8 @@ class DroneSimulator: ObservableObject {
     @Published var m2: Int = 1000
     @Published var m3: Int = 1000
     @Published var m4: Int = 1000
-    @Published var isArmed: Bool = false
+    @Published var isArmed:   Bool = false
+    @Published var isCrashed: Bool = false
 
     // MARK: - Internal physics state (render thread)
 
@@ -34,10 +35,25 @@ class DroneSimulator: ObservableObject {
     var _yaw:   Double = 0
     var _pos:   SIMD3<Float> = SIMD3(0, groundLevel, 0)
     var _vel:   SIMD3<Float> = .zero
+
+    // Angular velocities (°/s) — used by rate mode inertia model
+    var _rollRate:  Double = 0
+    var _pitchRate: Double = 0
+    var _yawRate:   Double = 0
+
+    // Target motor PWM (from mixing)
     var im1: Int = 1000
     var im2: Int = 1000
     var im3: Int = 1000
     var im4: Int = 1000
+
+    // Filtered motor PWM (low-pass, drives prop animation and @Published m1-m4)
+    var mFil1: Double = 1000
+    var mFil2: Double = 1000
+    var mFil3: Double = 1000
+    var mFil4: Double = 1000
+
+    private var crashLatch: Bool = false
 
     // MARK: - Flight mode + config (written on main thread, read on render thread)
 
@@ -58,6 +74,11 @@ class DroneSimulator: ObservableObject {
     // kP=10, error=10° → 35°/s correction → levels from 10° in ~0.3 s
     private let kPScale: Double = 0.35
 
+    // Rate mode angular physics
+    private let rateResponse:  Double = 14.0  // how fast actual rate follows stick command
+    private let angularDrag:   Double = 0.40  // aerodynamic damping on rotation (fraction/s)
+    private let motorFilterTC: Double = 10.0  // motor low-pass: 1/TC = time constant ~100 ms
+
     // MARK: - Joystick inputs (written on main thread, read on render thread)
 
     var throttle: Double = 0   // 0…1
@@ -69,10 +90,9 @@ class DroneSimulator: ObservableObject {
 
     static let groundLevel: Float = 0.05
 
-    private let gravity:       Float = 9.81
-    private let maxThrust:     Float = 22.0
-    private let maxHorizAccel: Float = 8.0
-    private let drag:          Float = 0.987
+    private let gravity:   Float = 9.81
+    private let maxThrust: Float = 22.0
+    private let drag:      Float = 0.987   // per-frame factor tuned for 60 fps
 
     // MARK: - Control
 
@@ -81,7 +101,8 @@ class DroneSimulator: ObservableObject {
     }
 
     func disarm() {
-        DispatchQueue.main.async { self.isArmed = false }
+        crashLatch = false
+        DispatchQueue.main.async { self.isArmed = false; self.isCrashed = false }
         resetPhysics()
     }
 
@@ -90,6 +111,12 @@ class DroneSimulator: ObservableObject {
     func tick(dt: Float) {
         guard isArmed else {
             im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
+            // Filter still runs so propellers spin down smoothly after disarm / crash
+            let αD = min(1.0, motorFilterTC * Double(dt))
+            mFil1 += (1000.0 - mFil1) * αD
+            mFil2 += (1000.0 - mFil2) * αD
+            mFil3 += (1000.0 - mFil3) * αD
+            mFil4 += (1000.0 - mFil4) * αD
             return
         }
 
@@ -101,10 +128,26 @@ class DroneSimulator: ObservableObject {
 
         case .rate:
             if flying {
-                _roll  += roll  * maxRollRate  * Double(dt)
-                _pitch -= pitch * maxPitchRate * Double(dt)
-                _yaw   += yaw   * maxYawRate   * Double(dt)
+                // Aerodynamic drag attenuates angular velocity every frame
+                let drag = 1.0 - angularDrag * Double(dt)
+                _rollRate  *= drag
+                _pitchRate *= drag
+                _yawRate   *= drag
+                // Rate controller: actual rate tracks commanded rate with inertia
+                let cmdRoll  =  roll  * maxRollRate
+                let cmdPitch =  pitch * maxPitchRate   // sign handled by pFrac negate below
+                let cmdYaw   =  yaw   * maxYawRate
+                let dt2 = min(1.0, rateResponse * Double(dt))
+                _rollRate  += (cmdRoll  - _rollRate)  * dt2
+                _pitchRate += (cmdPitch - _pitchRate) * dt2
+                _yawRate   += (cmdYaw   - _yawRate)   * dt2
+                // Integrate angular velocity → attitude
+                _roll  += _rollRate  * Double(dt)
+                _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
+                _yaw   += _yawRate   * Double(dt)
             } else {
+                // Ground: snap attitude level, zero rates
+                _rollRate = 0; _pitchRate = 0; _yawRate = 0
                 let ret = 30.0 * Double(dt)
                 _roll  = nudge(_roll,  to: 0, step: ret)
                 _pitch = nudge(_pitch, to: 0, step: ret)
@@ -129,22 +172,41 @@ class DroneSimulator: ObservableObject {
         if _yaw >  180 { _yaw -= 360 }
         if _yaw < -180 { _yaw += 360 }
 
-        // ── World-space position physics (same for both modes) ─────────────
-        let theta = Float(-_yaw) * .pi / 180
-        let vertA = thr * maxThrust - gravity
-        let pFrac = Float(_pitch / 80.0)
-        let rFrac = Float(_roll  / 80.0)
-        let fwdA  = pFrac * maxHorizAccel
-        let latA  = rFrac * maxHorizAccel
+        // ── World-space position physics (thrust-vector based) ─────────────
+        let theta    = Float(-_yaw) * .pi / 180
+        let velYPre  = _vel.y   // capture before this frame's acceleration
 
-        _vel.x += (-sin(theta) * fwdA + cos(theta) * latA) * dt
+        // Decompose thrust by attitude so tilt reduces vertical lift
+        // and horizontal acceleration scales with throttle.
+        let pitchRad = Float(-_pitch) * .pi / 180   // + when nose-down
+        let rollRad  = Float(_roll)  * .pi / 180    // + when right-wing-down
+        let thrust   = thr * maxThrust
+
+        let vertThrust = thrust * cos(pitchRad) * cos(rollRad)
+        let fwdThrust  = thrust * sin(pitchRad)       // forward component
+        let latThrust  = thrust * sin(rollRad)        // rightward component
+
+        let vertA = vertThrust - gravity
+
+        _vel.x += (-sin(theta) * fwdThrust + cos(theta) * latThrust) * dt
         _vel.y +=  vertA * dt
-        _vel.z += (-cos(theta) * fwdA - sin(theta) * latA) * dt
-        _vel   *= drag
-        _pos   += _vel * dt
+        _vel.z += (-cos(theta) * fwdThrust - sin(theta) * latThrust) * dt
+
+        // Frame-rate independent drag (preserves 60 fps feel)
+        let dragFactor = pow(drag, dt * 60.0)
+        _vel *= dragFactor
+        _pos += _vel * dt
 
         if _pos.y < Self.groundLevel {
             _pos.y = Self.groundLevel
+            if !crashLatch {
+                if velYPre < -4.0 {
+                    triggerCrash(); return
+                }
+                if flightMode == .rate && (abs(_roll) > 72 || abs(_pitch) > 72) {
+                    triggerCrash(); return
+                }
+            }
             if _vel.y < 0 { _vel.y = 0 }
             _vel.x *= 0.7
             _vel.z *= 0.7
@@ -178,6 +240,13 @@ class DroneSimulator: ObservableObject {
         } else {
             im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
         }
+
+        // ── Motor output filtering (brushless spin-up/down lag) ────────────────
+        let α = min(1.0, motorFilterTC * Double(dt))
+        mFil1 += (Double(im1) - mFil1) * α
+        mFil2 += (Double(im2) - mFil2) * α
+        mFil3 += (Double(im3) - mFil3) * α
+        mFil4 += (Double(im4) - mFil4) * α
     }
 
     // MARK: - Sync to @Published (main thread)
@@ -188,7 +257,7 @@ class DroneSimulator: ObservableObject {
         simYaw   = _yaw
         altitude = Double(max(0, _pos.y - Self.groundLevel))
         speedH   = Double(sqrt(_vel.x * _vel.x + _vel.z * _vel.z))
-        m1 = im1; m2 = im2; m3 = im3; m4 = im4
+        m1 = Int(mFil1); m2 = Int(mFil2); m3 = Int(mFil3); m4 = Int(mFil4)
     }
 
     // MARK: - Private
@@ -199,11 +268,28 @@ class DroneSimulator: ObservableObject {
 
     private func clampPWM(_ v: Int) -> Int { max(1000, min(2000, v)) }
 
+    private func triggerCrash() {
+        crashLatch = true
+        im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
+        DispatchQueue.main.async {
+            self.isArmed   = false
+            self.isCrashed = true
+        }
+    }
+
+    func respawn() {
+        crashLatch = false
+        resetPhysics()
+        DispatchQueue.main.async { self.isCrashed = false }
+    }
+
     private func resetPhysics() {
         _roll = 0; _pitch = 0; _yaw = 0
+        _rollRate = 0; _pitchRate = 0; _yawRate = 0
         _pos  = SIMD3(0, Self.groundLevel, 0)
         _vel  = .zero
         im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
+        mFil1 = 1000; mFil2 = 1000; mFil3 = 1000; mFil4 = 1000
         throttle = 0; yaw = 0; pitch = 0; roll = 0
     }
 }
