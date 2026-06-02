@@ -320,7 +320,7 @@ struct DashboardView: View {
         let node = scene.rootNode.childNodes.first { $0.camera == nil && $0.light == nil } ?? scene.rootNode
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.1
-        node.eulerAngles = SCNVector3(data.pitch * r, data.yaw * r, data.roll * r)
+        node.eulerAngles = SCNVector3(data.pitch * r, data.yaw * r, -data.roll * r)
         SCNTransaction.commit()
     }
 

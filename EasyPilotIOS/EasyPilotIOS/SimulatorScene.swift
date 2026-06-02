@@ -42,7 +42,9 @@ struct SimulatorScene: UIViewRepresentable {
         let droneNode  = SCNNode()
         let chaseCam   = SCNNode()
         let fpvCam     = SCNNode()
-        var props: [SCNNode] = []   // Prop_1 … Prop_4, indexed 0-3
+        var props:      [SCNNode] = []   // Prop_1 … Prop_4, indexed 0-3
+        var shadowNode  = SCNNode()
+        var altLineNode = SCNNode()
 
         // Prop spin: M1 CW, M2 CCW, M3 CCW, M4 CW (Betaflight X layout)
         private let propDirs: [CGFloat] = [1, -1, -1, 1]
@@ -64,6 +66,8 @@ struct SimulatorScene: UIViewRepresentable {
             setupLighting()
             setupGround()
             setupLandmarks()
+            setupShadowAndLine()
+            setupGates()
             setupDrone()
             setupChaseCamera()
         }
@@ -198,6 +202,71 @@ struct SimulatorScene: UIViewRepresentable {
             scene.rootNode.addChildNode(foliageNode)
         }
 
+        // MARK: - Shadow + altitude line
+
+        private func setupShadowAndLine() {
+            let shadowGeo = SCNCylinder(radius: 0.6, height: 0.001)
+            let shadowMat = SCNMaterial()
+            shadowMat.diffuse.contents  = UIColor(white: 0, alpha: 0.45)
+            shadowMat.lightingModel     = .constant
+            shadowGeo.materials         = [shadowMat]
+            shadowNode = SCNNode(geometry: shadowGeo)
+            shadowNode.position = SCNVector3(0, 0.012, 0)
+            scene.rootNode.addChildNode(shadowNode)
+
+            let lineGeo = SCNCylinder(radius: 0.012, height: 1.0)
+            let lineMat = SCNMaterial()
+            lineMat.diffuse.contents = UIColor(white: 1, alpha: 0.30)
+            lineMat.lightingModel    = .constant
+            lineGeo.materials        = [lineMat]
+            altLineNode = SCNNode(geometry: lineGeo)
+            altLineNode.isHidden = true
+            scene.rootNode.addChildNode(altLineNode)
+        }
+
+        // MARK: - Racing gates
+
+        private func setupGates() {
+            // Four gates roughly on the 17 m radius, alternating colors + yaw
+            let configs: [(x: Float, z: Float, h: Float, ry: Float, orange: Bool)] = [
+                ( 17,  0,  2.0, 0,            true),
+                (-17,  0,  1.8, 0,            false),
+                (  0, 17,  2.2, .pi / 2,      false),
+                (  0,-17,  1.6, .pi / 2,      true),
+            ]
+            for c in configs { addGate(x: c.x, z: c.z, height: c.h, rotY: c.ry, orange: c.orange) }
+        }
+
+        private func addGate(x: Float, z: Float, height: Float, rotY: Float, orange: Bool) {
+            let color: UIColor = orange
+                ? UIColor(red: 1.0, green: 0.40, blue: 0.0, alpha: 1)
+                : UIColor(white: 0.92, alpha: 1)
+            let w: Float   = 2.4
+            let postR: CGFloat = 0.08
+
+            let gateNode = SCNNode()
+            gateNode.position    = SCNVector3(x, 0, z)
+            gateNode.eulerAngles = SCNVector3(0, rotY, 0)
+
+            func post(_ xOff: Float) -> SCNNode {
+                let g = SCNCylinder(radius: postR, height: CGFloat(height))
+                g.firstMaterial?.diffuse.contents = color
+                let n = SCNNode(geometry: g)
+                n.position = SCNVector3(xOff, height * 0.5, 0)
+                return n
+            }
+
+            let topBar = SCNBox(width: CGFloat(w + 0.16), height: 0.12, length: postR * 2, chamferRadius: 0)
+            topBar.firstMaterial?.diffuse.contents = color
+            let topNode = SCNNode(geometry: topBar)
+            topNode.position = SCNVector3(0, height, 0)
+
+            gateNode.addChildNode(post(-w / 2))
+            gateNode.addChildNode(post( w / 2))
+            gateNode.addChildNode(topNode)
+            scene.rootNode.addChildNode(gateNode)
+        }
+
         private func setupDrone() {
             // Load USDZ model
             if let url = Bundle.main.url(forResource: "drohne-compressed", withExtension: "usdz"),
@@ -275,7 +344,7 @@ struct SimulatorScene: UIViewRepresentable {
             let roll  = Float(sim._roll)
             let pitch = Float(sim._pitch)
             let yaw   = Float(sim._yaw)
-            let motors = [sim.im1, sim.im2, sim.im3, sim.im4]
+            let motors = [sim.mFil1, sim.mFil2, sim.mFil3, sim.mFil4]
 
             // --- Drone node transform ---
             droneNode.position    = SCNVector3(pos.x, pos.y, pos.z)
@@ -286,9 +355,24 @@ struct SimulatorScene: UIViewRepresentable {
                 -roll  * .pi / 180
             )
 
+            // --- Ground shadow + altitude line ---
+            let alt = max(0, pos.y - DroneSimulator.groundLevel)
+            shadowNode.position = SCNVector3(pos.x, 0.012, pos.z)
+            let shadowScale = CGFloat(max(0.15, 1.0 - alt * 0.06))
+            shadowNode.scale   = SCNVector3(shadowScale, 1, shadowScale)
+            shadowNode.opacity = CGFloat(max(0, 0.55 - alt * 0.035))
+
+            if alt > 0.12 {
+                altLineNode.isHidden = false
+                altLineNode.position = SCNVector3(pos.x, DroneSimulator.groundLevel + alt * 0.5, pos.z)
+                altLineNode.scale    = SCNVector3(1, alt, 1)
+            } else {
+                altLineNode.isHidden = true
+            }
+
             // --- Propeller spin speed (action speed = rev/s) ---
             for (i, node) in props.enumerated() {
-                let t = Float(max(0, motors[i] - 1000)) / 1000.0   // 0…1
+                let t = Float(max(0.0, motors[i] - 1000.0)) / 1000.0   // 0…1
                 node.action(forKey: "spin")?.speed = CGFloat(t * 25)  // up to 25 rev/s
             }
 
