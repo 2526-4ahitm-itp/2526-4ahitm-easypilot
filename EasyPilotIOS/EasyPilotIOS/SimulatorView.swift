@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SimulatorView: View {
 
+    @ObservedObject var wsManager: WebSocketManager
+
     @StateObject private var sim            = DroneSimulator()
     @StateObject private var profileManager = ProfileManager()
 
@@ -13,9 +15,11 @@ struct SimulatorView: View {
     // General settings
     @State private var expo: Double = 0.35
     @State private var activeCamera: SimCamera = .chase
-    @State private var showExpoSlider   = false
-    @State private var showLiveHint     = false
-    @State private var showThrottleHint = false
+    @State private var showExpoSlider    = false
+    @State private var isLiveMode        = false
+    @State private var showLiveHint      = false   // "not connected" hint
+    @State private var showThrottleHint  = false
+    @State private var rcTimer: Timer?
 
     // Flight mode + balance config
     @State private var flightMode:       SimFlightMode = .rate
@@ -24,6 +28,9 @@ struct SimulatorView: View {
     @State private var maxBalanceAngle:  Double = 30.0
     @State private var showBalanceCfg    = false
     @State private var showProfilePicker = false
+    @State private var ratePreset:   String = "SPORT"
+    @State private var rollHistory:  [Double] = Array(repeating: 0, count: 60)
+    @State private var pitchHistory: [Double] = Array(repeating: 0, count: 60)
 
     // MARK: - Body
 
@@ -38,11 +45,17 @@ struct SimulatorView: View {
                     .padding(.top, 14)
                     .padding(.horizontal, 14)
 
-                HStack {
+                HStack(alignment: .top) {
                     miniHorizon
                         .padding(.leading, 14)
                         .padding(.top, 6)
                     Spacer()
+                    AttitudeSparkline(rollHistory: rollHistory, pitchHistory: pitchHistory)
+                        .frame(width: 130, height: 52)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(10)
+                        .padding(.trailing, 14)
+                        .padding(.top, 6)
                 }
 
                 Spacer()
@@ -60,10 +73,36 @@ struct SimulatorView: View {
         .onChange(of: kPRoll)          { v in sim.kPRoll = v }
         .onChange(of: kPPitch)         { v in sim.kPPitch = v }
         .onChange(of: maxBalanceAngle) { v in sim.maxBalanceAngle = v }
-        .onDisappear { sim.disarm() }
+        .onReceive(sim.$simRoll)  { v in rollHistory.append(v);  if rollHistory.count  > 60 { rollHistory.removeFirst()  } }
+        .onReceive(sim.$simPitch) { v in pitchHistory.append(v); if pitchHistory.count > 60 { pitchHistory.removeFirst() } }
+        .onDisappear { stopRCTimer(); sim.disarm() }
+        .overlay {
+            if sim.isCrashed {
+                ZStack {
+                    Color.red.opacity(0.28).ignoresSafeArea()
+                    VStack(spacing: 24) {
+                        Text("CRASHED")
+                            .font(.system(size: 42, weight: .black, design: .monospaced))
+                            .foregroundColor(.white)
+                            .tracking(4)
+                            .shadow(color: .black.opacity(0.5), radius: 8)
+                        Button { sim.respawn() } label: {
+                            Text("RESPAWN")
+                                .font(.system(size: 15, weight: .black, design: .monospaced))
+                                .tracking(2)
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 28).padding(.vertical, 12)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
         .overlay(alignment: .top) {
             if showLiveHint {
-                toast("Live control — Sprint 5", .warning).padding(.top, 80)
+                toast("Not connected to drone", .warning).padding(.top, 80)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             if showThrottleHint {
@@ -122,8 +161,13 @@ struct SimulatorView: View {
 
             // SIM / LIVE
             HStack(spacing: 0) {
-                modeSegment("SIM", active: true)
-                modeSegment("LIVE", active: false, onTap: { flash($showLiveHint) })
+                modeSegment("SIM",  active: !isLiveMode, onTap: {
+                    if isLiveMode { enterSimMode() }
+                })
+                modeSegment("LIVE", active:  isLiveMode, onTap: {
+                    if wsManager.isConnected { enterLiveMode() }
+                    else { flash($showLiveHint) }
+                })
             }
             .background(.ultraThinMaterial).cornerRadius(8)
         }
@@ -250,16 +294,33 @@ struct SimulatorView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .background(Color.white.opacity(0.03))
 
-            // ── Expo slider (RATE mode) ────────────────────────────────────
+            // ── Rate config (RATE mode) ───────────────────────────────────
             if showExpoSlider {
-                HStack(spacing: 10) {
-                    Text("LINEAR")
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.3))
-                    Slider(value: $expo, in: 0...0.9).tint(EasyPilotTheme.accent)
-                    Text("EXPO \(Int(expo * 100))%")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(EasyPilotTheme.accent)
+                VStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Text("RATE")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.35))
+                            .tracking(1.5)
+                            .padding(.trailing, 4)
+                        ratePresetBtn("BEGINNER", rate: 180)
+                        ratePresetBtn("SPORT",    rate: 360)
+                        ratePresetBtn("PRO",      rate: 720)
+                        Spacer()
+                        let rateMap: [String: Int] = ["BEGINNER": 180, "SPORT": 360, "PRO": 720]
+                        Text("\(rateMap[ratePreset] ?? 360)°/s")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(EasyPilotTheme.accent.opacity(0.8))
+                    }
+                    HStack(spacing: 10) {
+                        Text("LINEAR")
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.3))
+                        Slider(value: $expo, in: 0...0.9).tint(EasyPilotTheme.accent)
+                        Text("EXPO \(Int(expo * 100))%")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(EasyPilotTheme.accent)
+                    }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 8)
                 .background(Color.white.opacity(0.04))
@@ -327,10 +388,18 @@ struct SimulatorView: View {
     private var armButton: some View {
         Button {
             if sim.isArmed {
-                sim.disarm(); leftY = 0; pushInputs()
+                if isLiveMode { wsManager.sendCommand("{\"cmd\":\"DISARM\"}") }
+                sim.disarm(); leftY = 0; pushInputs(); stopRCTimer()
             } else if max(0, -leftY) > 0.05 {
                 flash($showThrottleHint)
             } else {
+                if isLiveMode {
+                    let kPRStr = String(format: "%.1f", kPRoll)
+                    let kPPStr = String(format: "%.1f", kPPitch)
+                    wsManager.sendCommand("{\"cmd\":\"ARM\"}")
+                    wsManager.sendCommand("{\"cmd\":\"START_RC\",\"kPRoll\":\(kPRStr),\"kPPitch\":\(kPPStr)}")
+                    startRCTimer()
+                }
                 sim.arm()
             }
         } label: {
@@ -377,6 +446,61 @@ struct SimulatorView: View {
 
     // MARK: - Helpers
 
+    // MARK: - Live mode helpers
+
+    private func enterLiveMode() {
+        if sim.isArmed { sim.disarm() }
+        isLiveMode = true
+    }
+
+    private func enterSimMode() {
+        stopRCTimer()
+        if sim.isArmed {
+            wsManager.sendCommand("{\"cmd\":\"DISARM\"}")
+            sim.disarm()
+        }
+        isLiveMode = false
+    }
+
+    private func startRCTimer() {
+        rcTimer?.invalidate()
+        rcTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
+            sendRCPacket()
+        }
+    }
+
+    private func stopRCTimer() {
+        rcTimer?.invalidate()
+        rcTimer = nil
+    }
+
+    private func sendRCPacket() {
+        guard isLiveMode, sim.isArmed, wsManager.isConnected else { return }
+        let thr = 1000 + Int(sim.throttle * 600)
+        let pit = sim.pitch * maxBalanceAngle   // target pitch angle (°)
+        let rol = sim.roll  * maxBalanceAngle   // target roll angle (°)
+        let yaw = sim.yaw   * 80                // yaw PWM offset
+        let cmd = String(format: "{\"cmd\":\"RC\",\"thr\":%d,\"pit\":%.1f,\"rol\":%.1f,\"yaw\":%.1f}",
+                         thr, pit, rol, yaw)
+        wsManager.sendCommand(cmd)
+    }
+
+    private func ratePresetBtn(_ label: String, rate: Double) -> some View {
+        Button {
+            ratePreset       = label
+            sim.maxRollRate  = rate
+            sim.maxPitchRate = rate
+        } label: {
+            Text(label)
+                .font(.system(size: 9, weight: .black, design: .monospaced))
+                .tracking(0.8)
+                .foregroundColor(ratePreset == label ? .black : .white.opacity(0.45))
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(ratePreset == label ? EasyPilotTheme.accent : Color.white.opacity(0.06))
+                .cornerRadius(6)
+        }
+    }
+
     private func pushInputs() {
         sim.yaw      =  leftX
         sim.throttle =  max(0, -leftY)
@@ -399,5 +523,48 @@ struct SimulatorView: View {
             .foregroundColor(style == .warning ? EasyPilotTheme.warning : EasyPilotTheme.danger)
             .padding(.horizontal, 16).padding(.vertical, 8)
             .background(.ultraThinMaterial).cornerRadius(10)
+    }
+}
+
+// MARK: - Sparkline
+
+private struct AttitudeSparkline: View {
+    let rollHistory:  [Double]
+    let pitchHistory: [Double]
+
+    var body: some View {
+        Canvas { ctx, size in
+            let w   = size.width
+            let h   = size.height
+            let mid = h / 2
+            // ±80° fills half the height
+            let scale = (h / 2) / 80.0
+
+            var zeroPath = Path()
+            zeroPath.move(to:    CGPoint(x: 0, y: mid))
+            zeroPath.addLine(to: CGPoint(x: w, y: mid))
+            ctx.stroke(zeroPath, with: .color(.white.opacity(0.15)), lineWidth: 0.5)
+
+            if rollHistory.count > 1 {
+                var rPath = Path()
+                for (i, v) in rollHistory.enumerated() {
+                    let pt = CGPoint(x: w * CGFloat(i) / CGFloat(rollHistory.count - 1),
+                                     y: mid - CGFloat(v) * scale)
+                    i == 0 ? rPath.move(to: pt) : rPath.addLine(to: pt)
+                }
+                ctx.stroke(rPath, with: .color(EasyPilotTheme.accent), lineWidth: 1.5)
+            }
+
+            if pitchHistory.count > 1 {
+                var pPath = Path()
+                for (i, v) in pitchHistory.enumerated() {
+                    let pt = CGPoint(x: w * CGFloat(i) / CGFloat(pitchHistory.count - 1),
+                                     y: mid - CGFloat(v) * scale)
+                    i == 0 ? pPath.move(to: pt) : pPath.addLine(to: pt)
+                }
+                ctx.stroke(pPath, with: .color(EasyPilotTheme.success), lineWidth: 1.5)
+            }
+        }
+        .padding(6)
     }
 }
