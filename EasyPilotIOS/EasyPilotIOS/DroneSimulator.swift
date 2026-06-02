@@ -86,6 +86,10 @@ class DroneSimulator: ObservableObject {
     var pitch:    Double = 0   // -1…1
     var roll:     Double = 0   // -1…1
 
+    // True while a thumb is on the right (attitude) joystick pad.
+    // When false, rate mode auto-stabilizes toward (0°, 0°) instead of integrating stick rate.
+    var rightStickActive: Bool = false
+
     // MARK: - Constants
 
     static let groundLevel: Float = 0.05
@@ -128,23 +132,35 @@ class DroneSimulator: ObservableObject {
 
         case .rate:
             if flying {
-                // Aerodynamic drag attenuates angular velocity every frame
-                let drag = 1.0 - angularDrag * Double(dt)
-                _rollRate  *= drag
-                _pitchRate *= drag
-                _yawRate   *= drag
-                // Rate controller: actual rate tracks commanded rate with inertia
-                let cmdRoll  =  roll  * maxRollRate
-                let cmdPitch =  pitch * maxPitchRate   // sign handled by pFrac negate below
-                let cmdYaw   =  yaw   * maxYawRate
-                let dt2 = min(1.0, rateResponse * Double(dt))
-                _rollRate  += (cmdRoll  - _rollRate)  * dt2
-                _pitchRate += (cmdPitch - _pitchRate) * dt2
-                _yawRate   += (cmdYaw   - _yawRate)   * dt2
-                // Integrate angular velocity → attitude
-                _roll  += _rollRate  * Double(dt)
-                _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
-                _yaw   += _yawRate   * Double(dt)
+                if !rightStickActive {
+                    // Auto-stabilize: no thumb on the right stick → drive roll/pitch to 0°
+                    // using the same P-controller balance mode uses. Yaw remains rate-controlled
+                    // off the left stick.
+                    _rollRate = 0; _pitchRate = 0
+                    _roll  += (-_roll)  * kPRoll  * kPScale * Double(dt)
+                    _pitch += (-_pitch) * kPPitch * kPScale * Double(dt)
+                    let dt2 = min(1.0, rateResponse * Double(dt))
+                    _yawRate += (yaw * maxYawRate - _yawRate) * dt2
+                    _yaw     += _yawRate * Double(dt)
+                } else {
+                    // Aerodynamic drag attenuates angular velocity every frame
+                    let drag = 1.0 - angularDrag * Double(dt)
+                    _rollRate  *= drag
+                    _pitchRate *= drag
+                    _yawRate   *= drag
+                    // Rate controller: actual rate tracks commanded rate with inertia
+                    let cmdRoll  =  roll  * maxRollRate
+                    let cmdPitch =  pitch * maxPitchRate   // sign handled by pFrac negate below
+                    let cmdYaw   =  yaw   * maxYawRate
+                    let dt2 = min(1.0, rateResponse * Double(dt))
+                    _rollRate  += (cmdRoll  - _rollRate)  * dt2
+                    _pitchRate += (cmdPitch - _pitchRate) * dt2
+                    _yawRate   += (cmdYaw   - _yawRate)   * dt2
+                    // Integrate angular velocity → attitude
+                    _roll  += _rollRate  * Double(dt)
+                    _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
+                    _yaw   += _yawRate   * Double(dt)
+                }
             } else {
                 // Ground: snap attitude level, zero rates
                 _rollRate = 0; _pitchRate = 0; _yawRate = 0
