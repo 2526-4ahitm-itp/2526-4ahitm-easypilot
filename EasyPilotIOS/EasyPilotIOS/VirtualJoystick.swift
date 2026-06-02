@@ -12,6 +12,7 @@ struct VirtualJoystick: View {
 
     @Binding var centerX: Double
     @Binding var centerY: Double
+    @Binding var isActive: Bool
 
     // Raw (pre-expo) thumb position
     @State private var rawX: Double = 0
@@ -19,6 +20,20 @@ struct VirtualJoystick: View {
 
     private let padRadius: CGFloat = 72
     private let thumbRadius: CGFloat = 22
+
+    init(label: String,
+         lockY: Bool,
+         expo: Double,
+         centerX: Binding<Double>,
+         centerY: Binding<Double>,
+         isActive: Binding<Bool> = .constant(false)) {
+        self.label = label
+        self.lockY = lockY
+        self.expo = expo
+        self._centerX = centerX
+        self._centerY = centerY
+        self._isActive = isActive
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -55,6 +70,7 @@ struct VirtualJoystick: View {
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
+                        if !isActive { isActive = true }
                         let ox = value.location.x - padRadius
                         let oy = value.location.y - padRadius
                         let dist = sqrt(ox * ox + oy * oy)
@@ -65,6 +81,7 @@ struct VirtualJoystick: View {
                         centerY = lockY ? rawY : applyExpo(rawY)  // no expo on throttle
                     }
                     .onEnded { _ in
+                        isActive = false
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                             rawX = 0
                         }

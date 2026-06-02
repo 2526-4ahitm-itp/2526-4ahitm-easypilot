@@ -11,6 +11,7 @@ struct SimulatorView: View {
     @State private var leftY:  Double = 0
     @State private var rightX: Double = 0
     @State private var rightY: Double = 0
+    @State private var rightStickActive: Bool = false
 
     // General settings
     @State private var expo: Double = 0.35
@@ -35,39 +36,24 @@ struct SimulatorView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            SimulatorScene(sim: sim, activeCamera: activeCamera)
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height
+            ZStack(alignment: .bottom) {
+                SimulatorScene(sim: sim, activeCamera: activeCamera)
+                    .ignoresSafeArea()
 
-            // Top overlay
-            VStack {
-                topBar
-                    .padding(.top, 14)
-                    .padding(.horizontal, 14)
-
-                HStack(alignment: .top) {
-                    miniHorizon
-                        .padding(.leading, 14)
-                        .padding(.top, 6)
-                    Spacer()
-                    AttitudeSparkline(rollHistory: rollHistory, pitchHistory: pitchHistory)
-                        .frame(width: 130, height: 52)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(10)
-                        .padding(.trailing, 14)
-                        .padding(.top, 6)
+                if isLandscape {
+                    landscapeContent
+                } else {
+                    portraitContent
                 }
-
-                Spacer()
             }
-
-            // Bottom panel — one cohesive frosted slab
-            bottomPanel
         }
         .onChange(of: leftX)  { _ in pushInputs() }
         .onChange(of: leftY)  { _ in pushInputs() }
         .onChange(of: rightX) { _ in pushInputs() }
         .onChange(of: rightY) { _ in pushInputs() }
+        .onChange(of: rightStickActive) { v in sim.rightStickActive = v }
         .onChange(of: expo)   { v in sim.expo = v }
         .onChange(of: flightMode)      { v in sim.flightMode = v }
         .onChange(of: kPRoll)          { v in sim.kPRoll = v }
@@ -127,6 +113,89 @@ struct SimulatorView: View {
         } message: {
             Text("kP values will be copied into the simulator")
         }
+    }
+
+    // MARK: - Portrait content
+
+    @ViewBuilder
+    private var portraitContent: some View {
+        // Top overlay
+        VStack {
+            topBar
+                .padding(.top, 14)
+                .padding(.horizontal, 14)
+
+            HStack(alignment: .top) {
+                miniHorizon
+                    .padding(.leading, 14)
+                    .padding(.top, 6)
+                Spacer()
+                AttitudeSparkline(rollHistory: rollHistory, pitchHistory: pitchHistory)
+                    .frame(width: 130, height: 52)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(10)
+                    .padding(.trailing, 14)
+                    .padding(.top, 6)
+            }
+
+            Spacer()
+        }
+
+        // Bottom panel — one cohesive frosted slab
+        bottomPanel
+    }
+
+    // MARK: - Landscape content
+
+    @ViewBuilder
+    private var landscapeContent: some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+                .frame(maxHeight: 40)
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .center, spacing: 0) {
+                VirtualJoystick(label: "THR / YAW",
+                                lockY: true, expo: expo,
+                                centerX: $leftX, centerY: $leftY)
+                    .padding(.leading, 16)
+
+                Spacer(minLength: 12)
+
+                VStack(spacing: 10) {
+                    miniHorizon
+                    landscapeTelStrip
+                    armButton
+                }
+
+                Spacer(minLength: 12)
+
+                VirtualJoystick(label: "PCH / ROL",
+                                lockY: false, expo: expo,
+                                centerX: $rightX, centerY: $rightY,
+                                isActive: $rightStickActive)
+                    .padding(.trailing, 16)
+            }
+            .padding(.bottom, 16)
+        }
+    }
+
+    private var landscapeTelStrip: some View {
+        HStack(spacing: 0) {
+            telCell("ROL", String(format: "%+.0f°", sim.simRoll))
+            divider
+            telCell("PCH", String(format: "%+.0f°", sim.simPitch))
+            divider
+            telCell("YAW", String(format: "%+.0f°", sim.simYaw))
+            divider
+            telCell("ALT", String(format: "%.1fm", sim.altitude))
+        }
+        .frame(height: 38)
+        .background(.ultraThinMaterial)
+        .cornerRadius(10)
     }
 
     // MARK: - Top bar
@@ -375,7 +444,8 @@ struct SimulatorView: View {
 
                 VirtualJoystick(label: "PCH / ROL",
                                 lockY: false, expo: expo,
-                                centerX: $rightX, centerY: $rightY)
+                                centerX: $rightX, centerY: $rightY,
+                                isActive: $rightStickActive)
                     .padding(.trailing, 16)
             }
             .padding(.top, 10).padding(.bottom, 16)
