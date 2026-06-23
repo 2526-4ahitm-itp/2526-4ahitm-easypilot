@@ -103,9 +103,11 @@ class DroneSimulator: ObservableObject {
     /// True while at least one stick is touched — kept for legacy callers.
     var sticksTouched: Bool { leftStickTouched || rightStickTouched }
 
-    // Altitude-hold state. The last-known hover throttle that produced ~zero
-    // vertical velocity, used as the baseline when the left stick is released.
-    private var holdThrottle: Float = 0.45   // ~mass/maxThrust at startup
+    // Altitude-hold state. Captures the altitude at the moment the left stick
+    // is released; PID below drives the drone back to it.
+    private var holdAltitude: Float = 0.05   // == groundLevel
+    /// Last effective throttle commanded by the auto-pilot (for stick visualisation).
+    private var apThrottle: Float = 0.45
 
     // MARK: - Constants
 
@@ -146,13 +148,23 @@ class DroneSimulator: ObservableObject {
         let effectiveThrottle: Float
         if leftStickTouched {
             effectiveThrottle = userThrottle
-            // Track current throttle as the baseline for altitude-hold.
-            if userThrottle > 0.05 { holdThrottle = userThrottle }
+            // Track target altitude continuously so release locks current height
+            holdAltitude = _pos.y
         } else {
-            // Hover-hold: nudge throttle to drive _vel.y toward 0
-            let velYCorrection = -_vel.y * 0.025
-            effectiveThrottle = max(0, min(1, holdThrottle + velYCorrection))
+            // Altitude PID: hover thrust + altitude-error term − vertical-velocity damper.
+            // Tilt compensation: vertical lift = cos(pitch)·cos(roll)·thrust, so
+            // boost throttle to maintain lift while the drone is banked.
+            let pR = Float(-_pitch) * .pi / 180
+            let rR = Float(_roll)  * .pi / 180
+            let tiltComp = 1.0 / max(0.3, cos(pR) * cos(rR))
+            let hoverT: Float = gravity / maxThrust
+            let altError = holdAltitude - _pos.y
+            let kPAlt: Float = 0.25
+            let kDAlt: Float = 0.20
+            let raw = hoverT * tiltComp + kPAlt * altError - kDAlt * _vel.y
+            effectiveThrottle = max(0, min(1, raw))
         }
+        apThrottle = effectiveThrottle
         let flying = effectiveThrottle > 0.02
 
         // ── Attitude update ────────────────────────────────────────────────
@@ -221,6 +233,16 @@ class DroneSimulator: ObservableObject {
         // Frame-rate independent drag (preserves 60 fps feel)
         let dragFactor = pow(drag, dt * 60.0)
         _vel *= dragFactor
+
+        // Active horizontal brake when the pilot lets go of the right stick.
+        // Without this the drone keeps coasting on whatever momentum it had
+        // and drifts far before tilt-induced thrust can null it out.
+        if !rightStickTouched && _pos.y > Self.groundLevel + 0.02 {
+            let brake = max(0, 1.0 - 1.4 * dt)
+            _vel.x *= brake
+            _vel.z *= brake
+        }
+
         _pos += _vel * dt
 
         if _pos.y < Self.groundLevel {
@@ -304,10 +326,9 @@ class DroneSimulator: ObservableObject {
         m1 = Int(mFil1); m2 = Int(mFil2); m3 = Int(mFil3); m4 = Int(mFil4)
 
         // Autopilot demand for stick visualisation. Throttle: signed Y in
-        // [-1, 1] where -1 = full up (since SwiftUI Y is inverted on the pad).
-        // Mapping the hold throttle in 0…1 to [-1, 1] with 0 throttle = +1.
-        let holdY = -((Double(holdThrottle) - 0.5) * 2.0)
-        autopilotLeftY  = max(-1, min(1, holdY))
+        // [-1, 1] where -1 = full up (SwiftUI Y is inverted on the pad).
+        let apY = -((Double(apThrottle) - 0.5) * 2.0)
+        autopilotLeftY  = max(-1, min(1, apY))
         // Right stick: the angle the autopilot is "asking for" — opposite of
         // current tilt, clamped to ±maxBalanceAngle then normalised.
         let demandRollDeg  = -_roll  * 0.5
@@ -347,5 +368,7 @@ class DroneSimulator: ObservableObject {
         im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
         mFil1 = 1000; mFil2 = 1000; mFil3 = 1000; mFil4 = 1000
         throttle = 0; yaw = 0; pitch = 0; roll = 0
+        holdAltitude = Self.groundLevel
+        apThrottle = gravity / maxThrust
     }
 }
