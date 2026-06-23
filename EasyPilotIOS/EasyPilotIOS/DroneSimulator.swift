@@ -28,6 +28,13 @@ class DroneSimulator: ObservableObject {
     @Published var isArmed:   Bool = false
     @Published var isCrashed: Bool = false
 
+    // Autopilot "demand" values for visualisation — normalised [-1, 1] so the
+    // VirtualJoystick can mirror them on its thumb when the user has released
+    // the sticks and the "Autopilot sticks" option is enabled.
+    @Published var autopilotLeftY:  Double = 0   // throttle correction view (negative = pushed up)
+    @Published var autopilotRightX: Double = 0   // roll correction view
+    @Published var autopilotRightY: Double = 0   // pitch correction view
+
     // MARK: - Internal physics state (render thread)
 
     var _roll:  Double = 0
@@ -86,9 +93,19 @@ class DroneSimulator: ObservableObject {
     var pitch:    Double = 0   // -1…1
     var roll:     Double = 0   // -1…1
 
-    /// True while at least one of the pitch/roll/yaw sticks is being touched.
-    /// Drives the "only stabilise when sticks released" behaviour in both modes.
-    var sticksTouched: Bool = false
+    /// True while the LEFT stick (throttle/yaw) is being touched.
+    /// When false, altitude-hold takes over the throttle and yaw rate decays.
+    var leftStickTouched:  Bool = false
+    /// True while the RIGHT stick (pitch/roll) is being touched.
+    /// When false, attitude auto-levels per the active flight mode.
+    var rightStickTouched: Bool = false
+
+    /// True while at least one stick is touched — kept for legacy callers.
+    var sticksTouched: Bool { leftStickTouched || rightStickTouched }
+
+    // Altitude-hold state. The last-known hover throttle that produced ~zero
+    // vertical velocity, used as the baseline when the left stick is released.
+    private var holdThrottle: Float = 0.45   // ~mass/maxThrust at startup
 
     // MARK: - Constants
 
@@ -124,33 +141,55 @@ class DroneSimulator: ObservableObject {
             return
         }
 
-        let thr    = Float(throttle)
-        let flying = thr > 0.02
+        // ── Effective throttle (altitude-hold when left stick released) ────
+        let userThrottle = Float(throttle)
+        let effectiveThrottle: Float
+        if leftStickTouched {
+            effectiveThrottle = userThrottle
+            // Track current throttle as the baseline for altitude-hold.
+            if userThrottle > 0.05 { holdThrottle = userThrottle }
+        } else {
+            // Hover-hold: nudge throttle to drive _vel.y toward 0
+            let velYCorrection = -_vel.y * 0.025
+            effectiveThrottle = max(0, min(1, holdThrottle + velYCorrection))
+        }
+        let flying = effectiveThrottle > 0.02
 
         // ── Attitude update ────────────────────────────────────────────────
-        // Stabilisation only runs when sticks are released; while touched both
-        // modes integrate stick input as angular rates (true free-flight feel).
-        if flying && sticksTouched {
+        // Pitch/roll stabilise when the RIGHT stick is released; yaw responds
+        // to LEFT stick (yaw axis) and decays naturally when released.
+        if flying && rightStickTouched {
             integrateRatePhysics(dt: dt)
         } else if !flying {
-            // Ground: snap level
+            // Ground: snap level, zero all rates
             _rollRate = 0; _pitchRate = 0; _yawRate = 0
             let ret = 30.0 * Double(dt)
             _roll  = nudge(_roll,  to: 0, step: ret)
             _pitch = nudge(_pitch, to: 0, step: ret)
         } else {
-            // Flying with sticks released → stabilise
-            _rollRate = 0; _pitchRate = 0; _yawRate = 0
+            // Flying, right stick released → auto-level pitch/roll
+            _rollRate = 0; _pitchRate = 0
             switch flightMode {
             case .rate:
-                // Gravity return at 30°/s toward level
                 let ret = 30.0 * Double(dt)
                 _roll  = nudge(_roll,  to: 0, step: ret)
                 _pitch = nudge(_pitch, to: 0, step: ret)
             case .balance:
-                // P-controller levels toward 0/0 target
                 _roll  += (0 - _roll)  * kPRoll  * kPScale * Double(dt)
                 _pitch += (0 - _pitch) * kPPitch * kPScale * Double(dt)
+            }
+            // Yaw still responds to left stick if it's held
+            if leftStickTouched {
+                let drag = 1.0 - angularDrag * Double(dt)
+                _yawRate *= drag
+                let cmdYaw = yaw * maxYawRate
+                let dt2 = min(1.0, rateResponse * Double(dt))
+                _yawRate += (cmdYaw - _yawRate) * dt2
+                _yaw     += _yawRate * Double(dt)
+            } else {
+                let drag = 1.0 - angularDrag * Double(dt)
+                _yawRate *= drag
+                _yaw += _yawRate * Double(dt)
             }
         }
 
@@ -167,7 +206,7 @@ class DroneSimulator: ObservableObject {
         // and horizontal acceleration scales with throttle.
         let pitchRad = Float(-_pitch) * .pi / 180   // + when nose-down
         let rollRad  = Float(_roll)  * .pi / 180    // + when right-wing-down
-        let thrust   = thr * maxThrust
+        let thrust   = effectiveThrottle * maxThrust
 
         let vertThrust = thrust * cos(pitchRad) * cos(rollRad)
         let fwdThrust  = thrust * sin(pitchRad)       // forward component
@@ -202,9 +241,9 @@ class DroneSimulator: ObservableObject {
         // ── Motor mixing ───────────────────────────────────────────────────
         let airborne = flying || _pos.y > Self.groundLevel
         if airborne {
-            let base = 1000 + Int(throttle * 600)
+            let base = 1000 + Int(Double(effectiveThrottle) * 600)
 
-            if flightMode == .balance && !sticksTouched {
+            if flightMode == .balance && !rightStickTouched {
                 // Visualise P-controller corrections like the real firmware does
                 let rCorr = Int((0 - _roll)  * kPRoll  * 0.8)
                 let pCorr = Int((0 - _pitch) * kPPitch * 0.8)
@@ -263,6 +302,18 @@ class DroneSimulator: ObservableObject {
         altitude = Double(max(0, _pos.y - Self.groundLevel))
         speedH   = Double(sqrt(_vel.x * _vel.x + _vel.z * _vel.z))
         m1 = Int(mFil1); m2 = Int(mFil2); m3 = Int(mFil3); m4 = Int(mFil4)
+
+        // Autopilot demand for stick visualisation. Throttle: signed Y in
+        // [-1, 1] where -1 = full up (since SwiftUI Y is inverted on the pad).
+        // Mapping the hold throttle in 0…1 to [-1, 1] with 0 throttle = +1.
+        let holdY = -((Double(holdThrottle) - 0.5) * 2.0)
+        autopilotLeftY  = max(-1, min(1, holdY))
+        // Right stick: the angle the autopilot is "asking for" — opposite of
+        // current tilt, clamped to ±maxBalanceAngle then normalised.
+        let demandRollDeg  = -_roll  * 0.5
+        let demandPitchDeg = -_pitch * 0.5
+        autopilotRightX = max(-1, min(1,  demandRollDeg  / max(1, maxBalanceAngle)))
+        autopilotRightY = max(-1, min(1, -demandPitchDeg / max(1, maxBalanceAngle)))
     }
 
     // MARK: - Private

@@ -24,6 +24,11 @@ struct SimulatorView: View {
     @State private var showThrottleHint  = false
     @State private var rcTimer: Timer?
 
+    /// Landscape only — top telemetry/mode/settings pill is collapsed by default.
+    @State private var showLandscapeChip: Bool = false
+    /// Optional: animate joystick thumbs to mirror autopilot demand on release.
+    @State private var autopilotSticks: Bool = false
+
     // Flight mode + balance config
     @State private var flightMode:       SimFlightMode = .rate
     @State private var kPRoll:           Double = 10.0
@@ -65,8 +70,19 @@ struct SimulatorView: View {
                             .padding(.top, 6)
                     }
                 } else {
-                    landscapeTopChip
-                        .padding(.top, 8)
+                    // Landscape: collapsed by default with a small pop-out chevron
+                    HStack(alignment: .top) {
+                        landscapeChipToggle
+                            .padding(.leading, 14)
+                            .padding(.top, 8)
+                        Spacer()
+                        if showLandscapeChip {
+                            landscapeTopChip
+                                .padding(.top, 8)
+                                .padding(.trailing, 14)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
                 }
 
                 Spacer()
@@ -324,7 +340,10 @@ struct SimulatorView: View {
                 VirtualJoystick(label: "THR / YAW",
                                 lockY: true, expo: expo,
                                 centerX: $leftX, centerY: $leftY,
-                                isTouching: $leftTouching)
+                                isTouching: $leftTouching,
+                                autopilotEnabled: autopilotSticks,
+                                autopilotX: 0,
+                                autopilotY: sim.autopilotLeftY)
                     .padding(.leading, 16)
 
                 Spacer()
@@ -334,7 +353,10 @@ struct SimulatorView: View {
                 VirtualJoystick(label: "PCH / ROL",
                                 lockY: false, expo: expo,
                                 centerX: $rightX, centerY: $rightY,
-                                isTouching: $rightTouching)
+                                isTouching: $rightTouching,
+                                autopilotEnabled: autopilotSticks,
+                                autopilotX: sim.autopilotRightX,
+                                autopilotY: sim.autopilotRightY)
                     .padding(.trailing, 16)
             }
             .padding(.top, 10).padding(.bottom, 16)
@@ -352,7 +374,9 @@ struct SimulatorView: View {
                 HStack(alignment: .bottom, spacing: 0) {
                     floatingJoystick(label: "THR / YAW", lockY: true,
                                      centerX: $leftX, centerY: $leftY,
-                                     isTouching: $leftTouching)
+                                     isTouching: $leftTouching,
+                                     autopilotX: 0,
+                                     autopilotY: sim.autopilotLeftY)
                         .padding(.leading, 22)
                         .padding(.bottom, 18)
 
@@ -365,7 +389,9 @@ struct SimulatorView: View {
 
                     floatingJoystick(label: "PCH / ROL", lockY: false,
                                      centerX: $rightX, centerY: $rightY,
-                                     isTouching: $rightTouching)
+                                     isTouching: $rightTouching,
+                                     autopilotX: sim.autopilotRightX,
+                                     autopilotY: sim.autopilotRightY)
                         .padding(.trailing, 22)
                         .padding(.bottom, 18)
                 }
@@ -384,6 +410,21 @@ struct SimulatorView: View {
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
+        }
+    }
+
+    private var landscapeChipToggle: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                showLandscapeChip.toggle()
+            }
+        } label: {
+            Image(systemName: showLandscapeChip ? "chevron.up" : "chevron.down")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.7))
+                .frame(width: 30, height: 30)
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
         }
     }
 
@@ -476,16 +517,37 @@ struct SimulatorView: View {
             if flightMode == .rate { rateConfigPanel }
             else                   { balanceConfigPanel }
 
+            Divider().background(Color.white.opacity(0.08))
+                .padding(.horizontal, 14).padding(.top, 6)
+
+            Toggle(isOn: $autopilotSticks) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AUTOPILOT STICKS")
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .tracking(1.3)
+                        .foregroundColor(.white.opacity(0.7))
+                    Text("Mirror auto-level demand on release")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.35))
+                }
+            }
+            .tint(EasyPilotTheme.accent)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+
             Spacer()
         }
     }
 
     private func floatingJoystick(label: String, lockY: Bool,
                                   centerX: Binding<Double>, centerY: Binding<Double>,
-                                  isTouching: Binding<Bool>) -> some View {
+                                  isTouching: Binding<Bool>,
+                                  autopilotX: Double, autopilotY: Double) -> some View {
         VirtualJoystick(label: label, lockY: lockY, expo: expo,
                         centerX: centerX, centerY: centerY,
-                        isTouching: isTouching)
+                        isTouching: isTouching,
+                        autopilotEnabled: autopilotSticks,
+                        autopilotX: autopilotX,
+                        autopilotY: autopilotY)
             .padding(10)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -719,7 +781,8 @@ struct SimulatorView: View {
     }
 
     private func pushTouchState() {
-        sim.sticksTouched = leftTouching || rightTouching
+        sim.leftStickTouched  = leftTouching
+        sim.rightStickTouched = rightTouching
     }
 
     private func flash(_ flag: Binding<Bool>) {
