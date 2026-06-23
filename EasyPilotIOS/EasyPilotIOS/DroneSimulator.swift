@@ -86,6 +86,10 @@ class DroneSimulator: ObservableObject {
     var pitch:    Double = 0   // -1…1
     var roll:     Double = 0   // -1…1
 
+    /// True while at least one of the pitch/roll/yaw sticks is being touched.
+    /// Drives the "only stabilise when sticks released" behaviour in both modes.
+    var sticksTouched: Bool = false
+
     // MARK: - Constants
 
     static let groundLevel: Float = 0.05
@@ -124,47 +128,30 @@ class DroneSimulator: ObservableObject {
         let flying = thr > 0.02
 
         // ── Attitude update ────────────────────────────────────────────────
-        switch flightMode {
-
-        case .rate:
-            if flying {
-                // Aerodynamic drag attenuates angular velocity every frame
-                let drag = 1.0 - angularDrag * Double(dt)
-                _rollRate  *= drag
-                _pitchRate *= drag
-                _yawRate   *= drag
-                // Rate controller: actual rate tracks commanded rate with inertia
-                let cmdRoll  =  roll  * maxRollRate
-                let cmdPitch =  pitch * maxPitchRate   // sign handled by pFrac negate below
-                let cmdYaw   =  yaw   * maxYawRate
-                let dt2 = min(1.0, rateResponse * Double(dt))
-                _rollRate  += (cmdRoll  - _rollRate)  * dt2
-                _pitchRate += (cmdPitch - _pitchRate) * dt2
-                _yawRate   += (cmdYaw   - _yawRate)   * dt2
-                // Integrate angular velocity → attitude
-                _roll  += _rollRate  * Double(dt)
-                _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
-                _yaw   += _yawRate   * Double(dt)
-            } else {
-                // Ground: snap attitude level, zero rates
-                _rollRate = 0; _pitchRate = 0; _yawRate = 0
+        // Stabilisation only runs when sticks are released; while touched both
+        // modes integrate stick input as angular rates (true free-flight feel).
+        if flying && sticksTouched {
+            integrateRatePhysics(dt: dt)
+        } else if !flying {
+            // Ground: snap level
+            _rollRate = 0; _pitchRate = 0; _yawRate = 0
+            let ret = 30.0 * Double(dt)
+            _roll  = nudge(_roll,  to: 0, step: ret)
+            _pitch = nudge(_pitch, to: 0, step: ret)
+        } else {
+            // Flying with sticks released → stabilise
+            _rollRate = 0; _pitchRate = 0; _yawRate = 0
+            switch flightMode {
+            case .rate:
+                // Gravity return at 30°/s toward level
                 let ret = 30.0 * Double(dt)
                 _roll  = nudge(_roll,  to: 0, step: ret)
                 _pitch = nudge(_pitch, to: 0, step: ret)
+            case .balance:
+                // P-controller levels toward 0/0 target
+                _roll  += (0 - _roll)  * kPRoll  * kPScale * Double(dt)
+                _pitch += (0 - _pitch) * kPPitch * kPScale * Double(dt)
             }
-
-        case .balance:
-            // Right stick sets a target angle; P-controller drives actual attitude toward it.
-            // Mimics the ESP32 BALANCE mode P-controller: correction = kP × error.
-            // kPScale converts firmware-unit kP to simulation angular velocity.
-            let targetRoll  =  roll  * maxBalanceAngle
-            let targetPitch = -pitch * maxBalanceAngle
-            let rollError   = targetRoll  - _roll
-            let pitchError  = targetPitch - _pitch
-            _roll  += rollError  * kPRoll  * kPScale * Double(dt)
-            _pitch += pitchError * kPPitch * kPScale * Double(dt)
-            // Yaw is always rate-based
-            _yaw += yaw * maxYawRate * Double(dt)
         }
 
         _roll  = max(-80, min(80, _roll))
@@ -217,25 +204,21 @@ class DroneSimulator: ObservableObject {
         if airborne {
             let base = 1000 + Int(throttle * 600)
 
-            switch flightMode {
-            case .rate:
+            if flightMode == .balance && !sticksTouched {
+                // Visualise P-controller corrections like the real firmware does
+                let rCorr = Int((0 - _roll)  * kPRoll  * 0.8)
+                let pCorr = Int((0 - _pitch) * kPPitch * 0.8)
+                im1 = clampPWM(base - rCorr + pCorr)
+                im2 = clampPWM(base + rCorr + pCorr)
+                im3 = clampPWM(base - rCorr - pCorr)
+                im4 = clampPWM(base + rCorr - pCorr)
+            } else {
                 let rD = Int(_roll  * 0.5)
                 let pD = Int(_pitch * 0.5)
                 im1 = clampPWM(base - rD + pD)
                 im2 = clampPWM(base + rD + pD)
                 im3 = clampPWM(base - rD - pD)
                 im4 = clampPWM(base + rD - pD)
-
-            case .balance:
-                // Visualise P-controller corrections like the real firmware does
-                let tgtRoll  =  roll  * maxBalanceAngle
-                let tgtPitch = -pitch * maxBalanceAngle
-                let rCorr = Int((tgtRoll  - _roll)  * kPRoll  * 0.8)
-                let pCorr = Int((tgtPitch - _pitch) * kPPitch * 0.8)
-                im1 = clampPWM(base - rCorr + pCorr)
-                im2 = clampPWM(base + rCorr + pCorr)
-                im3 = clampPWM(base - rCorr - pCorr)
-                im4 = clampPWM(base + rCorr - pCorr)
             }
         } else {
             im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
@@ -247,6 +230,28 @@ class DroneSimulator: ObservableObject {
         mFil2 += (Double(im2) - mFil2) * α
         mFil3 += (Double(im3) - mFil3) * α
         mFil4 += (Double(im4) - mFil4) * α
+    }
+
+    // MARK: - Shared rate physics
+
+    private func integrateRatePhysics(dt: Float) {
+        // Aerodynamic drag attenuates angular velocity every frame
+        let drag = 1.0 - angularDrag * Double(dt)
+        _rollRate  *= drag
+        _pitchRate *= drag
+        _yawRate   *= drag
+        // Rate controller: actual rate tracks commanded rate with inertia
+        let cmdRoll  = roll  * maxRollRate
+        let cmdPitch = pitch * maxPitchRate
+        let cmdYaw   = yaw   * maxYawRate
+        let dt2 = min(1.0, rateResponse * Double(dt))
+        _rollRate  += (cmdRoll  - _rollRate)  * dt2
+        _pitchRate += (cmdPitch - _pitchRate) * dt2
+        _yawRate   += (cmdYaw   - _yawRate)   * dt2
+        // Integrate angular velocity → attitude
+        _roll  += _rollRate  * Double(dt)
+        _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
+        _yaw   += _yawRate   * Double(dt)
     }
 
     // MARK: - Sync to @Published (main thread)

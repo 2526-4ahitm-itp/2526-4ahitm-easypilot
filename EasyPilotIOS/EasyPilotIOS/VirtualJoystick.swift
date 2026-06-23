@@ -12,6 +12,7 @@ struct VirtualJoystick: View {
 
     @Binding var centerX: Double
     @Binding var centerY: Double
+    var isTouching: Binding<Bool> = .constant(false)
 
     // Raw (pre-expo) thumb position
     @State private var rawX: Double = 0
@@ -55,6 +56,7 @@ struct VirtualJoystick: View {
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
+                        if !isTouching.wrappedValue { isTouching.wrappedValue = true }
                         let ox = value.location.x - padRadius
                         let oy = value.location.y - padRadius
                         let dist = sqrt(ox * ox + oy * oy)
@@ -65,6 +67,7 @@ struct VirtualJoystick: View {
                         centerY = lockY ? rawY : applyExpo(rawY)  // no expo on throttle
                     }
                     .onEnded { _ in
+                        isTouching.wrappedValue = false
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                             rawX = 0
                         }
