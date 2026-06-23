@@ -22,6 +22,9 @@ struct VirtualJoystick: View {
     var autopilotEnabled: Bool = false
     var autopilotX: Double = 0
     var autopilotY: Double = 0
+    /// When true, the thumb is tinted green to signal that the stabilizer
+    /// (not the pilot) is in control of this axis pair.
+    var stabilizationActive: Bool = false
 
     // Raw (pre-expo) thumb position
     @State private var rawX: Double = 0
@@ -49,9 +52,10 @@ struct VirtualJoystick: View {
                     .frame(width: 1, height: padRadius * 2)
 
                 Circle()
-                    .fill(EasyPilotTheme.accent)
+                    .fill(stabilizationActive ? EasyPilotTheme.success : EasyPilotTheme.accent)
                     .frame(width: thumbRadius * 2, height: thumbRadius * 2)
-                    .shadow(color: EasyPilotTheme.accent.opacity(0.5), radius: 8)
+                    .shadow(color: (stabilizationActive ? EasyPilotTheme.success : EasyPilotTheme.accent).opacity(0.5), radius: 8)
+                    .animation(.easeInOut(duration: 0.2), value: stabilizationActive)
                     .offset(x: rawX * padRadius, y: rawY * padRadius)
                     .animation(.interactiveSpring(response: 0.15), value: rawX)
                     .animation(.interactiveSpring(response: 0.15), value: rawY)

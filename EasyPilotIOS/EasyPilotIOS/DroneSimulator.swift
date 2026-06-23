@@ -5,6 +5,7 @@ import simd
 enum SimFlightMode: String, CaseIterable {
     case rate    = "RATE"
     case balance = "BALANCE"
+    case poshold = "POS"
 }
 
 /// Rate-mode and balance-mode 3D flight simulator driven by SceneKit's render loop.
@@ -108,6 +109,14 @@ class DroneSimulator: ObservableObject {
     private var holdAltitude: Float = 0.05   // == groundLevel
     /// Last effective throttle commanded by the auto-pilot (for stick visualisation).
     private var apThrottle: Float = 0.45
+    // POSHOLD: previous-frame body-frame horizontal velocities, for the D term.
+    private var _lastVFwdBody:   Double = 0
+    private var _lastVRightBody: Double = 0
+    // POSHOLD: world-frame target position to actively fly back to.
+    // Captured at the moment the right stick is released; cleared while held.
+    private var _holdPosX:   Float = 0
+    private var _holdPosZ:   Float = 0
+    private var _hasHoldPos: Bool  = false
 
     // MARK: - Constants
 
@@ -167,6 +176,10 @@ class DroneSimulator: ObservableObject {
         apThrottle = effectiveThrottle
         let flying = effectiveThrottle > 0.02
 
+        // Clear the position-hold target whenever the pilot is actively
+        // commanding pitch/roll. Re-capture happens on next release in POSHOLD.
+        if rightStickTouched { _hasHoldPos = false }
+
         // ── Attitude update ────────────────────────────────────────────────
         // Pitch/roll stabilise when the RIGHT stick is released; yaw responds
         // to LEFT stick (yaw axis) and decays naturally when released.
@@ -189,6 +202,52 @@ class DroneSimulator: ObservableObject {
             case .balance:
                 _roll  += (0 - _roll)  * kPRoll  * kPScale * Double(dt)
                 _pitch += (0 - _pitch) * kPPitch * kPScale * Double(dt)
+            case .poshold:
+                // Loiter / position-hold. On release, capture the world-frame
+                // target position; thereafter compute a body-frame error and
+                // run a position-PD + velocity-PD on top of the same
+                // P-controller theory used in BALANCE. The drone actively
+                // flies back to the spot with real counter-tilt physics — no
+                // velocity damping cheats.
+                if !_hasHoldPos {
+                    _holdPosX   = _pos.x
+                    _holdPosZ   = _pos.z
+                    _hasHoldPos = true
+                }
+                let thetaD     = Double(-_yaw) * .pi / 180
+                let sT = sin(thetaD), cT = cos(thetaD)
+                // Body-frame horizontal velocity
+                let vFwdBody   = -sT * Double(_vel.x) - cT * Double(_vel.z)
+                let vRightBody =  cT * Double(_vel.x) - sT * Double(_vel.z)
+                // Body-frame position error (target − current)
+                let dPosX        = Double(_holdPosX - _pos.x)
+                let dPosZ        = Double(_holdPosZ - _pos.z)
+                let posErrFwd    = -sT * dPosX - cT * dPosZ
+                let posErrRight  =  cT * dPosX - sT * dPosZ
+                // D term on velocity: anticipates trajectory, kills overshoot.
+                let dtSafe       = max(0.001, Double(dt))
+                let aFwdBody     = (vFwdBody   - _lastVFwdBody)   / dtSafe
+                let aRightBody   = (vRightBody - _lastVRightBody) / dtSafe
+                _lastVFwdBody    = vFwdBody
+                _lastVRightBody  = vRightBody
+                // Gains tuned for a soft, GPS-loiter feel: drone drifts a
+                // bit, gently leans back, slowly returns to the spot. Real
+                // FC POSHOLD modes are quite gentle — snappy correction looks
+                // like cheating, not flying.
+                let kPP     = 2.0    // tilt° per m of position error
+                let kVP     = 3.0    // tilt° per m/s of velocity
+                let kVD     = 0.6    // tilt° per m/s² (mild anti-overshoot)
+                let maxTilt = 14.0
+                let targetPitch = max(-maxTilt, min(maxTilt,
+                    -kPP * posErrFwd  + kVP * vFwdBody   + kVD * aFwdBody))
+                let targetRoll  = max(-maxTilt, min(maxTilt,
+                     kPP * posErrRight - kVP * vRightBody - kVD * aRightBody))
+                // Slow attitude following — drone rolls into the lean over
+                // ~1 s instead of snapping there. Matches how a real airframe
+                // with inertia + ESC ramp responds.
+                let attResp = 1.0
+                _roll  += (targetRoll  - _roll)  * kPRoll  * kPScale * attResp * Double(dt)
+                _pitch += (targetPitch - _pitch) * kPPitch * kPScale * attResp * Double(dt)
             }
             // Yaw still responds to left stick if it's held
             if leftStickTouched {
@@ -235,9 +294,8 @@ class DroneSimulator: ObservableObject {
         _vel *= dragFactor
 
         // Active horizontal brake when the pilot lets go of the right stick.
-        // Without this the drone keeps coasting on whatever momentum it had
-        // and drifts far before tilt-induced thrust can null it out.
-        if !rightStickTouched && _pos.y > Self.groundLevel + 0.02 {
+        // Skipped in POSHOLD: that mode brakes via real counter-tilt physics.
+        if !rightStickTouched && _pos.y > Self.groundLevel + 0.02 && flightMode != .poshold {
             let brake = max(0, 1.0 - 1.4 * dt)
             _vel.x *= brake
             _vel.z *= brake
@@ -370,5 +428,8 @@ class DroneSimulator: ObservableObject {
         throttle = 0; yaw = 0; pitch = 0; roll = 0
         holdAltitude = Self.groundLevel
         apThrottle = gravity / maxThrust
+        _lastVFwdBody = 0
+        _lastVRightBody = 0
+        _hasHoldPos = false
     }
 }
