@@ -1,0 +1,11 @@
+# Proposal: Sprint 2 - Real-time MSP Telemetry & Battery Monitoring
+
+## Goal
+As a drone pilot, I want to see real data from my Nazgul DC5 (Attitude & Battery) in my iOS App, so that I can monitor the drone's actual flight state without simulation.
+
+## Acceptance Criteria
+* **Physical Connection:** ESP32 is correctly wired to Flight Controller (UART) and successfully requesting/receiving MSP packets.
+* **Data Bridging:** ESP32 parses MSP_ATTITUDE and MSP_ANALOG packets and translates them into the existing JSON format for the iOS App.
+* **Real-time Accuracy:** The 3D model orientation accurately follows the physical movements of the drone (Pitch/Roll/Yaw).
+* **Battery Status:** The dashboard displays the live LiPo voltage (V) and cell status, updating at least twice per second.
+* **Connection Reliability:** The dashboard shows a clear "No Data" or "Disconnected" state if the bridge between the ESP32 and FC is interrupted.
