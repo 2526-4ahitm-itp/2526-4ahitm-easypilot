@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="generator" content="Asciidoctor 2.0.23">
-<title>Projekttitel</title>
+<meta name="generator" content="Asciidoctor 2.0.26">
+<meta name="description" content="Hybrid FPV-Drohne mit ESP32-Companion und iOS-Control — 4AHITM Diplomarbeit">
+<meta name="author" content="Team EasyPilot · HTL 4AHITM">
+<title>EasyPilot</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /*! Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
@@ -116,7 +118,6 @@ h1 strong,h2 strong,h3 strong,#toctitle strong,.sidebarblock>.content>.title str
 :not(pre):not([class^=L])>code{font-size:.9375em;font-style:normal!important;letter-spacing:0;padding:.1em .5ex;word-spacing:-.15em;background:#f7f7f8;border-radius:4px;line-height:1.45;text-rendering:optimizeSpeed}
 pre{color:rgba(0,0,0,.9);font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;line-height:1.45;text-rendering:optimizeSpeed}
 pre code,pre pre{color:inherit;font-size:inherit;line-height:inherit}
-pre>code{display:block}
 pre.nowrap,pre.nowrap pre{white-space:pre;word-wrap:normal}
 em em{font-style:normal}
 strong strong{font-weight:400}
@@ -219,6 +220,7 @@ table.tableblock.fit-content>caption.title{white-space:nowrap;width:0}
 .literalblock pre,.listingblock>.content>pre:not(.highlight),.listingblock>.content>pre[class=highlight],.listingblock>.content>pre[class^="highlight "]{background:#f7f7f8}
 .literalblock.output pre{color:#f7f7f8;background:rgba(0,0,0,.9)}
 .listingblock>.content{position:relative}
+.listingblock pre>code{display:block}
 .listingblock code[data-lang]::before{display:none;content:attr(data-lang);position:absolute;font-size:.75em;top:.425rem;right:.5rem;line-height:1;text-transform:uppercase;color:inherit;opacity:.5}
 .listingblock:hover code[data-lang]::before{display:block}
 .listingblock.terminal pre .command::before{content:attr(data-prompt);padding-right:.5em;color:inherit;opacity:.5}
@@ -433,419 +435,618 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 #footer-text{color:rgba(0,0,0,.6);font-size:.9em}}
 @media amzn-kf8{#header,#content,#footnotes,#footer{padding:0}}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <style>
-/*! Asciidoctor Tabs | Copyright (c) 2018-present Dan Allen | MIT License */
-.tabs {
-    margin-bottom: 1.25em;
+pre.rouge table td { padding: 5px; }
+pre.rouge table pre { margin: 0; }
+pre.rouge, pre.rouge .w {
+  color: #24292f;
+  background-color: #f6f8fa;
 }
-
-.tablist > ul {
-    display: flex;
-    flex-wrap: wrap;
-    list-style: none;
-    margin: 0;
-    padding: 0;
+pre.rouge .k, pre.rouge .kd, pre.rouge .kn, pre.rouge .kp, pre.rouge .kr, pre.rouge .kt, pre.rouge .kv {
+  color: #cf222e;
 }
-
-.tablist > ul li {
-    align-items: center;
-    background-color: #fff;
-    cursor: pointer;
-    display: flex;
-    font-weight: bold;
-    line-height: 1.5;
-    padding: 0.25em 1em;
-    position: relative;
+pre.rouge .gr {
+  color: #f6f8fa;
 }
-
-.tablist > ul li:focus-visible {
-    outline: none;
+pre.rouge .gd {
+  color: #82071e;
+  background-color: #ffebe9;
 }
-
-.tablist.ulist,
-.tablist.ulist > ul li {
-    margin: 0;
+pre.rouge .nb {
+  color: #953800;
 }
-
-.tablist.ulist > ul li + li {
-    margin-left: 0.25em;
+pre.rouge .nc {
+  color: #953800;
 }
-
-.tabs .tablist li::after {
-    content: "";
-    display: block;
-    height: 1px;
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
+pre.rouge .no {
+  color: #953800;
 }
-
-.tabs.is-loading .tablist li:not(:first-child),
-.tabs:not(.is-loading) .tablist li:not(.is-selected) {
-    background-color: #f5f5f5;
+pre.rouge .nn {
+  color: #953800;
 }
-
-.tabs.is-loading .tablist li:first-child::after,
-.tabs:not(.is-loading) .tablist li.is-selected::after {
-    background-color: #fff;
+pre.rouge .sr {
+  color: #116329;
 }
-
-/*
-.tabs:not(.is-loading) .tablist li,
-.tabs:not(.is-loading) .tablist li::after {
-  transition: background-color 200ms ease-in-out;
+pre.rouge .na {
+  color: #116329;
 }
-*/
-
-.tablist > ul p {
-    line-height: inherit;
-    margin: 0;
+pre.rouge .nt {
+  color: #116329;
 }
-
-.tabpanel {
-    background-color: #fff;
-    padding: 1.25em;
+pre.rouge .gi {
+  color: #116329;
+  background-color: #dafbe1;
 }
-
-.tablist > ul li,
-.tabpanel {
-    border: 1px solid #dcdcdc;
+pre.rouge .kc {
+  color: #0550ae;
 }
-
-.tablist > ul li {
-    border-bottom: 0;
+pre.rouge .l, pre.rouge .ld, pre.rouge .m, pre.rouge .mb, pre.rouge .mf, pre.rouge .mh, pre.rouge .mi, pre.rouge .il, pre.rouge .mo, pre.rouge .mx {
+  color: #0550ae;
 }
-
-.tabs.is-loading .tabpanel + .tabpanel,
-.tabs:not(.is-loading) .tabpanel.is-hidden {
-    display: none;
+pre.rouge .sb {
+  color: #0550ae;
 }
-
-.tabpanel > :first-child {
-    margin-top: 0;
+pre.rouge .bp {
+  color: #0550ae;
 }
-
-/* #content is a signature of the Asciidoctor standalone HTML output */
-#content .tabpanel > :last-child,
-#content .tabpanel > :last-child > :last-child,
-#content .tabpanel > :last-child > :last-child > li:last-child > :last-child {
-    margin-bottom: 0;
+pre.rouge .ne {
+  color: #0550ae;
 }
-
-.tablecontainer {
-    overflow-x: auto;
+pre.rouge .nl {
+  color: #0550ae;
 }
-
-#content .tablecontainer {
-    margin-bottom: 1.25em;
+pre.rouge .py {
+  color: #0550ae;
 }
-
-#content .tablecontainer > table.tableblock {
-    margin-bottom: 0;
+pre.rouge .nv, pre.rouge .vc, pre.rouge .vg, pre.rouge .vi, pre.rouge .vm {
+  color: #0550ae;
+}
+pre.rouge .o, pre.rouge .ow {
+  color: #0550ae;
+}
+pre.rouge .gh {
+  color: #0550ae;
+  font-weight: bold;
+}
+pre.rouge .gu {
+  color: #0550ae;
+  font-weight: bold;
+}
+pre.rouge .s, pre.rouge .sa, pre.rouge .sc, pre.rouge .dl, pre.rouge .sd, pre.rouge .s2, pre.rouge .se, pre.rouge .sh, pre.rouge .sx, pre.rouge .s1, pre.rouge .ss {
+  color: #0a3069;
+}
+pre.rouge .nd {
+  color: #8250df;
+}
+pre.rouge .nf, pre.rouge .fm {
+  color: #8250df;
+}
+pre.rouge .err {
+  color: #f6f8fa;
+  background-color: #82071e;
+}
+pre.rouge .c, pre.rouge .ch, pre.rouge .cd, pre.rouge .cm, pre.rouge .cp, pre.rouge .cpf, pre.rouge .c1, pre.rouge .cs {
+  color: #6e7781;
+}
+pre.rouge .gl {
+  color: #6e7781;
+}
+pre.rouge .gt {
+  color: #6e7781;
+}
+pre.rouge .ni {
+  color: #24292f;
+}
+pre.rouge .si {
+  color: #24292f;
+}
+pre.rouge .ge {
+  color: #24292f;
+  font-style: italic;
+}
+pre.rouge .gs {
+  color: #24292f;
+  font-weight: bold;
 }
 </style>
 </head>
-<body class="article">
+<body class="article toc2 toc-left">
 <div id="header">
-<h1><strong>Projekttitel</strong></h1>
+<h1>EasyPilot</h1>
+<div class="details">
+<span id="author" class="author">Team EasyPilot · HTL 4AHITM</span><br>
+<span id="revdate">2026</span>
+</div>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_projektbeschreibung">1. Projektbeschreibung</a>
+<ul class="sectlevel2">
+<li><a href="#_features">1.1. Features</a></li>
+</ul>
+</li>
+<li><a href="#_systemarchitektur">2. Systemarchitektur</a></li>
+<li><a href="#_technologie_stack">3. Technologie-Stack</a></li>
+<li><a href="#_repository_struktur">4. Repository-Struktur</a></li>
+<li><a href="#_quick_start">5. Quick Start</a>
+<ul class="sectlevel2">
+<li><a href="#_esp32_flashen">5.1. ESP32 flashen</a></li>
+<li><a href="#_ios_app_installieren">5.2. iOS-App installieren</a></li>
+</ul>
+</li>
+<li><a href="#_openspec_spec_driven_development">6. OpenSpec — Spec-driven Development</a></li>
+<li><a href="#_projektziele">7. Projektziele</a></li>
+<li><a href="#_projektumfang_abgrenzung">8. Projektumfang / Abgrenzung</a>
+<ul class="sectlevel2">
+<li><a href="#_umfang">8.1. Umfang</a></li>
+<li><a href="#_abgrenzung">8.2. Abgrenzung</a></li>
+</ul>
+</li>
+<li><a href="#_erwartete_ergebnisse">9. Erwartete Ergebnisse</a></li>
+<li><a href="#_minutes_of_meeting">10. Minutes of Meeting</a></li>
+<li><a href="#_team">11. Team</a></li>
+<li><a href="#_lizenz">12. Lizenz</a></li>
+</ul>
+</div>
 </div>
 <div id="content">
 <div id="preamble">
 <div class="sectionbody">
-<div class="paragraph">
-<p><strong>Autonome FPV-Drohne mit Companion-Computer und Sensorintegration</strong></p>
+<div class="paragraph lead">
+<p><strong>EasyPilot</strong> ist eine teilautonome FPV-Drohne mit ESP32-Companion-Computer
+und nativer iOS-Steuerung. Manuelle Steuerung erfolgt klassisch über
+<strong>DJI Goggles 3</strong> + <strong>DJI RC 3</strong>, autonome und semi-autonome Funktionen
+laufen über einen ESP32-C3 SuperMini, der via <strong>MSP</strong> mit dem
+<strong>Betaflight Flight Controller</strong> spricht und Telemetrie über <strong>WiFi</strong> an
+eine <strong>SwiftUI iOS-App</strong> schickt.</p>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_projektbeschreibung"><strong>Projektbeschreibung</strong></h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Ziel des Projekts ist die Entwicklung und Umsetzung einer <strong>teilautonomen FPV-Drohne</strong>, die sowohl manuell mit DJI Goggles 3 und DJI Remote Controller 3 gesteuert werden kann, als auch durch einen <strong>Raspberry Pi</strong> Teilautonome Flugfunktionen ausführt.</p>
-</div>
-<div class="paragraph">
-<p>Die Basis bildet ein <strong>BNF-FPV-Drohnenmodell (z. B. iFlight Nazgul ECO)</strong> mit integriertem <strong>DJI O4 Air Pro Unit</strong> für digitale Videoübertragung. Die Flugstabilisierung erfolgt über den vorhandenen <strong>Flight Controller (BLITZ ATF435, Betaflight)</strong>. Der Raspberry Pi wird als Erweiterung eingesetzt, um zusätzliche Algorithmen und Sensoren zu verarbeiten.</p>
-</div>
-<div class="paragraph">
-<p>Geplante Features:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>Crash-Safer:</strong> Notfallprozeduren zur Stabilisierung bei Kontrollverlust.</p>
-</li>
-<li>
-<p><strong>Position Hold</strong>: Beim loslassen des Steuer Controllers bleibt Drohne neutral an der Position.</p>
-</li>
-<li>
-<p><strong>Turtle Mode:</strong> automatisches Aufrichten der Drohne nach Crash.</p>
-</li>
-<li>
-<p><strong>Autopilot:</strong> automatische Flugsteuerung basierend auf Sensordaten (GPS, LiDAR, Ultraschall, Kamera mit YOLO).</p>
-</li>
-<li>
-<p><strong>Auto-Hover und Auto-Brake:</strong> Stabilisieren der Drohne an Ort und Stelle bzw. kontrolliertes Abbremsen.</p>
-</li>
-<li>
-<p><strong>Webinterface:</strong> Eingabe von Parametern (z. B. Gewicht, Schub, Flugstil) sowie Darstellung von Telemetrie und Flugpfaden.</p>
-</li>
-<li>
-<p><strong>Crash-Map:</strong> Speicherung und Visualisierung von Unfällen im Webinterface.</p>
-</li>
-<li>
-<p><strong>Flight Logging &amp; Strichliste:</strong> automatische Auswertung der Flüge.</p>
-</li>
-</ul>
-</div>
-<hr>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_projektziele"><strong>Projektziele</strong></h2>
-<div class="sectionbody">
-<div class="ulist">
-<ul>
-<li>
-<p>Aufbau und Inbetriebnahme einer FPV-Drohne mit DJI O4 Air  Pro Unit.</p>
-</li>
-<li>
-<p>Integration eines Raspberry Pi als Companion-Computer.</p>
-</li>
-<li>
-<p>Entwicklung von Algorithmen für <strong>Autopilot, Auto-Hover und Auto-Brake</strong>.</p>
-</li>
-<li>
-<p>Implementierung eines <strong>Webinterfaces</strong> zur Steuerung und Visualisierung.</p>
-</li>
-<li>
-<p>Durchführung von Simulationen (Liftoff, Gazebo, Betaflight SITL) zur Minimierung von Hardware-Risiken.</p>
-</li>
-<li>
-<p>Praxistests</p>
-</li>
-</ul>
-</div>
-<hr>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_projektumfang_abgrenzung"><strong>Projektumfang / Abgrenzung</strong></h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p><strong>Umfang:</strong></p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Hardware: FPV-Drohne, Flight Controller, O4 Air Pro Unit, Raspberry Pi, Sensoren (GPS, Ultraschall/LiDAR, Kamera).</p>
-</li>
-<li>
-<p>Software: Betaflight/ArduPilot für Flight Controller, Companion-Software auf Raspberry Pi (Java/Python für YOLOv5 Modell), MAVSDK/MAVLink-Anbindung für Kommunikation zwischen Raspberry Pi und Flight Controller, Webinterface.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p><strong>Abgrenzung:</strong></p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Keine vollständige Neuentwicklung eines Flight Controllers (Verwendung vorhandener Hardware).</p>
-</li>
-<li>
-<p>Fokus auf <strong>Kombination von Autonomie und FPV-Steuerung</strong>, nicht auf reinen FPV-Racing-Einsatz.</p>
-</li>
-</ul>
-</div>
-<hr>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_erwartete_ergebnisse"><strong>Erwartete Ergebnisse</strong></h2>
-<div class="sectionbody">
-<div class="ulist">
-<ul>
-<li>
-<p>Funktionsfähige <strong>hybride FPV-Drohne</strong> mit manueller und teilautonomer Steuerung.</p>
-</li>
-<li>
-<p><strong>Webplattform</strong> für Konfiguration und Flugdatenauswertung.</p>
-</li>
-<li>
-<p>Dokumentierte Tests im Simulator und in realen Flügen.</p>
-</li>
-<li>
-<p>Nachweis der technischen Machbarkeit von <strong>teil-gestütztem Autopilot</strong> auf Consumer-Hardware.</p>
-</li>
-</ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_visualisierung_von_technologien"><strong>Visualisierung von Technologien</strong></h2>
-<div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="img/bild1.png" alt="bild1">
+<img src="https://img.shields.io/badge/Status-Sprint%205-success?style=for-the-badge" alt="Status Sprint%205 success?style=for the badge">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://img.shields.io/badge/Platform-ESP32--C3-blue?style=for-the-badge" alt="Platform ESP32  C3 blue?style=for the badge">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://img.shields.io/badge/iOS-SwiftUI-orange?style=for-the-badge" alt="iOS SwiftUI orange?style=for the badge">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://img.shields.io/badge/FC-Betaflight-red?style=for-the-badge" alt="FC Betaflight red?style=for the badge">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="https://img.shields.io/badge/Spec-OpenSpec-9cf?style=for-the-badge" alt="Spec OpenSpec 9cf?style=for the badge">
+</div>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_projektbeschreibung"><a class="anchor" href="#_projektbeschreibung"></a>1. Projektbeschreibung</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ziel des Projekts ist die Entwicklung einer <strong>teilautonomen FPV-Drohne</strong>,
+die sowohl manuell als auch über eine eigene App gesteuert und überwacht
+werden kann.</p>
+</div>
+<div class="paragraph">
+<p>Die Basis bildet ein <strong>BNF-FPV-Drohnenmodell</strong> (iFlight Nazgul ECO) mit
+integrierter <strong>DJI O4 Air Pro Unit</strong> für digitale Videoübertragung. Die
+Flugstabilisierung übernimmt der vorhandene <strong>Flight Controller
+(BLITZ ATF435 mit Betaflight)</strong>. Ein <strong>ESP32-C3 SuperMini</strong> fungiert als
+Companion-Computer und Funkbrücke zur iOS-App.</p>
+</div>
+<div class="sect2">
+<h3 id="_features"><a class="anchor" href="#_features"></a>1.1. Features</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Feature</th>
+<th class="tableblock halign-left valign-top">Beschreibung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Live-Telemetrie</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Roll/Pitch/Yaw, Motoren, Batterie — 10 Hz über WebSocket</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>3D-Visualisierung</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Echtzeit-Drohnenmodell in SceneKit auf dem iPhone</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Sound Mode</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iPhone-Neigung steuert alle 4 Motoren synchron für Akustik-Demos</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Balance Mode</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ESP32-seitiger P-Regler stabilisiert Roll/Pitch um <code>baseThrottle</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>RC Mode</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Vollständige Stick-Steuerung über die iOS-App (Throttle, Roll, Pitch, Yaw)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Simulator-Tab</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Komplette Phone-side Drohnen-Simulation mit Physik, inkl.
+  POSHOLD-Loiter-Mode für realistisches GPS-Hold-Verhalten</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Crash-Safer</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Heartbeat-Watchdog (1.5 s), Crash-Erkennung bei &gt; 60° Lage,
+  Auto-Disarm bei WebSocket-Verlust</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Safe-Test-Mode</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tilt-getriggerte Niedrigleistungs-Motor-Pulse für sichere
+  Komponenten-Tests</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_systemarchitektur"><a class="anchor" href="#_systemarchitektur"></a>2. Systemarchitektur</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code>            ┌─────────────────────────┐
+            │    iOS-App (SwiftUI)    │
+            │  - Dashboard            │
+            │  - Algorithms           │
+            │  - Simulator            │
+            └────────────┬────────────┘
+                         │
+            WiFi  ───────┼───────  ws://&lt;esp32&gt;:81
+                         │         UDP :4242 beacon
+                         ▼
+            ┌─────────────────────────┐
+            │  ESP32-C3 SuperMini     │
+            │  - WebSocket-Server     │
+            │  - UDP-Beacon           │
+            │  - MSP-Master           │
+            └────────────┬────────────┘
+                         │  UART @115200, MSP
+                         ▼
+            ┌─────────────────────────┐
+            │  Betaflight FC          │
+            │  - IMU, ESC-Treiber     │
+            └─────────────────────────┘</code></pre>
+</div>
+</div>
+<div class="imageblock center">
+<div class="content">
+<img src="img/bild1.png" alt="Drohnen-System Übersicht">
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_visualisierung_von_technologien_2"><strong>Visualisierung von Technologien</strong></h2>
+<h2 id="_technologie_stack"><a class="anchor" href="#_technologie_stack"></a>3. Technologie-Stack</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 40%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Layer</th>
+<th class="tableblock halign-left valign-top">Technologie</th>
+<th class="tableblock halign-left valign-top">Zweck</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Drohne</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iFlight Nazgul ECO + DJI O4 Air Pro</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">FPV-Plattform, Video</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>FC</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">BLITZ ATF435 + Betaflight</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Flugstabilisierung, ESC-Steuerung</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Companion</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ESP32-C3 SuperMini (PlatformIO/Arduino)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">WiFi-Brücke, MSP-Master</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Mobile</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iOS 17+ · SwiftUI · SceneKit · CoreMotion</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Steuerung &amp; Visualisierung</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Protokoll Drohne↔Phone</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">WebSocket (JSON) + UDP-Beacon</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10 Hz Telemetrie</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Protokoll ESP32↔FC</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MultiWii Serial Protocol (MSP)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Attitude, Battery, Motors</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Spec-Workflow</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/Fission-Codes/openspec">OpenSpec</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sprint-Dokumentation</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_repository_struktur"><a class="anchor" href="#_repository_struktur"></a>4. Repository-Struktur</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code>.
+├── EasyPilotIOS/         iOS-App (Xcode-Projekt)
+├── PlatformIO/Projects/
+│   ├── EasyPilotIOS/     Firmware für die iOS-Brücke
+│   └── easypilot/        Standalone Web-Dashboard-Firmware
+├── openspec/             Spec-driven Dokumentation
+│   ├── specs/            Live-Specs (core, firmware, …)
+│   ├── changes/          Aktive + archivierte Sprints
+│   └── templates/        Sprint-Vorlagen
+├── docs/                 GitHub Pages (diese Seite)
+├── deploy.sh             One-Click iOS-Deploy
+└── CLAUDE.md             Architektur-Cheat-Sheet</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_quick_start"><a class="anchor" href="#_quick_start"></a>5. Quick Start</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_esp32_flashen"><a class="anchor" href="#_esp32_flashen"></a>5.1. ESP32 flashen</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="bash"><span class="nb">cd </span>PlatformIO/Projects/EasyPilotIOS
+<span class="nb">cp </span>secrets.ini.example secrets.ini   <span class="c"># WiFi-SSID &amp; Passwort eintragen</span>
+pio run <span class="nt">--target</span> upload
+pio device monitor</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_ios_app_installieren"><a class="anchor" href="#_ios_app_installieren"></a>5.2. iOS-App installieren</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="bash">./deploy.sh                          <span class="c"># auto-detect iPhone</span>
+<span class="c"># oder explizit:</span>
+./deploy.sh &lt;DEVICE_UDID&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Beim Start scannt die App das lokale Netzwerk auf den UDP-Beacon
+<code>EASYPILOT:&lt;IP&gt;</code> und öffnet automatisch die WebSocket-Verbindung.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_openspec_spec_driven_development"><a class="anchor" href="#_openspec_spec_driven_development"></a>6. OpenSpec — Spec-driven Development</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Backend:</strong> 	Java mit Quarkus, Lombok evtl Web Fluxes für Reactive
-<strong>Datenbank:</strong> 	PostGres um verschiedene Drohnen eines Accounts zu Managen bzw dort die Attribute
-		ändern
-<strong>Frontend:</strong> 	Angular / React Router
-<strong>Versioning:</strong> 	Github mit Github Actions für Bildvergleiche für UI und Deployment auf
-		Cloudflare
-<strong>Drohnen Tools:</strong> MavLink für Kommunikation zwischen Rasp und Flight Controller,
-Jolov5 Object Detection, BetaFlight \-\&gt; Motoren steuerung, stabilisierung</p>
+<p>Alle Funktionen werden zuerst in <code>openspec/</code> spezifiziert, bevor Code
+geschrieben wird. Subsystem-Specs:</p>
 </div>
-<div class="imageblock kroki">
-<div class="content">
-<img src="https://kroki.io/plantuml/png/eNqFVE1vEzEQvftXDL0AEqtISFyqqmraUhpIaZqkSBy9m9ldk117NbaDGsQ_4cjP6C1_jPF-ZROEuI3teTNv3rN9YZ0k58tCvHA5lgilJCvsWulKkiwhMWVlNGq3cE8FAie-FeIlfOq2UcMKU6UVEmrRZ8PJDZlwujoBaaFbwNnZWGe-kDSao0zc-fkQcimTdYdoYwZ8lBs5evCS1t4e5l9LrhlLva4RvJKxtMiQmbEuI1w8TI8AZHKOoqUxhW1ATAzrJcPm0lYxEj3BTB0CvyBZZbRd8xhkigJrcLurdMbgD8rd-nh0NWEkCzTheUkjNLWV1ki5LGIWi-CAxlC-ioeWGR4RhWt0UgXCP4ac7uRmqtrZ23h4_PV-er95V5824YHSXPGmUFnuGrH7pfgZyF_iVmHudXbobu9iFJ33Bp3CeDaJxj4lnyK8ul0uZ6P5-8XytegyQnZvzinUrlVBOsvBVrTcm6I9EU7kO1Z6rdbSsciiGeLvrPv4G66d0qmhss5kogNjQn7Pm5tjVZinkkU4TtrP8--cwRSLhF-LjO5URl1XkasVQqIoKTCo-Nk4tWUFc6W3Pt09s5pCG4dQYOrApD0vAfA4ga2ncKO-y8Kx8rDhmaG_KuMkMV47KwLFUEQ0pahWgWu19BnCdgB3I2gxEfh6v9Z90zc4rtSR6mZkxKJCxWOS62hI50jF3oVDLgr_ZbV_XoyY7n577iF9OngFb_jAMhxdQxBWithPkOHmaWhsvuqeHR13io1zpgyt9lYFDTzvsi9WBfaPk2j3ix92RbvntL7VLf-904MRLjjib-4PutzG8w==" alt="my-drone-system">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Spec</th>
+<th class="tableblock halign-left valign-top">Inhalt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/core/spec.md"><strong>core</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Gesamt-Architektur, Subsystem-Index, Fail-Safe-Regeln</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/firmware/spec.md"><strong>firmware</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ESP32 Flight-Modes, MSP, Safety-Watchdogs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/communication/spec.md"><strong>communication</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UDP-Discovery + WebSocket + MSP-Protokoll</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/dashboard/spec.md"><strong>dashboard</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iOS Dashboard-Tab</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/simulator-controller/spec.md"><strong>simulator-controller</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iOS Simulator-Tab + Virtual-Joysticks</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/hardware/spec.md"><strong>hardware</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ESP32-C3, FC-Wiring, ESC-PWM, Battery</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/drone-telemetry/spec.md"><strong>drone-telemetry</strong></a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Attitude- und Battery-Telemetrie-Kontrakt</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Sprint-Workflow:
+<a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/README.md">openspec/README.md</a></p>
 </div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_projektziele"><a class="anchor" href="#_projektziele"></a>7. Projektziele</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Aufbau und Inbetriebnahme einer FPV-Drohne mit DJI O4 Air Pro Unit</p>
+</li>
+<li>
+<p>Integration eines ESP32-C3 als Companion-Computer</p>
+</li>
+<li>
+<p>Entwicklung einer nativen iOS-App für Telemetrie und Steuerung</p>
+</li>
+<li>
+<p>Implementierung von <strong>Balance</strong>-, <strong>RC</strong>- und <strong>POSHOLD</strong>-Flugmodi</p>
+</li>
+<li>
+<p>Demo-fähige Drohnensimulation für Vorführungen ohne reale Drohne</p>
+</li>
+<li>
+<p>Lückenlose Sprint-Dokumentation via OpenSpec</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_projektumfang_abgrenzung"><a class="anchor" href="#_projektumfang_abgrenzung"></a>8. Projektumfang / Abgrenzung</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_umfang"><a class="anchor" href="#_umfang"></a>8.1. Umfang</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Hardware:</strong> FPV-Drohne, BLITZ ATF435 FC, DJI O4 Air Pro Unit,
+ESP32-C3 SuperMini, 4S LiPo</p>
+</li>
+<li>
+<p><strong>Software:</strong> Betaflight-Firmware (FC), PlatformIO/Arduino-Firmware
+(ESP32), SwiftUI iOS-App, MSP-Protokoll</p>
+</li>
+<li>
+<p><strong>Doku:</strong> OpenSpec-driven Spezifikationen pro Subsystem</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_abgrenzung"><a class="anchor" href="#_abgrenzung"></a>8.2. Abgrenzung</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Keine Neuentwicklung eines eigenen Flight Controllers</p>
+</li>
+<li>
+<p>Kein Race-Drohnen-Fokus — Hybridbetrieb aus Autonomie und FPV</p>
+</li>
+<li>
+<p>Keine Cloud-Komponenten — bewusst lokal-only (Privacy + Latenz)</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_erwartete_ergebnisse"><a class="anchor" href="#_erwartete_ergebnisse"></a>9. Erwartete Ergebnisse</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Funktionsfähige hybride FPV-Drohne mit iOS-Steuerung</p>
+</li>
+<li>
+<p>iOS-App mit Dashboard, Algorithmen-Tuning und Simulator</p>
+</li>
+<li>
+<p>Vollständig dokumentiertes OpenSpec-Repository</p>
+</li>
+<li>
+<p>Nachweis der Machbarkeit teilautonomer Systeme auf Consumer-Hardware</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_minutes_of_meeting"><a class="anchor" href="#_minutes_of_meeting"></a>10. Minutes of Meeting</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="minutes-of-meetings/2025-11-25_Sprintplanning.html">Sprintplanning · 25.11.2025</a></p>
+</li>
+<li>
+<p><a href="minutes-of-meetings/2025-12-23_Sprintplanning.html">Sprintplanning · 23.12.2025</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_team"><a class="anchor" href="#_team"></a>11. Team</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Rolle</th>
+<th class="tableblock halign-left valign-top">Person</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hardware &amp; Firmware (ESP32)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">iOS-App &amp; Simulator</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Spec-Owner / OpenSpec</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_lizenz"><a class="anchor" href="#_lizenz"></a>12. Lizenz</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>MIT License — siehe <a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/LICENSE">LICENSE</a>
+im Repository-Root.</p>
+</div>
+<hr>
+<div class="paragraph text-center">
+<p><span class="small">Diplomarbeit · HTL 4AHITM · Schuljahr 2025/26</span></p>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2025-12-02 08:17:30 +0100
+Last updated 2026-06-23 09:40:52 +0200
 </div>
 </div>
-<script>
-;(function () { /*! Asciidoctor Tabs | Copyright (c) 2018-present Dan Allen | MIT License */
-  'use strict'
-
-  var config = (document.currentScript || {}).dataset || {}
-  var forEach = Array.prototype.forEach
-
-  init(document.querySelectorAll('.tabs'))
-
-  function init (tabsBlocks) {
-    if (!tabsBlocks.length) return
-    forEach.call(tabsBlocks, function (tabs) {
-      var syncIds = tabs.classList.contains('is-sync') ? {} : undefined
-      var tablist = tabs.querySelector('.tablist ul')
-      tablist.setAttribute('role', 'tablist')
-      var start
-      forEach.call(tablist.querySelectorAll('li'), function (tab, idx) {
-        tab.tabIndex = -1
-        tab.setAttribute('role', tab.classList.add('tab') || 'tab')
-        var id, anchor, syncId
-        if (!(id = tab.id) && (anchor = tab.querySelector('a[id]'))) {
-          id = tab.id = anchor.parentNode.removeChild(anchor).id
-        }
-        var panel = id && tabs.querySelector('.tabpanel[aria-labelledby~="' + id + '"]')
-        if (!panel) return idx ? undefined : toggleSelected(tab, true) // invalid state
-        syncIds && (((syncId = tab.textContent.trim()) in syncIds) ? (syncId = undefined) : true) &&
-        (syncIds[(tab.dataset.syncId = syncId)] = tab)
-        idx || (syncIds && (start = { tab: tab, panel: panel })) ? toggleHidden(panel, true) : toggleSelected(tab, true)
-        tab.setAttribute('aria-controls', panel.id)
-        panel.setAttribute('role', 'tabpanel')
-        var onClick = syncId === undefined ? activateTab : activateTabSync
-        tab.addEventListener('click', onClick.bind({ tabs: tabs, tab: tab, panel: panel }))
-      })
-      if (!tabs.closest('.tabpanel')) {
-        forEach.call(tabs.querySelectorAll('.tabpanel table.tableblock'), function (table) {
-          var container = Object.assign(document.createElement('div'), { className: 'tablecontainer' })
-          table.parentNode.insertBefore(container, table).appendChild(table)
-        })
-      }
-      if (start) {
-        var syncGroupId
-        for (var i = 0, lst = tabs.classList, len = lst.length, className; i !== len; i++) {
-          if (!(className = lst.item(i)).startsWith('data-sync-group-id=')) continue
-          tabs.dataset.syncGroupId = syncGroupId = lst.remove(className) || className.slice(19).replace(/\u00a0/g, ' ')
-          break
-        }
-        if (syncGroupId === undefined) tabs.dataset.syncGroupId = syncGroupId = Object.keys(syncIds).sort().join('|')
-        var preferredSyncId = 'syncStorageKey' in config &&
-          window[(config.syncStorageScope || 'local') + 'Storage'].getItem(config.syncStorageKey + '-' + syncGroupId)
-        var tab = preferredSyncId && syncIds[preferredSyncId]
-        tab && Object.assign(start, { tab: tab, panel: document.getElementById(tab.getAttribute('aria-controls')) })
-        toggleSelected(start.tab, true) || toggleHidden(start.panel, false)
-      }
-    })
-    onHashChange()
-    toggleClassOnEach(tabsBlocks, 'is-loading', 'remove')
-    window.setTimeout(toggleClassOnEach.bind(null, tabsBlocks, 'is-loaded', 'add'), 0)
-    window.addEventListener('hashchange', onHashChange)
-  }
-
-  function activateTab (e) {
-    var tab = this.tab
-    var tabs = this.tabs || (this.tabs = tab.closest('.tabs'))
-    var panel = this.panel || (this.panel = document.getElementById(tab.getAttribute('aria-controls')))
-    querySelectorWithSiblings(tabs, '.tablist .tab', 'tab').forEach(function (el) {
-      toggleSelected(el, el === tab)
-    })
-    querySelectorWithSiblings(tabs, '.tabpanel', 'tabpanel').forEach(function (el) {
-      toggleHidden(el, el !== panel)
-    })
-    if (!this.isSync && 'syncStorageKey' in config && 'syncGroupId' in tabs.dataset) {
-      var storageKey = config.syncStorageKey + '-' + tabs.dataset.syncGroupId
-      window[(config.syncStorageScope || 'local') + 'Storage'].setItem(storageKey, tab.dataset.syncId)
-    }
-    if (!e) return
-    var loc = window.location
-    var hashIdx = loc.hash ? loc.href.indexOf('#') : -1
-    if (~hashIdx) window.history.replaceState(null, '', loc.href.slice(0, hashIdx))
-    e.preventDefault()
-  }
-
-  function activateTabSync (e) {
-    activateTab.call(this, e)
-    var thisTabs = this.tabs
-    var thisTab = this.tab
-    var initialY = thisTabs.getBoundingClientRect().y
-    forEach.call(document.querySelectorAll('.tabs'), function (tabs) {
-      if (tabs === thisTabs || tabs.dataset.syncGroupId !== thisTabs.dataset.syncGroupId) return
-      querySelectorWithSiblings(tabs, '.tablist .tab', 'tab').forEach(function (tab) {
-        if (tab.dataset.syncId === thisTab.dataset.syncId) activateTab.call({ tabs: tabs, tab: tab, isSync: true })
-      })
-    })
-    var shiftedBy = thisTabs.getBoundingClientRect().y - initialY
-    if (shiftedBy && (shiftedBy = Math.round(shiftedBy))) window.scrollBy({ top: shiftedBy, behavior: 'instant' })
-  }
-
-  function querySelectorWithSiblings (scope, selector, siblingClass) {
-    var el = scope.querySelector(selector)
-    if (!el) return []
-    var result = [el]
-    while ((el = el.nextElementSibling) && el.classList.contains(siblingClass)) result.push(el)
-    return result
-  }
-
-  function toggleClassOnEach (elements, className, method) {
-    forEach.call(elements, function (el) {
-      el.classList[method](className)
-    })
-  }
-
-  function toggleHidden (el, state) {
-    el.classList[(el.hidden = state) ? 'add' : 'remove']('is-hidden')
-  }
-
-  function toggleSelected (el, state) {
-    el.setAttribute('aria-selected', '' + state)
-    el.classList[state ? 'add' : 'remove']('is-selected')
-    el.tabIndex = state ? 0 : -1
-  }
-
-  function onHashChange () {
-    var id = window.location.hash.slice(1)
-    if (!id) return
-    var tab = document.getElementById(~id.indexOf('%') ? decodeURIComponent(id) : id)
-    if (!(tab && tab.classList.contains('tab'))) return
-    'syncId' in tab.dataset ? activateTabSync.call({ tab: tab }) : activateTab.call({ tab: tab })
-  }
-})()
-</script>
 </body>
 </html>
