@@ -27,7 +27,7 @@ struct SimulatorView: View {
     /// Landscape only — top telemetry/mode/settings pill is collapsed by default.
     @State private var showLandscapeChip: Bool = false
     /// Optional: animate joystick thumbs to mirror autopilot demand on release.
-    @State private var autopilotSticks: Bool = false
+    @State private var autopilotSticks: Bool = true
 
     // Flight mode + balance config
     @State private var flightMode:       SimFlightMode = .rate
@@ -343,7 +343,8 @@ struct SimulatorView: View {
                                 isTouching: $leftTouching,
                                 autopilotEnabled: autopilotSticks,
                                 autopilotX: 0,
-                                autopilotY: sim.autopilotLeftY)
+                                autopilotY: sim.autopilotLeftY,
+                                stabilizationActive: !leftTouching)
                     .padding(.leading, 16)
 
                 Spacer()
@@ -356,7 +357,8 @@ struct SimulatorView: View {
                                 isTouching: $rightTouching,
                                 autopilotEnabled: autopilotSticks,
                                 autopilotX: sim.autopilotRightX,
-                                autopilotY: sim.autopilotRightY)
+                                autopilotY: sim.autopilotRightY,
+                                stabilizationActive: !rightTouching && (flightMode == .balance || flightMode == .poshold))
                     .padding(.trailing, 16)
             }
             .padding(.top, 10).padding(.bottom, 16)
@@ -376,7 +378,8 @@ struct SimulatorView: View {
                                      centerX: $leftX, centerY: $leftY,
                                      isTouching: $leftTouching,
                                      autopilotX: 0,
-                                     autopilotY: sim.autopilotLeftY)
+                                     autopilotY: sim.autopilotLeftY,
+                                     stabilizationActive: !leftTouching)
                         .padding(.leading, 22)
                         .padding(.bottom, 18)
 
@@ -391,7 +394,8 @@ struct SimulatorView: View {
                                      centerX: $rightX, centerY: $rightY,
                                      isTouching: $rightTouching,
                                      autopilotX: sim.autopilotRightX,
-                                     autopilotY: sim.autopilotRightY)
+                                     autopilotY: sim.autopilotRightY,
+                                     stabilizationActive: !rightTouching && (flightMode == .balance || flightMode == .poshold))
                         .padding(.trailing, 22)
                         .padding(.bottom, 18)
                 }
@@ -541,13 +545,15 @@ struct SimulatorView: View {
     private func floatingJoystick(label: String, lockY: Bool,
                                   centerX: Binding<Double>, centerY: Binding<Double>,
                                   isTouching: Binding<Bool>,
-                                  autopilotX: Double, autopilotY: Double) -> some View {
+                                  autopilotX: Double, autopilotY: Double,
+                                  stabilizationActive: Bool) -> some View {
         VirtualJoystick(label: label, lockY: lockY, expo: expo,
                         centerX: centerX, centerY: centerY,
                         isTouching: isTouching,
                         autopilotEnabled: autopilotSticks,
                         autopilotX: autopilotX,
-                        autopilotY: autopilotY)
+                        autopilotY: autopilotY,
+                        stabilizationActive: stabilizationActive)
             .padding(10)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
