@@ -12,6 +12,9 @@ struct SimulatorView: View {
     @State private var rightX: Double = 0
     @State private var rightY: Double = 0
 
+    @State private var leftTouching:  Bool = false
+    @State private var rightTouching: Bool = false
+
     // General settings
     @State private var expo: Double = 0.35
     @State private var activeCamera: SimCamera = .chase
@@ -32,6 +35,8 @@ struct SimulatorView: View {
     @State private var rollHistory:  [Double] = Array(repeating: 0, count: 60)
     @State private var pitchHistory: [Double] = Array(repeating: 0, count: 60)
 
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
     // MARK: - Body
 
     var body: some View {
@@ -45,29 +50,41 @@ struct SimulatorView: View {
                     .padding(.top, 14)
                     .padding(.horizontal, 14)
 
-                HStack(alignment: .top) {
-                    miniHorizon
-                        .padding(.leading, 14)
-                        .padding(.top, 6)
-                    Spacer()
-                    AttitudeSparkline(rollHistory: rollHistory, pitchHistory: pitchHistory)
-                        .frame(width: 130, height: 52)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(10)
-                        .padding(.trailing, 14)
-                        .padding(.top, 6)
+                if verticalSizeClass == .regular {
+                    // Portrait only — landscape's top chip replaces these.
+                    HStack(alignment: .top) {
+                        miniHorizon
+                            .padding(.leading, 14)
+                            .padding(.top, 6)
+                        Spacer()
+                        AttitudeSparkline(rollHistory: rollHistory, pitchHistory: pitchHistory)
+                            .frame(width: 130, height: 52)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(10)
+                            .padding(.trailing, 14)
+                            .padding(.top, 6)
+                    }
+                } else {
+                    landscapeTopChip
+                        .padding(.top, 8)
                 }
 
                 Spacer()
             }
 
             // Bottom panel — one cohesive frosted slab
-            bottomPanel
+            if verticalSizeClass == .regular {
+                portraitBottomPanel
+            } else {
+                landscapeOverlay
+            }
         }
         .onChange(of: leftX)  { _ in pushInputs() }
         .onChange(of: leftY)  { _ in pushInputs() }
         .onChange(of: rightX) { _ in pushInputs() }
         .onChange(of: rightY) { _ in pushInputs() }
+        .onChange(of: leftTouching)  { _ in pushTouchState() }
+        .onChange(of: rightTouching) { _ in pushTouchState() }
         .onChange(of: expo)   { v in sim.expo = v }
         .onChange(of: flightMode)      { v in sim.flightMode = v }
         .onChange(of: kPRoll)          { v in sim.kPRoll = v }
@@ -206,9 +223,9 @@ struct SimulatorView: View {
         return String(format: "%.0f°%@", abs(r), r < 0 ? "L" : "R")
     }
 
-    // MARK: - Bottom panel
+    // MARK: - Portrait bottom panel
 
-    private var bottomPanel: some View {
+    private var portraitBottomPanel: some View {
         VStack(spacing: 0) {
             // ── Telemetry row ──────────────────────────────────────────────
             HStack(spacing: 0) {
@@ -295,70 +312,10 @@ struct SimulatorView: View {
             .background(Color.white.opacity(0.03))
 
             // ── Rate config (RATE mode) ───────────────────────────────────
-            if showExpoSlider {
-                VStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Text("RATE")
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.35))
-                            .tracking(1.5)
-                            .padding(.trailing, 4)
-                        ratePresetBtn("BEGINNER", rate: 180)
-                        ratePresetBtn("SPORT",    rate: 360)
-                        ratePresetBtn("PRO",      rate: 720)
-                        Spacer()
-                        let rateMap: [String: Int] = ["BEGINNER": 180, "SPORT": 360, "PRO": 720]
-                        Text("\(rateMap[ratePreset] ?? 360)°/s")
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(EasyPilotTheme.accent.opacity(0.8))
-                    }
-                    HStack(spacing: 10) {
-                        Text("LINEAR")
-                            .font(.system(size: 8, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.3))
-                        Slider(value: $expo, in: 0...0.9).tint(EasyPilotTheme.accent)
-                        Text("EXPO \(Int(expo * 100))%")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(EasyPilotTheme.accent)
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 8)
-                .background(Color.white.opacity(0.04))
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            if showExpoSlider { rateConfigPanel }
 
             // ── Balance config (BALANCE mode) ─────────────────────────────
-            if showBalanceCfg {
-                VStack(spacing: 10) {
-                    LabeledSlider(label: "kP Roll",  unit: "", value: $kPRoll,
-                                  range: 1...20, step: 0.5, format: "%.1f")
-                    LabeledSlider(label: "kP Pitch", unit: "", value: $kPPitch,
-                                  range: 1...20, step: 0.5, format: "%.1f")
-                    LabeledSlider(label: "Max Angle", unit: "°", value: $maxBalanceAngle,
-                                  range: 10...60, step: 5)
-
-                    HStack {
-                        Button {
-                            withAnimation { showProfilePicker = true }
-                        } label: {
-                            Label("From saved profile", systemImage: "doc.badge.arrow.up")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(EasyPilotTheme.accent)
-                        }
-                        Spacer()
-                        Button {
-                            kPRoll = 10.0; kPPitch = 10.0; maxBalanceAngle = 30.0
-                        } label: {
-                            Text("Reset")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.4))
-                        }
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color.white.opacity(0.04))
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            if showBalanceCfg { balanceConfigPanel }
 
             separator
 
@@ -366,7 +323,8 @@ struct SimulatorView: View {
             HStack(alignment: .center, spacing: 0) {
                 VirtualJoystick(label: "THR / YAW",
                                 lockY: true, expo: expo,
-                                centerX: $leftX, centerY: $leftY)
+                                centerX: $leftX, centerY: $leftY,
+                                isTouching: $leftTouching)
                     .padding(.leading, 16)
 
                 Spacer()
@@ -375,12 +333,264 @@ struct SimulatorView: View {
 
                 VirtualJoystick(label: "PCH / ROL",
                                 lockY: false, expo: expo,
-                                centerX: $rightX, centerY: $rightY)
+                                centerX: $rightX, centerY: $rightY,
+                                isTouching: $rightTouching)
                     .padding(.trailing, 16)
             }
             .padding(.top, 10).padding(.bottom, 16)
         }
         .background(.ultraThinMaterial)
+    }
+
+    // MARK: - Landscape overlay (floating UI, full-screen 3D scene)
+
+    private var landscapeOverlay: some View {
+        ZStack {
+            // Bottom row: corner-anchored joysticks + centered arm button
+            VStack {
+                Spacer()
+                HStack(alignment: .bottom, spacing: 0) {
+                    floatingJoystick(label: "THR / YAW", lockY: true,
+                                     centerX: $leftX, centerY: $leftY,
+                                     isTouching: $leftTouching)
+                        .padding(.leading, 22)
+                        .padding(.bottom, 18)
+
+                    Spacer()
+
+                    landscapeArmButton
+                        .padding(.bottom, 24)
+
+                    Spacer()
+
+                    floatingJoystick(label: "PCH / ROL", lockY: false,
+                                     centerX: $rightX, centerY: $rightY,
+                                     isTouching: $rightTouching)
+                        .padding(.trailing, 22)
+                        .padding(.bottom, 18)
+                }
+            }
+
+            // Right-edge slide-out drawer for settings
+            if showExpoSlider || showBalanceCfg {
+                HStack {
+                    Spacer()
+                    landscapeSettingsDrawer
+                        .frame(width: 320)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.trailing, 10)
+                        .padding(.vertical, 70)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+        }
+    }
+
+    private var landscapeTopChip: some View {
+        HStack(spacing: 8) {
+            // Compact numeric telemetry strip
+            HStack(spacing: 0) {
+                telCell("ROL", String(format: "%+.0f°", sim.simRoll))
+                divider
+                telCell("PCH", String(format: "%+.0f°", sim.simPitch))
+                divider
+                telCell("YAW", String(format: "%+.0f°", sim.simYaw))
+                divider
+                telCell("ALT", String(format: "%.1fm", sim.altitude))
+                divider
+                telCell("SPD", String(format: "%.1f", sim.speedH))
+            }
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+
+            // Mode selector
+            HStack(spacing: 2) {
+                ForEach(SimFlightMode.allCases, id: \.self) { mode in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            flightMode = mode
+                            showExpoSlider = false
+                            showBalanceCfg = false
+                        }
+                    } label: {
+                        Text(mode.rawValue)
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .tracking(1.2)
+                            .foregroundColor(flightMode == mode ? .black : .white.opacity(0.55))
+                            .padding(.horizontal, 9).padding(.vertical, 5)
+                            .background(flightMode == mode ? EasyPilotTheme.accent : Color.clear)
+                            .cornerRadius(6)
+                    }
+                }
+            }
+            .padding(3)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+
+            // Settings toggle
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if flightMode == .rate {
+                        showExpoSlider.toggle()
+                        showBalanceCfg = false
+                    } else {
+                        showBalanceCfg.toggle()
+                        showExpoSlider = false
+                    }
+                }
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(EasyPilotTheme.accent)
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+            }
+        }
+    }
+
+    private var landscapeSettingsDrawer: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(flightMode == .rate ? "RATE / EXPO" : "BALANCE kP")
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .tracking(1.5)
+                    .foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showExpoSlider = false
+                        showBalanceCfg = false
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white.opacity(0.5))
+                        .frame(width: 24, height: 24)
+                }
+            }
+            .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
+
+            if flightMode == .rate { rateConfigPanel }
+            else                   { balanceConfigPanel }
+
+            Spacer()
+        }
+    }
+
+    private func floatingJoystick(label: String, lockY: Bool,
+                                  centerX: Binding<Double>, centerY: Binding<Double>,
+                                  isTouching: Binding<Bool>) -> some View {
+        VirtualJoystick(label: label, lockY: lockY, expo: expo,
+                        centerX: centerX, centerY: centerY,
+                        isTouching: isTouching)
+            .padding(10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var landscapeArmButton: some View {
+        Button {
+            if sim.isArmed {
+                if isLiveMode { wsManager.sendCommand("{\"cmd\":\"DISARM\"}") }
+                sim.disarm(); leftY = 0; pushInputs(); stopRCTimer()
+            } else if max(0, -leftY) > 0.05 {
+                flash($showThrottleHint)
+            } else {
+                if isLiveMode {
+                    let kPRStr = String(format: "%.1f", kPRoll)
+                    let kPPStr = String(format: "%.1f", kPPitch)
+                    wsManager.sendCommand("{\"cmd\":\"ARM\"}")
+                    wsManager.sendCommand("{\"cmd\":\"START_RC\",\"kPRoll\":\(kPRStr),\"kPPitch\":\(kPPStr)}")
+                    startRCTimer()
+                }
+                sim.arm()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(sim.isArmed ? EasyPilotTheme.danger : EasyPilotTheme.success)
+                    .frame(width: 56, height: 56)
+                    .shadow(color: (sim.isArmed ? EasyPilotTheme.danger : EasyPilotTheme.success).opacity(0.5),
+                            radius: 10)
+                VStack(spacing: 2) {
+                    Image(systemName: sim.isArmed ? "stop.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(sim.isArmed ? "DISARM" : "ARM")
+                        .font(.system(size: 7, weight: .black, design: .monospaced))
+                        .tracking(1.2)
+                }
+                .foregroundColor(.white)
+            }
+        }
+    }
+
+    // MARK: - Shared config panels
+
+    private var rateConfigPanel: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Text("RATE")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.35))
+                    .tracking(1.5)
+                    .padding(.trailing, 4)
+                ratePresetBtn("BEGINNER", rate: 180)
+                ratePresetBtn("SPORT",    rate: 360)
+                ratePresetBtn("PRO",      rate: 720)
+                Spacer()
+                let rateMap: [String: Int] = ["BEGINNER": 180, "SPORT": 360, "PRO": 720]
+                Text("\(rateMap[ratePreset] ?? 360)°/s")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(EasyPilotTheme.accent.opacity(0.8))
+            }
+            HStack(spacing: 10) {
+                Text("LINEAR")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.3))
+                Slider(value: $expo, in: 0...0.9).tint(EasyPilotTheme.accent)
+                Text("EXPO \(Int(expo * 100))%")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundColor(EasyPilotTheme.accent)
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .background(Color.white.opacity(0.04))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var balanceConfigPanel: some View {
+        VStack(spacing: 10) {
+            LabeledSlider(label: "kP Roll",  unit: "", value: $kPRoll,
+                          range: 1...20, step: 0.5, format: "%.1f")
+            LabeledSlider(label: "kP Pitch", unit: "", value: $kPPitch,
+                          range: 1...20, step: 0.5, format: "%.1f")
+            LabeledSlider(label: "Max Angle", unit: "°", value: $maxBalanceAngle,
+                          range: 10...60, step: 5)
+
+            HStack {
+                Button {
+                    withAnimation { showProfilePicker = true }
+                } label: {
+                    Label("From saved profile", systemImage: "doc.badge.arrow.up")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(EasyPilotTheme.accent)
+                }
+                Spacer()
+                Button {
+                    kPRoll = 10.0; kPPitch = 10.0; maxBalanceAngle = 30.0
+                } label: {
+                    Text("Reset")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(Color.white.opacity(0.04))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - Arm button
@@ -506,6 +716,10 @@ struct SimulatorView: View {
         sim.throttle =  max(0, -leftY)
         sim.pitch    = -rightY
         sim.roll     =  rightX
+    }
+
+    private func pushTouchState() {
+        sim.sticksTouched = leftTouching || rightTouching
     }
 
     private func flash(_ flag: Binding<Bool>) {
