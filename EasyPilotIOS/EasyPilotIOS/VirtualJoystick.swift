@@ -3,8 +3,14 @@ import SwiftUI
 /// Circular virtual joystick pad.
 ///
 /// - `centerX` / `centerY`: normalised [-1, 1] output after expo curve.
-/// - `lockY`: when true the Y axis does NOT spring back on release (throttle behaviour).
-/// - `expo`: 0 = linear, 1 = fully cubic. Applied to all axes when expo > 0.
+/// - `lockY`: when true, the Y axis is linear (no expo). The Y axis still
+///   springs back to center on release — altitude-hold takes over the
+///   throttle when the thumb is released.
+/// - `expo`: 0 = linear, 1 = fully cubic. Applied to X always; to Y only
+///   when `lockY == false`.
+/// - `autopilotX/Y` + `autopilotEnabled`: when enabled and the user isn't
+///   touching the pad, the thumb mirrors the autopilot's demand so the
+///   pilot can see what the stabilizer is doing.
 struct VirtualJoystick: View {
     let label: String
     let lockY: Bool
@@ -13,6 +19,9 @@ struct VirtualJoystick: View {
     @Binding var centerX: Double
     @Binding var centerY: Double
     var isTouching: Binding<Bool> = .constant(false)
+    var autopilotEnabled: Bool = false
+    var autopilotX: Double = 0
+    var autopilotY: Double = 0
 
     // Raw (pre-expo) thumb position
     @State private var rawX: Double = 0
@@ -24,17 +33,14 @@ struct VirtualJoystick: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
-                // Outer ring
                 Circle()
                     .stroke(EasyPilotTheme.accent.opacity(0.25), lineWidth: 1.5)
                     .frame(width: padRadius * 2, height: padRadius * 2)
 
-                // Background
                 Circle()
                     .fill(EasyPilotTheme.cardFill)
                     .frame(width: padRadius * 2, height: padRadius * 2)
 
-                // Crosshair lines
                 Rectangle()
                     .fill(Color.white.opacity(0.06))
                     .frame(width: padRadius * 2, height: 1)
@@ -42,7 +48,6 @@ struct VirtualJoystick: View {
                     .fill(Color.white.opacity(0.06))
                     .frame(width: 1, height: padRadius * 2)
 
-                // Thumb
                 Circle()
                     .fill(EasyPilotTheme.accent)
                     .frame(width: thumbRadius * 2, height: thumbRadius * 2)
@@ -64,22 +69,37 @@ struct VirtualJoystick: View {
                         rawX = Double(ox * scale / padRadius)
                         rawY = Double(oy * scale / padRadius)
                         centerX = applyExpo(rawX)
-                        centerY = lockY ? rawY : applyExpo(rawY)  // no expo on throttle
+                        centerY = lockY ? rawY : applyExpo(rawY)
                     }
                     .onEnded { _ in
                         isTouching.wrappedValue = false
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            rawX = 0
-                        }
-                        if !lockY {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                rawY = 0
-                            }
+                        let targetX = autopilotEnabled ? autopilotX : 0
+                        let targetY = autopilotEnabled ? autopilotY : 0
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            rawX = targetX
+                            rawY = targetY
                         }
                         centerX = 0
-                        if !lockY { centerY = applyExpo(rawY) }
+                        centerY = 0
                     }
             )
+            .onChange(of: autopilotX) { v in
+                if autopilotEnabled && !isTouching.wrappedValue {
+                    withAnimation(.linear(duration: 0.12)) { rawX = v }
+                }
+            }
+            .onChange(of: autopilotY) { v in
+                if autopilotEnabled && !isTouching.wrappedValue {
+                    withAnimation(.linear(duration: 0.12)) { rawY = v }
+                }
+            }
+            .onChange(of: autopilotEnabled) { on in
+                if !on && !isTouching.wrappedValue {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        rawX = 0; rawY = 0
+                    }
+                }
+            }
 
             Text(label)
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
