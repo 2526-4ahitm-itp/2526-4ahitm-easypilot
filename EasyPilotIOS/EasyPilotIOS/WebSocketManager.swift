@@ -58,7 +58,12 @@ class WebSocketManager: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastSafeTestTime) >= Self.safeTestDebounce else { return }
         lastSafeTestTime = now
-        sendCommand("SAFE_TEST")
+        send(.safeTest)
+    }
+
+    /// Sends a typed command, encoding its wire payload.
+    func send(_ command: DroneCommand) {
+        sendCommand(command.payload)
     }
 
     func sendCommand(_ command: String) {

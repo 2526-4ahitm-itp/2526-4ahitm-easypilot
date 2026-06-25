@@ -41,26 +41,24 @@ struct ControlProfile: Codable, Identifiable, Equatable {
         self.voltage = voltage; self.batteryPercentage = batteryPercentage
     }
 
-    // MARK: - Command builders
+    // MARK: - Commands
 
-    /// JSON command to start BALANCE mode on the ESP32.
-    func startBalanceCommand() -> String {
-        """
-        {"cmd":"START_BALANCE","baseThrottle":\(Int(baseThrottle)),"kPRoll":\(String(format:"%.2f",kPRoll)),"kPPitch":\(String(format:"%.2f",kPPitch))}
-        """
+    /// Command to start BALANCE mode on the ESP32.
+    var startBalance: DroneCommand {
+        .startBalance(baseThrottle: Int(baseThrottle), kPRoll: kPRoll, kPPitch: kPPitch)
     }
 
-    /// JSON command to start MANUAL mode with current slider values.
-    func startManualCommand() -> String {
-        """
-        {"cmd":"START_MANUAL","roll":\(String(format:"%.2f",roll)),"pitch":\(String(format:"%.2f",pitch)),"yaw":\(String(format:"%.2f",yaw)),"m1":\(Int(m1)),"m2":\(Int(m2)),"m3":\(Int(m3)),"m4":\(Int(m4)),"voltage":\(String(format:"%.2f",voltage)),"batteryPercentage":\(Int(batteryPercentage))}
-        """
+    /// Command to start MANUAL mode with the current slider values.
+    var startManual: DroneCommand {
+        .startManual(roll: roll, pitch: pitch, yaw: yaw,
+                     m1: Int(m1), m2: Int(m2), m3: Int(m3), m4: Int(m4),
+                     voltage: voltage, batteryPercentage: Int(batteryPercentage))
     }
 
-    /// Re-sends manual values to update the drone mid-flight.
-    func updateManualJSON() -> String {
-        """
-        {"roll":\(String(format:"%.2f",roll)),"pitch":\(String(format:"%.2f",pitch)),"yaw":\(String(format:"%.2f",yaw)),"m1":\(Int(m1)),"m2":\(Int(m2)),"m3":\(Int(m3)),"m4":\(Int(m4)),"voltage":\(String(format:"%.2f",voltage)),"batteryPercentage":\(Int(batteryPercentage))}
-        """
+    /// Command to re-send manual values mid-flight.
+    var updateManual: DroneCommand {
+        .updateManual(roll: roll, pitch: pitch, yaw: yaw,
+                      m1: Int(m1), m2: Int(m2), m3: Int(m3), m4: Int(m4),
+                      voltage: voltage, batteryPercentage: Int(batteryPercentage))
     }
 }
