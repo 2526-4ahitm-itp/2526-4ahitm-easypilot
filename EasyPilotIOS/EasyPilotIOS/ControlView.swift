@@ -6,7 +6,7 @@ struct ControlView: View {
     @StateObject private var profileManager  = ProfileManager()
 
     @State private var values        = ControlProfile(name: "")
-    @State private var selectedMode  = "IDLE"
+    @State private var selectedMode: FlightMode = .idle
 
     // Sound mode
     @State private var soundModeActive = false
@@ -24,8 +24,8 @@ struct ControlView: View {
     @State private var newProfileName  = ""
     @State private var didSend         = false
 
-    private var isArmed:   Bool   { wsManager.telemetry?.armed ?? false }
-    private var droneMode: String { wsManager.telemetry?.mode  ?? "IDLE" }
+    private var isArmed:   Bool      { wsManager.telemetry?.armed ?? false }
+    private var droneMode: FlightMode { FlightMode(rawOrIdle: wsManager.telemetry?.mode) }
 
     // MARK: - Computed (Sound Mode)
 
@@ -56,7 +56,7 @@ struct ControlView: View {
                         droneStatusCard
                         armSection
                         if isArmed { modeSection }
-                        if isArmed && selectedMode != "IDLE" { modeConfigSection }
+                        if isArmed && selectedMode != .idle { modeConfigSection }
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 16)
@@ -64,7 +64,7 @@ struct ControlView: View {
 
                 Divider().background(Color.white.opacity(0.08))
 
-                if isArmed && selectedMode != "IDLE" {
+                if isArmed && selectedMode != .idle {
                     bottomBar.padding()
                 }
             }
@@ -81,7 +81,7 @@ struct ControlView: View {
         } message: { Text("This cannot be undone.") }
         .onChange(of: selectedProfileID) { id in
             if let id, let p = profileManager.profiles.first(where: { $0.id == id }) {
-                values = p; selectedMode = p.mode
+                values = p; selectedMode = FlightMode(rawOrIdle: p.mode)
             }
         }
         .onChange(of: droneMode) { mode in selectedMode = mode }
@@ -123,7 +123,7 @@ struct ControlView: View {
                        value: isArmed ? "ARMED" : "DISARMED",
                        color: isArmed ? EasyPilotTheme.danger : .gray)
             Divider().frame(height: 36).background(Color.white.opacity(0.1))
-            statusPill("MODE", value: droneMode, color: modeColor(droneMode))
+            statusPill("MODE", value: droneMode.rawValue, color: modeColor(droneMode))
             Divider().frame(height: 36).background(Color.white.opacity(0.1))
             statusPill("CONN",
                        value: wsManager.isConnected ? "OK" : "—",
@@ -180,7 +180,7 @@ struct ControlView: View {
             } else {
                 Button {
                     if soundModeActive { stopSoundMode() }
-                    wsManager.sendCommand(#"{"cmd":"DISARM"}"#)
+                    wsManager.send(.disarm)
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "lock.open.fill")
@@ -206,16 +206,16 @@ struct ControlView: View {
         VStack(spacing: 10) {
             SectionHeader("FLIGHT MODE")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(["IDLE", "BALANCE", "MANUAL", "SOUND"], id: \.self) { mode in
+                ForEach(FlightMode.allCases, id: \.self) { mode in
                     Button {
-                        if soundModeActive && mode != "SOUND" { stopSoundMode() }
+                        if soundModeActive && mode != .sound { stopSoundMode() }
                         selectedMode = mode
-                        values.mode  = mode
+                        values.mode  = mode.rawValue
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: modeIcon(mode))
                                 .font(.system(size: 11, weight: .bold))
-                            Text(mode)
+                            Text(mode.rawValue)
                                 .font(.system(size: 12, weight: .black, design: .monospaced))
                         }
                         .foregroundColor(selectedMode == mode ? .black : .white)
@@ -240,10 +240,10 @@ struct ControlView: View {
     @ViewBuilder
     private var modeConfigSection: some View {
         switch selectedMode {
-        case "BALANCE": balanceConfig
-        case "MANUAL":  manualConfig
-        case "SOUND":   soundConfig
-        default:        EmptyView()
+        case .balance: balanceConfig
+        case .manual:  manualConfig
+        case .sound:   soundConfig
+        case .idle:    EmptyView()
         }
     }
 
@@ -342,10 +342,10 @@ struct ControlView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            if droneMode != "IDLE" {
+            if droneMode != .idle {
                 Button {
                     if soundModeActive { stopSoundMode() }
-                    wsManager.sendCommand(#"{"cmd":"STOP"}"#)
+                    wsManager.send(.stop)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "stop.fill")
@@ -356,7 +356,7 @@ struct ControlView: View {
                 }
             }
 
-            if selectedMode == "SOUND" {
+            if selectedMode == .sound {
                 soundToggleButton
             } else {
                 standardStartButton
@@ -397,7 +397,7 @@ struct ControlView: View {
                 Image(systemName: didSend ? "checkmark.circle.fill"
                       : (droneMode == selectedMode ? "arrow.clockwise" : "play.fill"))
                 Text(didSend ? "SENT"
-                     : (droneMode == selectedMode && droneMode != "IDLE" ? "UPDATE" : "START \(selectedMode)"))
+                     : (droneMode == selectedMode && droneMode != .idle ? "UPDATE" : "START \(selectedMode.rawValue)"))
                     .font(.system(size: 14, weight: .black))
             }
             .foregroundColor(.white)
@@ -478,7 +478,7 @@ struct ControlView: View {
                         let name = newProfileName.trimmingCharacters(in: .whitespaces)
                         guard !name.isEmpty else { return }
                         var p = values; p.id = selectedProfileID ?? UUID()
-                        p.name = name; p.mode = selectedMode
+                        p.name = name; p.mode = selectedMode.rawValue
                         profileManager.save(p); selectedProfileID = p.id
                         showSaveSheet = false
                     }
@@ -491,8 +491,7 @@ struct ControlView: View {
     // MARK: - Sound Mode Logic
 
     private func startSoundMode() {
-        let cmd = "{\"cmd\":\"START_SOUND\",\"maxPWM\":\(Int(maxSoundPWM))}"
-        wsManager.sendCommand(cmd)
+        wsManager.send(.startSound(maxPWM: Int(maxSoundPWM)))
         // Motion is already streaming app-wide (started in ContentView).
         soundModeActive = true
 
@@ -502,8 +501,7 @@ struct ControlView: View {
                 self.stopSoundMode()
                 return
             }
-            let cmd = "{\"cmd\":\"TILT_SOUND\",\"pwm\":\(self.currentSoundPWM)}"
-            self.wsManager.sendCommand(cmd)
+            self.wsManager.send(.tiltSound(pwm: self.currentSoundPWM))
         }
     }
 
@@ -511,7 +509,7 @@ struct ControlView: View {
         soundTimer?.invalidate(); soundTimer = nil
         soundModeActive = false
         // Leave motion running — it is shared with the Dashboard and owned by ContentView.
-        wsManager.sendCommand(#"{"cmd":"STOP"}"#)
+        wsManager.send(.stop)
     }
 
     // MARK: - Arm Hold Logic
@@ -526,7 +524,7 @@ struct ControlView: View {
             if elapsed >= 1.5 {
                 timer.invalidate(); self.armHoldTimer = nil
                 self.armHoldProgress = 0
-                self.wsManager.sendCommand(#"{"cmd":"ARM"}"#)
+                self.wsManager.send(.arm)
             }
         }
     }
@@ -540,9 +538,9 @@ struct ControlView: View {
 
     private func sendModeCommand() {
         switch selectedMode {
-        case "BALANCE": wsManager.sendCommand(values.startBalanceCommand())
-        case "MANUAL":  wsManager.sendCommand(values.startManualCommand())
-        default: break
+        case .balance: wsManager.send(values.startBalance)
+        case .manual:  wsManager.send(values.startManual)
+        case .sound, .idle: break
         }
         flash()
     }
@@ -556,21 +554,21 @@ struct ControlView: View {
 
     private var soundColor: Color { Color(red: 0.65, green: 0.25, blue: 1.0) }
 
-    private func modeColor(_ mode: String) -> Color {
+    private func modeColor(_ mode: FlightMode) -> Color {
         switch mode {
-        case "BALANCE": return EasyPilotTheme.accent
-        case "MANUAL":  return EasyPilotTheme.warning
-        case "SOUND":   return soundColor
-        default:        return .gray
+        case .balance: return EasyPilotTheme.accent
+        case .manual:  return EasyPilotTheme.warning
+        case .sound:   return soundColor
+        case .idle:    return .gray
         }
     }
 
-    private func modeIcon(_ mode: String) -> String {
+    private func modeIcon(_ mode: FlightMode) -> String {
         switch mode {
-        case "BALANCE": return "gyroscope"
-        case "MANUAL":  return "slider.horizontal.3"
-        case "SOUND":   return "waveform"
-        default:        return "stop.circle"
+        case .balance: return "gyroscope"
+        case .manual:  return "slider.horizontal.3"
+        case .sound:   return "waveform"
+        case .idle:    return "stop.circle"
         }
     }
 }
