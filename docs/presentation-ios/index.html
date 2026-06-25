@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyPilot — iOS App Overview</title>
+<style>
+  :root{
+    --bg:#0a0f1e; --card:#141c33; --accent:#2979ff; --success:#33d980;
+    --warning:#ff9900; --danger:#ff4545; --text:#e9eefb; --muted:#8a97b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden;
+  }
+  #deck{height:100vh;width:100vw;position:relative}
+  .slide{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    padding:5vh 7vw;animation:fade .35s ease;
+  }
+  .slide.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+  .kicker{color:var(--accent);font-size:.95rem;font-weight:700;letter-spacing:.18em;
+    text-transform:uppercase;margin-bottom:.6rem}
+  h1{font-size:3.4rem;line-height:1.05;margin-bottom:1rem}
+  h2{font-size:2.3rem;margin-bottom:1.6rem;font-weight:700}
+  .sub{color:var(--muted);font-size:1.25rem;max-width:60ch}
+
+  .grid{display:grid;gap:1.1rem;margin-top:.4rem}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .card{
+    background:var(--card);border:1px solid rgba(41,121,255,.28);
+    border-radius:18px;padding:1.4rem 1.5rem;
+  }
+  .card h3{font-size:1.25rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem}
+  .card p,.card li{color:var(--muted);font-size:1.02rem;line-height:1.5}
+  .card ul{list-style:none}
+  .card li{padding-left:1.2rem;position:relative;margin:.3rem 0}
+  .card li::before{content:"▸";color:var(--accent);position:absolute;left:0}
+  .tag{display:inline-block;background:rgba(41,121,255,.16);color:#bcd2ff;
+    border:1px solid rgba(41,121,255,.3);border-radius:999px;
+    padding:.32rem .85rem;font-size:.92rem;margin:.25rem .35rem .25rem 0;font-weight:600}
+  .pill-warn{background:rgba(255,153,0,.14);border-color:rgba(255,153,0,.4);color:#ffd699}
+  .emoji{font-size:1.4rem}
+
+  pre{
+    background:#0c1326;border:1px solid rgba(41,121,255,.25);border-radius:14px;
+    padding:1.2rem 1.4rem;overflow:auto;font-size:.95rem;line-height:1.55;
+    font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;margin-top:.6rem;
+  }
+  code{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  .k{color:#ff7ab2}      /* keyword */
+  .t{color:#7ee0c8}      /* type */
+  .s{color:#c3e88d}      /* string */
+  .c{color:#5d6b8f;font-style:italic} /* comment */
+  .n{color:#f7c873}      /* number */
+  .f{color:#82aaff}      /* func/prop */
+
+  .arch{display:flex;flex-direction:column;gap:.8rem;font-family:"SF Mono",monospace}
+  .arch .row{display:flex;align-items:center;gap:1rem;font-size:1.05rem}
+  .box{background:var(--card);border:1px solid rgba(41,121,255,.3);border-radius:12px;
+    padding:.7rem 1.1rem;font-weight:600}
+  .flow{color:var(--success);font-size:.95rem}
+
+  .foot{position:absolute;bottom:2.6vh;left:7vw;right:7vw;display:flex;
+    justify-content:space-between;align-items:center;color:var(--muted);font-size:.85rem}
+  .dots{display:flex;gap:.4rem}
+  .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.18)}
+  .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .hint{position:fixed;bottom:1rem;right:1.2rem;color:var(--muted);font-size:.78rem;opacity:.6}
+
+  .big-num{font-size:2.6rem;font-weight:800;color:var(--accent);line-height:1}
+  .stat{color:var(--muted);font-size:.95rem;margin-top:.3rem}
+</style>
+</head>
+<body>
+<div id="deck">
+
+  <!-- 1 TITLE -->
+  <section class="slide active">
+    <div style="margin:auto 0">
+      <div class="kicker">EasyPilot · 4AHITM Drone Project</div>
+      <h1>The EasyPilot <span style="color:var(--accent)">iOS App</span></h1>
+      <p class="sub">A SwiftUI companion app that discovers the drone on the network,
+      streams live telemetry at 10&nbsp;Hz, flies a 3D simulator, and sends flight
+      commands over WebSocket.</p>
+      <div style="margin-top:1.8rem">
+        <span class="tag">SwiftUI</span>
+        <span class="tag">Network.framework</span>
+        <span class="tag">SceneKit</span>
+        <span class="tag">CoreMotion</span>
+        <span class="tag">Combine</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 ARCHITECTURE -->
+  <section class="slide">
+    <div class="kicker">System Overview</div>
+    <h2>How the app talks to the drone</h2>
+    <div class="arch">
+      <div class="row"><span class="box">ESP32-C3 (WiFi)</span></div>
+      <div class="row"><span class="flow">└─ UDP broadcast &nbsp;<code>"EASYPILOT:&lt;IP&gt;"</code>&nbsp; every 5&nbsp;s · port 4242 &nbsp;→&nbsp; iOS discovers the IP automatically</span></div>
+      <div class="row"><span class="flow">└─ WebSocket server · port 81 &nbsp;←→&nbsp; iOS sends commands · receives telemetry JSON @ 10&nbsp;Hz</span></div>
+      <div class="row" style="margin-top:.6rem"><span class="box" style="border-color:rgba(51,217,128,.5)">iPhone — EasyPilot App</span></div>
+    </div>
+    <div class="grid g3" style="margin-top:2rem">
+      <div class="card"><div class="big-num">3</div><div class="stat">tabs: Dashboard · Simulator · Algorithms</div></div>
+      <div class="card"><div class="big-num">10&nbsp;Hz</div><div class="stat">telemetry & motion update rate</div></div>
+      <div class="card"><div class="big-num">~3.4k</div><div class="stat">lines of Swift across 18 files</div></div>
+    </div>
+  </section>
+
+  <!-- 3 TECHNOLOGIES -->
+  <section class="slide">
+    <div class="kicker">Technologies Used</div>
+    <h2>The iOS stack</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="emoji">🎨</span> SwiftUI</h3>
+        <p>Entire declarative UI — <code>TabView</code>, custom glass-card design
+        system, live-binding telemetry views. One shared <code>@StateObject</code>
+        owns the connection.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">🌐</span> Network.framework</h3>
+        <p><code>NWListener</code> for UDP beacon discovery and
+        <code>URLSessionWebSocketTask</code> for the bidirectional data link.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">🧊</span> SceneKit</h3>
+        <p>Real-time 3D flight simulator. A <code>.usdz</code> drone model, FPV +
+        chase cameras, animated propellers, physics on the render loop.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">📱</span> CoreMotion + Combine</h3>
+        <p><code>CMMotionManager</code> reads gyro/accelerometer at 10&nbsp;Hz;
+        <code>@Published</code> + <code>ObservableObject</code> push state into the UI.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 CODE: telemetry decode -->
+  <section class="slide">
+    <div class="kicker">Code · Live Telemetry</div>
+    <h2>Decoding 10&nbsp;Hz telemetry into the UI</h2>
+<pre><code><span class="c">// Codable struct mirrors the ESP32 JSON exactly</span>
+<span class="k">struct</span> <span class="t">DroneTelemetry</span>: <span class="t">Codable</span> {
+    <span class="k">let</span> roll, pitch, yaw: <span class="t">Float</span>
+    <span class="k">let</span> m1, m2, m3, m4: <span class="t">Int</span>?
+    <span class="k">let</span> voltage: <span class="t">Float</span>?, armed: <span class="t">Bool</span>?, mode: <span class="t">String</span>?
+}
+
+<span class="k">private func</span> <span class="f">decodeJSON</span>(_ text: <span class="t">String</span>) {
+    <span class="k">let</span> decoded = <span class="k">try</span> <span class="t">JSONDecoder</span>().<span class="f">decode</span>(<span class="t">DroneTelemetry</span>.self, from: data)
+    <span class="t">DispatchQueue</span>.main.<span class="f">async</span> {
+        <span class="k">self</span>.telemetry   = decoded   <span class="c">// @Published → SwiftUI redraws</span>
+        <span class="k">self</span>.isConnected = <span class="k">true</span>
+    }
+}</code></pre>
+  </section>
+
+  <!-- 5 CODE: CoreMotion + command builder -->
+  <section class="slide">
+    <div class="kicker">Code · Sensors & Commands</div>
+    <h2>Phone tilt → drone command</h2>
+    <div class="grid g2">
+<pre style="margin-top:0"><code><span class="c">// CoreMotion @ 10 Hz</span>
+motionManager.<span class="f">startDeviceMotionUpdates</span>(
+  to: .main) { data, _ <span class="k">in</span>
+    <span class="k">let</span> r = <span class="n">180</span> / .pi
+    <span class="k">self</span>.pitch = data.attitude.pitch * r
+    <span class="k">self</span>.roll  = data.attitude.roll  * r
+}</code></pre>
+<pre style="margin-top:0"><code><span class="c">// Type-safe JSON command builder</span>
+<span class="k">func</span> <span class="f">startBalanceCommand</span>() -&gt; <span class="t">String</span> {
+  <span class="s">"""
+  {"cmd":"START_BALANCE",
+   "baseThrottle":\(baseThrottle),
+   "kPRoll":\(kPRoll),
+   "kPPitch":\(kPPitch)}
+  """</span>
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- 6 CHALLENGES -->
+  <section class="slide">
+    <div class="kicker">Challenges</div>
+    <h2>What was hard — and how we solved it</h2>
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="emoji">🔍</span> Finding the drone</h3>
+        <p>The ESP32 gets a random DHCP IP. <b>Solution:</b> a UDP beacon broadcasts
+        the IP every 5&nbsp;s so the app auto-connects — no typing required.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">🔌</span> Detecting a dropped link</h3>
+        <p>WiFi can silently die. <b>Solution:</b> a 3&nbsp;s timeout timer + 5&nbsp;s
+        WebSocket pings flip <code>isConnected</code> false the moment data stops.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">🧵</span> Thread safety</h3>
+        <p>SceneKit physics runs on the render thread, SwiftUI only on main.
+        <b>Solution:</b> physics writes <code>_</code>-vars, synced to
+        <code>@Published</code> at 20&nbsp;Hz on the main thread.</p>
+      </div>
+      <div class="card">
+        <h3><span class="emoji">🛡️</span> Safety</h3>
+        <p>Accidental motor spin is dangerous. <b>Solution:</b> 1.5&nbsp;s hold-to-arm,
+        debounced safe-test, and a tilt-over-60° emergency stop.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 CODE: threading challenge -->
+  <section class="slide">
+    <div class="kicker">Code · The threading challenge</div>
+    <h2>Two threads, one drone</h2>
+    <p class="sub">Physics on SceneKit's render thread must never touch SwiftUI directly — so we separate internal state from published state.</p>
+<pre><code><span class="k">class</span> <span class="t">DroneSimulator</span>: <span class="t">ObservableObject</span> {
+    <span class="c">// Main thread only — drives SwiftUI</span>
+    @<span class="t">Published</span> <span class="k">var</span> simRoll = <span class="n">0.0</span>
+    @<span class="t">Published</span> <span class="k">var</span> isCrashed = <span class="k">false</span>
+
+    <span class="c">// Render thread only — raw physics integration</span>
+    <span class="k">var</span> _roll = <span class="n">0.0</span>
+    <span class="k">var</span> _vel: <span class="t">SIMD3</span>&lt;<span class="t">Float</span>&gt; = .zero
+
+    <span class="k">func</span> <span class="f">tick</span>(dt: <span class="t">Double</span>) { <span class="c">/* render thread: physics */</span> }
+    <span class="k">func</span> <span class="f">syncPublished</span>() { <span class="c">/* main thread: _vars → @Published */</span> }
+}</code></pre>
+  </section>
+
+  <!-- 8 SUMMARY -->
+  <section class="slide">
+    <div class="kicker">Wrap-up</div>
+    <h2>Where we are &amp; what's next</h2>
+    <div class="grid g2">
+      <div class="card" style="border-color:rgba(51,217,128,.4)">
+        <h3><span class="emoji">✅</span> Done</h3>
+        <ul>
+          <li>Auto-discovery + WebSocket telemetry</li>
+          <li>Live Dashboard with 3D drone view</li>
+          <li>Full 3D flight Simulator (Rate / Balance / PosHold)</li>
+          <li>Mode 2 virtual joysticks + tunable control profiles</li>
+        </ul>
+      </div>
+      <div class="card pill-warn" style="background:var(--card)">
+        <h3><span class="emoji">🚀</span> Next (Sprint 6)</h3>
+        <ul>
+          <li>Live mode — fly the real drone from the joysticks</li>
+          <li>Real MSP telemetry from the Betaflight FC</li>
+          <li>Landscape UI polish &amp; touch-aware stabilization</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:1.6rem">EasyPilot · 4AHITM HTL · iOS subsystem overview</p>
+  </section>
+
+  <div class="foot">
+    <span>EasyPilot — iOS App</span>
+    <div class="dots" id="dots"></div>
+    <span id="counter">1 / 9</span>
+  </div>
+</div>
+<div class="hint">← → or Space to navigate · F for fullscreen</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dotsBox=document.getElementById('dots');
+  const counter=document.getElementById('counter');
+  let i=0;
+  slides.forEach((_,n)=>{const d=document.createElement('div');d.className='dot';dotsBox.appendChild(d);});
+  const dots=[...document.querySelectorAll('.dot')];
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    dots.forEach((d,k)=>d.classList.toggle('on',k===i));
+    counter.textContent=`${i+1} / ${slides.length}`;
+  }
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){show(i+1);e.preventDefault();}
+    else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){show(i-1);e.preventDefault();}
+    else if(e.key==='Home'){show(0);}
+    else if(e.key==='End'){show(slides.length-1);}
+    else if(e.key.toLowerCase()==='f'){
+      if(!document.fullscreenElement)document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  document.addEventListener('click',e=>{if(e.clientX>window.innerWidth*0.5)show(i+1);else show(i-1);});
+  show(0);
+</script>
+</body>
+</html>
