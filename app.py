@@ -1,11 +1,13 @@
 #include <WiFi.h>
 #include <WebServer.h>
+// Copy wifi_secrets.example.h -> wifi_secrets.h (gitignored) and fill in your WLAN data.
+#include "wifi_secrets.h"
 
 // ============================================================
 // 1. EINSTELLUNGEN
 // ============================================================
-const char* ssid = "Sim";
-const char* password = "123456789";
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 // Angepasste Pins für den ESP32-C3 Supermini (Serial 1)
 #define FC_TX_PIN 21

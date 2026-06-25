@@ -1,13 +1,15 @@
 #include <WiFi.h>
 #include <WebServer.h>
+// Copy wifi_secrets.example.h -> wifi_secrets.h (gitignored) and fill in your WLAN data.
+#include "wifi_secrets.h"
 
 // ============================================================
 // 1. EINSTELLUNGEN
 // ============================================================
 
 // WLAN (Hotspot Daten)
-const char* ssid = "David´s Iphone";
-const char* password = "123456789";
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 // UART Verbindung zum Flight Controller
 // Wähle hier Pins, die auf deinem Board frei sind!
