@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ControlView: View {
     @ObservedObject var wsManager: WebSocketManager
+    @ObservedObject var motionManager: MotionManager   // shared app-wide instance
     @StateObject private var profileManager  = ProfileManager()
-    @StateObject private var motionManager   = MotionManager()   // own instance for sound mode
 
     @State private var values        = ControlProfile(name: "")
     @State private var selectedMode  = "IDLE"
@@ -493,7 +493,7 @@ struct ControlView: View {
     private func startSoundMode() {
         let cmd = "{\"cmd\":\"START_SOUND\",\"maxPWM\":\(Int(maxSoundPWM))}"
         wsManager.sendCommand(cmd)
-        motionManager.startUpdates()
+        // Motion is already streaming app-wide (started in ContentView).
         soundModeActive = true
 
         soundTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
@@ -510,7 +510,7 @@ struct ControlView: View {
     private func stopSoundMode() {
         soundTimer?.invalidate(); soundTimer = nil
         soundModeActive = false
-        motionManager.stopUpdates()
+        // Leave motion running — it is shared with the Dashboard and owned by ContentView.
         wsManager.sendCommand(#"{"cmd":"STOP"}"#)
     }
 
