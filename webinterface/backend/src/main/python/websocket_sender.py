@@ -4,6 +4,15 @@ import json
 import serial
 import struct
 import time
+import logging
+import os
+
+# Logging — configurable via LOG_LEVEL (default INFO), replacing bare print().
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
+)
+log = logging.getLogger("easypilot.sender")
 
 # ==============================================================================
 # 1. KONFIGURATION
@@ -36,9 +45,9 @@ drone_state = {"roll": 0.0, "pitch": 0.0}
 # ==============================================================================
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.02)
-    print(f"[INIT] Verbunden mit {SERIAL_PORT}")
+    log.info("Verbunden mit %s", SERIAL_PORT)
 except Exception as e:
-    print(f"[ERROR] Serial Port Fehler: {e}")
+    log.error("Serial Port Fehler: %s", e)
     ser = None
 
 # ==============================================================================
@@ -122,7 +131,7 @@ def write_motors(m1, m2, m3, m4):
 # 5. STABILISIERUNGS LOOP
 # ==============================================================================
 async def task_stabilization(websocket):
-    print("[START] Stabilisierung aktiv. Druecke STRG+C zum Stoppen.")
+    log.info("Stabilisierung aktiv. Druecke STRG+C zum Stoppen.")
     
     while is_running:
         # A. Daten holen
@@ -167,24 +176,24 @@ async def task_stabilization(websocket):
 async def main_handler(websocket):
     global is_running
     is_running = True
-    print("[CLIENT] Browser verbunden.")
+    log.info("Browser verbunden.")
 
     try:
         # Führe die Stabilisierung aus, bis die Verbindung bricht
         await task_stabilization(websocket)
     except websockets.exceptions.ConnectionClosed:
-        print("[CLIENT] Verbindung getrennt.")
+        log.info("Verbindung getrennt.")
     finally:
         # Wenn der Loop endet (warum auch immer), Motoren AUS!
         is_running = False
-        print("[STOP] Motoren werden abgeschaltet.")
+        log.warning("Motoren werden abgeschaltet.")
         # Mehrfach senden zur Sicherheit
         for _ in range(5):
             write_motors(1000, 1000, 1000, 1000)
             time.sleep(0.01)
 
 async def main():
-    print("Server läuft auf ws://localhost:8765")
+    log.info("Server läuft auf ws://localhost:8765")
     async with websockets.serve(main_handler, "localhost", 8765):
         await asyncio.Future() # Hält den Server am Leben
 
@@ -192,7 +201,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n[ABBRUCH] Manuell beendet.")
+        log.info("Manuell beendet.")
         if ser:
             # Not-Aus Panic Write ohne Async
             payload = struct.pack('<HHHHHHHH', 1000,1000,1000,1000, 1000,1000,1000,1000)
