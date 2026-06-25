@@ -1,55 +1,228 @@
-= Autonome FPV-Drohne mit Companion-Computer und Sensorintegration
-:toc:
+= EasyPilot
+:description: Hybrid FPV-Drohne mit ESP32-Companion und iOS-Control — 4AHITM Diplomarbeit
+:author: Team EasyPilot · HTL 4AHITM
+:revdate: 2026
+:toc: left
 :toclevels: 2
 :sectnums:
+:sectanchors:
+:icons: font
+:source-highlighter: rouge
+:imagesdir: img
+
+[.lead]
+*EasyPilot* ist eine teilautonome FPV-Drohne mit ESP32-Companion-Computer
+und nativer iOS-Steuerung. Manuelle Steuerung erfolgt klassisch über
+*DJI Goggles 3* + *DJI RC 3*, autonome und semi-autonome Funktionen
+laufen über einen ESP32-C3 SuperMini, der via *MSP* mit dem
+*Betaflight Flight Controller* spricht und Telemetrie über *WiFi* an
+eine *SwiftUI iOS-App* schickt.
+
+image::https://img.shields.io/badge/Status-Sprint%205-success?style=for-the-badge[]
+image::https://img.shields.io/badge/Platform-ESP32--C3-blue?style=for-the-badge[]
+image::https://img.shields.io/badge/iOS-SwiftUI-orange?style=for-the-badge[]
+image::https://img.shields.io/badge/FC-Betaflight-red?style=for-the-badge[]
+image::https://img.shields.io/badge/Spec-OpenSpec-9cf?style=for-the-badge[]
+
+'''
 
 == Projektbeschreibung
 
-Ziel des Projekts ist die Entwicklung und Umsetzung einer *teilautonomen FPV-Drohne*, die sowohl manuell mit *DJI Goggles 3* und *DJI Remote Controller 3* gesteuert werden kann, als auch durch einen *Raspberry Pi* teilautonome Flugfunktionen ausführt.
+Ziel des Projekts ist die Entwicklung einer *teilautonomen FPV-Drohne*,
+die sowohl manuell als auch über eine eigene App gesteuert und überwacht
+werden kann.
 
-Die Basis bildet ein *BNF-FPV-Drohnenmodell* (z. B. iFlight Nazgul ECO) mit integrierter *DJI O4 Air Pro Unit* für digitale Videoübertragung.
-Die Flugstabilisierung erfolgt über den vorhandenen *Flight Controller (BLITZ ATF435, Betaflight)*.
-Der Raspberry Pi dient als *Companion-Computer* zur Verarbeitung zusätzlicher Sensorik und Algorithmen.
+Die Basis bildet ein *BNF-FPV-Drohnenmodell* (iFlight Nazgul ECO) mit
+integrierter *DJI O4 Air Pro Unit* für digitale Videoübertragung. Die
+Flugstabilisierung übernimmt der vorhandene *Flight Controller
+(BLITZ ATF435 mit Betaflight)*. Ein *ESP32-C3 SuperMini* fungiert als
+Companion-Computer und Funkbrücke zur iOS-App.
 
-Geplante Features:
+=== Features
 
-* *Crash-Safer:* Notfallprozeduren zur Stabilisierung bei Kontrollverlust
-* *Position Hold:* Drohne bleibt beim Loslassen der Steuerung an der Position
-* *Turtle Mode:* automatisches Aufrichten nach Crash
-* *Autopilot:* GPS-, LiDAR-, Ultraschall- und Kamera-basierte Navigation (YOLO)
-* *Auto-Hover / Auto-Brake*
-* *Webinterface:* Konfiguration, Telemetrie, Flugpfade
-* *Crash-Map:* Visualisierung von Unfällen
-* *Flight Logging & Strichliste*
+[cols="1,3", options="header"]
+|===
+| Feature | Beschreibung
+
+| *Live-Telemetrie*
+| Roll/Pitch/Yaw, Motoren, Batterie — 10 Hz über WebSocket
+
+| *3D-Visualisierung*
+| Echtzeit-Drohnenmodell in SceneKit auf dem iPhone
+
+| *Sound Mode*
+| iPhone-Neigung steuert alle 4 Motoren synchron für Akustik-Demos
+
+| *Balance Mode*
+| ESP32-seitiger P-Regler stabilisiert Roll/Pitch um `baseThrottle`
+
+| *RC Mode*
+| Vollständige Stick-Steuerung über die iOS-App (Throttle, Roll, Pitch, Yaw)
+
+| *Simulator-Tab*
+| Komplette Phone-side Drohnen-Simulation mit Physik, inkl.
+  POSHOLD-Loiter-Mode für realistisches GPS-Hold-Verhalten
+
+| *Crash-Safer*
+| Heartbeat-Watchdog (1.5 s), Crash-Erkennung bei > 60° Lage,
+  Auto-Disarm bei WebSocket-Verlust
+
+| *Safe-Test-Mode*
+| Tilt-getriggerte Niedrigleistungs-Motor-Pulse für sichere
+  Komponenten-Tests
+|===
+
+== Systemarchitektur
+
+[source]
+----
+            ┌─────────────────────────┐
+            │    iOS-App (SwiftUI)    │
+            │  - Dashboard            │
+            │  - Algorithms           │
+            │  - Simulator            │
+            └────────────┬────────────┘
+                         │
+            WiFi  ───────┼───────  ws://<esp32>:81
+                         │         UDP :4242 beacon
+                         ▼
+            ┌─────────────────────────┐
+            │  ESP32-C3 SuperMini     │
+            │  - WebSocket-Server     │
+            │  - UDP-Beacon           │
+            │  - MSP-Master           │
+            └────────────┬────────────┘
+                         │  UART @115200, MSP
+                         ▼
+            ┌─────────────────────────┐
+            │  Betaflight FC          │
+            │  - IMU, ESC-Treiber     │
+            └─────────────────────────┘
+----
+
+image::bild1.png[Drohnen-System Übersicht,role=center]
+
+== Technologie-Stack
+
+[cols="1,2,2", options="header"]
+|===
+| Layer | Technologie | Zweck
+
+| *Drohne* | iFlight Nazgul ECO + DJI O4 Air Pro | FPV-Plattform, Video
+| *FC* | BLITZ ATF435 + Betaflight | Flugstabilisierung, ESC-Steuerung
+| *Companion* | ESP32-C3 SuperMini (PlatformIO/Arduino) | WiFi-Brücke, MSP-Master
+| *Mobile* | iOS 17+ · SwiftUI · SceneKit · CoreMotion | Steuerung & Visualisierung
+| *Protokoll Drohne↔Phone* | WebSocket (JSON) + UDP-Beacon | 10 Hz Telemetrie
+| *Protokoll ESP32↔FC* | MultiWii Serial Protocol (MSP) | Attitude, Battery, Motors
+| *Spec-Workflow* | https://github.com/Fission-Codes/openspec[OpenSpec] | Sprint-Dokumentation
+|===
+
+== Repository-Struktur
+
+[source]
+----
+.
+├── EasyPilotIOS/         iOS-App (Xcode-Projekt)
+├── PlatformIO/Projects/
+│   ├── EasyPilotIOS/     Firmware für die iOS-Brücke
+│   └── easypilot/        Standalone Web-Dashboard-Firmware
+├── openspec/             Spec-driven Dokumentation
+│   ├── specs/            Live-Specs (core, firmware, …)
+│   ├── changes/          Aktive + archivierte Sprints
+│   └── templates/        Sprint-Vorlagen
+├── docs/                 GitHub Pages (diese Seite)
+├── deploy.sh             One-Click iOS-Deploy
+└── CLAUDE.md             Architektur-Cheat-Sheet
+----
+
+== Quick Start
+
+=== ESP32 flashen
+
+[source,bash]
+----
+cd PlatformIO/Projects/EasyPilotIOS
+cp secrets.ini.example secrets.ini   # WiFi-SSID & Passwort eintragen
+pio run --target upload
+pio device monitor
+----
+
+=== iOS-App installieren
+
+[source,bash]
+----
+./deploy.sh                          # auto-detect iPhone
+# oder explizit:
+./deploy.sh <DEVICE_UDID>
+----
+
+Beim Start scannt die App das lokale Netzwerk auf den UDP-Beacon
+`EASYPILOT:<IP>` und öffnet automatisch die WebSocket-Verbindung.
+
+== OpenSpec — Spec-driven Development
+
+Alle Funktionen werden zuerst in `openspec/` spezifiziert, bevor Code
+geschrieben wird. Subsystem-Specs:
+
+[cols="1,3", options="header"]
+|===
+| Spec | Inhalt
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/core/spec.md[*core*]
+| Gesamt-Architektur, Subsystem-Index, Fail-Safe-Regeln
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/firmware/spec.md[*firmware*]
+| ESP32 Flight-Modes, MSP, Safety-Watchdogs
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/communication/spec.md[*communication*]
+| UDP-Discovery + WebSocket + MSP-Protokoll
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/dashboard/spec.md[*dashboard*]
+| iOS Dashboard-Tab
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/simulator-controller/spec.md[*simulator-controller*]
+| iOS Simulator-Tab + Virtual-Joysticks
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/hardware/spec.md[*hardware*]
+| ESP32-C3, FC-Wiring, ESC-PWM, Battery
+
+| link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/specs/drone-telemetry/spec.md[*drone-telemetry*]
+| Attitude- und Battery-Telemetrie-Kontrakt
+|===
+
+Sprint-Workflow:
+link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec/README.md[openspec/README.md]
 
 == Projektziele
 
 * Aufbau und Inbetriebnahme einer FPV-Drohne mit DJI O4 Air Pro Unit
-* Integration eines Raspberry Pi als Companion-Computer
-* Entwicklung von Algorithmen für *Autopilot*, *Auto-Hover* und *Auto-Brake*
-* Implementierung eines *Webinterfaces*
-* Simulationen (Liftoff, Gazebo, Betaflight SITL)
-* Praxistests
+* Integration eines ESP32-C3 als Companion-Computer
+* Entwicklung einer nativen iOS-App für Telemetrie und Steuerung
+* Implementierung von *Balance*-, *RC*- und *POSHOLD*-Flugmodi
+* Demo-fähige Drohnensimulation für Vorführungen ohne reale Drohne
+* Lückenlose Sprint-Dokumentation via OpenSpec
 
 == Projektumfang / Abgrenzung
 
 === Umfang
 
-* *Hardware:* FPV-Drohne, Flight Controller, O4 Air Pro Unit, Raspberry Pi, Sensoren (GPS, Ultraschall/LiDAR, Kamera)
-* *Software:*
-Betaflight / ArduPilot, Companion-Software (Java/Python, YOLOv5),
-MAVLink/MAVSDK, Webinterface
+* *Hardware:* FPV-Drohne, BLITZ ATF435 FC, DJI O4 Air Pro Unit,
+  ESP32-C3 SuperMini, 4S LiPo
+* *Software:* Betaflight-Firmware (FC), PlatformIO/Arduino-Firmware
+  (ESP32), SwiftUI iOS-App, MSP-Protokoll
+* *Doku:* OpenSpec-driven Spezifikationen pro Subsystem
 
 === Abgrenzung
 
 * Keine Neuentwicklung eines eigenen Flight Controllers
-* Fokus auf *Hybridbetrieb aus Autonomie und FPV*, nicht reines Racing
+* Kein Race-Drohnen-Fokus — Hybridbetrieb aus Autonomie und FPV
+* Keine Cloud-Komponenten — bewusst lokal-only (Privacy + Latenz)
 
 == Erwartete Ergebnisse
 
-* Funktionsfähige hybride FPV-Drohne
-* Webplattform zur Konfiguration und Flugauswertung
-* Dokumentierte Simulator- und Realtests
+* Funktionsfähige hybride FPV-Drohne mit iOS-Steuerung
+* iOS-App mit Dashboard, Algorithmen-Tuning und Simulator
+* Vollständig dokumentiertes OpenSpec-Repository
 * Nachweis der Machbarkeit teilautonomer Systeme auf Consumer-Hardware
 
 == Aktueller Implementierungsstand
@@ -61,39 +234,26 @@ NOTE: Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächlic
 
 == Minutes of Meeting
 
-* link:minutes-of-meetings/2025-11-25_Sprintplanning.html[Sprintplanning – 25.11.2025]
-* link:minutes-of-meetings/2025-12-23_Sprintplanning.html[Sprintplanning – 23.12.2025]
+* link:minutes-of-meetings/2025-11-25_Sprintplanning.html[Sprintplanning · 25.11.2025]
+* link:minutes-of-meetings/2025-12-23_Sprintplanning.html[Sprintplanning · 23.12.2025]
 
-== Visualisierung von Technologien
+== Team
 
-image::img/bild1.png[]
+[cols="1,2", options="header"]
+|===
+| Rolle | Person
 
-== Technologie-Stack
+| Hardware & Firmware (ESP32) | Team EasyPilot
+| iOS-App & Simulator         | Team EasyPilot
+| Spec-Owner / OpenSpec       | Team EasyPilot
+|===
 
-* *Backend:* Java (Quarkus)
-* *Datenbank:* PostgreSQL
-* *Frontend:* Angular oder React
-* *Versionierung:* GitHub, GitHub Actions, Deployment auf Cloudflare
-* *Drohnen-Tools:* MAVLink, YOLOv5, Betaflight
+== Lizenz
 
-[plantuml, drone-system, png]
-----
-@startuml
-!theme mars
-skinparam componentStyle uml2
+MIT License — siehe link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/LICENSE[LICENSE]
+im Repository-Root.
 
-component "Frontend\n React" as FE
-component "Backend\n(Quarkus)" as BE
-component "PostgreSQL" as DB
-component "Raspberry Pi\n(Companion Computer)" as RPI
-component "Flight Controller\n(Betaflight)" as FC
-component "GitHub / CI" as CI
+'''
 
-FE --> BE : REST API
-BE --> DB : Persistenz
-RPI --> FC : MAVLink
-CI --> FE : Deploy
-CI --> BE : Deploy
-
-@enduml
-----
+[.text-center]
+[small]#Diplomarbeit · HTL 4AHITM · Schuljahr 2025/26#
