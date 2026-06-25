@@ -1,135 +1,130 @@
-image::./images/banner.png[EasyPilot]
+= EasyPilot — FPV Drone with Companion App & Web Simulator
 
-image:[https://img.shields.io/badge/Raspberry_Pi-Project-red?style=for-the-badge[](https://img.shields.io/badge/Raspberry_Pi-Project-red?style=for-the-badge[)]
-image:[https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge[](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge[)]
-image:[https://img.shields.io/badge/Drone-Autopilot-lightblue?style=for-the-badge[](https://img.shields.io/badge/Drone-Autopilot-lightblue?style=for-the-badge[)]
-image:[https://img.shields.io/badge/Telemetry-WiFi%2FLora-04668d?style=for-the-badge[](https://img.shields.io/badge/Telemetry-WiFi%2FLora-04668d?style=for-the-badge[)]
-image:[https://img.shields.io/badge/Camera-Streaming-green?style=for-the-badge[](https://img.shields.io/badge/Camera-Streaming-green?style=for-the-badge[)]
-image:[https://img.shields.io/badge/YOLO-Object_Detection-yellow?style=for-the-badge[](https://img.shields.io/badge/YOLO-Object_Detection-yellow?style=for-the-badge[)]
-image:[https://img.shields.io/badge/MIT-License-blue?style=for-the-badge[](https://img.shields.io/badge/MIT-License-blue?style=for-the-badge[)]
+image:https://img.shields.io/badge/ESP32--C3-Firmware-red?style=for-the-badge[ESP32]
+image:https://img.shields.io/badge/iOS-SwiftUI-black?style=for-the-badge[iOS]
+image:https://img.shields.io/badge/Quarkus-3.28-4695EB?style=for-the-badge[Quarkus]
+image:https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge[React]
+image:https://img.shields.io/badge/three.js-3D-049EF4?style=for-the-badge[three.js]
 
----
+EasyPilot is a drone telemetry and control system built as a school project at
+HTL Leonding (4AHITM). A custom ESP32-C3 board talks to a flight controller over
+MSP, broadcasts telemetry, and accepts flight commands. An iOS companion app
+discovers the drone on the network, streams live telemetry, and can fly an
+on-device physics simulator. A small Quarkus service, a Python relay, and a
+React + three.js web viewer round out the stack.
 
-NOTE: This README is subject to further change during development of the project
+== Subsystems
 
-== 📘 Project Description
+[cols="1,2,3",options="header"]
+|===
+| Component | Location | Role
 
-*EasyPilot* is a modular DIY drone/autopilot platform built around a Raspberry Pi.
-It provides real-time telemetry, camera streaming, ESC/motor control, optional YOLOv8 object detection, and a safe experimentation environment for autonomous flight.
+| ESP32-C3 firmware
+| `PlatformIO/Projects/EasyPilotIOS/`
+| WebSocket server (port 81) + UDP discovery beacon (port 4242). Drives the
+  flight controller over MSP; implements IDLE / BALANCE / MANUAL / SOUND modes.
 
-Main features:
+| iOS app
+| `EasyPilotIOS/`
+| SwiftUI app. Discovers the ESP32 via its UDP beacon, exchanges telemetry and
+  commands over WebSocket, and includes a fully on-device flight simulator
+  (rate / balance / POSHOLD, altitude-hold).
 
-* Raspberry Pi as the main compute unit
-* Live video streaming (RTSP/MJPEG)
-* Telemetry via WiFi or LoRa
-* ESC/motor output control
-* IMU-based stabilization (MPU6050/9250)
-* Optional YOLO object detection pipeline
-* Expandable ground-station interface
+| Companion backend
+| `webinterface/backend/`
+| Quarkus 3.28 service exposing a small HTTP surface (`GET /api/status`).
 
-== 🛠️ Installation
+| Telemetry relay
+| `webinterface/backend/src/main/python/`
+| Python WebSocket → UDP relay (`relay_server.py`) and an MSP stabilization
+  sender (`websocket_sender.py`).
 
-=== 📦 Requirements
+| Web viewer
+| `webinterface/frontend/`
+| React 19 + three.js 3D model viewer; subscribes to the relay over WebSocket.
+|===
 
-* Raspberry Pi 4 or newer
-* Python 3.10+
-* Pi Camera or USB Camera
-* ESCs + motors
-* IMU sensor (recommended)
-* WiFi or LoRa module
+== Communication
 
----
+[source]
+----
+ESP32-C3 (WiFi)
+  ├── UDP broadcast "EASYPILOT:<IP>" every 5 s on port 4242  →  iOS discovers the drone
+  └── WebSocket server on port 81  ←→  iOS sends commands / receives telemetry JSON @ 10 Hz
 
-=== 🐍 Install on Raspberry Pi
-Clone the project:
+Python relay (off-board path)
+  └── WebSocket :8080  →  UDP broadcast 255.255.255.255:4242  (feeds the iOS app remotely)
 
-```bash
-git clone https://github.com/yourname/easypilot
-cd easypilot
-```
+Web viewer
+  └── WebSocket ws://localhost:8765  ←  websocket_sender.py
+----
 
-Install dependencies:
+== Build & Run
 
-```bash
-pip install -r requirements.txt
-```
+=== ESP32-C3 firmware (PlatformIO)
 
-Enable the camera:
+[source,bash]
+----
+cd PlatformIO/Projects/EasyPilotIOS
+# create secrets.ini (gitignored) with wifi_ssid / wifi_pass; load_secrets.py
+# generates include/secrets_auto.h at build time
+pio run            # build
+pio upload         # flash
+----
 
-```bash
-sudo raspi-config
-```
+=== iOS app (Xcode)
 
-Navigate to *Interface Options → Camera*.
+[source,bash]
+----
+./deploy.sh [DEVICE_UDID]    # build + install on a connected iPhone
+----
 
-=== 📡 Telemetry Setup
-Start the telemetry server:
+=== Companion backend (Quarkus)
 
-```bash
-python3 telemetry/telemetry_server.py
-```
+[source,bash]
+----
+cd webinterface/backend
+./mvnw quarkus:dev    # dev mode on http://localhost:8080
+./mvnw test           # run the test suite
+----
 
-Connect from the ground station:
+=== Telemetry relay (Python)
 
-```bash
-python3 telemetry/telemetry_client.py
-```
+[source,bash]
+----
+cd webinterface/backend/src/main/python
+pip install websockets pyserial
+python3 relay_server.py       # WebSocket → UDP relay
+# LOG_LEVEL=DEBUG python3 relay_server.py   # verbose per-message logging
+----
 
-== 🎥 Camera Streaming
-Start the camera stream:
+=== Web viewer (React + Vite)
 
-```bash
-python3 camera/stream.py
-```
+[source,bash]
+----
+cd webinterface/frontend
+npm install
+npm run dev
+----
 
-This exposes an RTSP or MJPEG stream (defined in `config.yaml`).
+== Secrets
 
-== 🤖 YOLOv8 Object Detection
-Run detection on live stream:
+WLAN and OTA credentials are never committed. Copy the provided templates and
+fill in your own values (the real files are gitignored):
 
-```bash
-python3 vision/detect.py --source stream
-```
+* PlatformIO firmware: create `secrets.ini` (consumed by `load_secrets.py`).
+* Standalone sketches: copy `wifi_secrets.example.h` → `wifi_secrets.h`.
 
-Models are stored under `models/`.
+== Documentation
 
-== 🛩️ Motor / ESC Control
-Arm the system:
+* Project documentation: `docs/index.adoc`
+* Specs & sprint workflow: `openspec/`
 
-```bash
-python3 control/arm.py
-```
+== Team
 
-Test output signals:
+* Eder Simon
+* Windischbauer David
 
-```bash
-python3 control/test_output.py
-```
+== License
 
-== 📁 Project Structure
-
-```
-📦 easypilot
- ┣ camera/
- ┣ control/
- ┣ telemetry/
- ┣ vision/
- ┣ utils/
- ┗ config.yaml
-```
-
-== 🎓 How to Use
-
-1. Start telemetry
-2. Start camera stream
-3. (Optional) start YOLO
-4. Use ground station to control/monitor the drone
-
-== 👥 Team
-Developer 💻 – DU
-
-== 📄 License
-MIT License
-
-== 📘 Additional Documentation
-More documentation coming soon…
+MIT License.
