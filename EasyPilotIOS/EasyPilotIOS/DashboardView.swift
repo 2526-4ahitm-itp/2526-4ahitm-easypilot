@@ -3,8 +3,9 @@ import SceneKit
 
 struct DashboardView: View {
     @ObservedObject var wsManager: WebSocketManager
-    @StateObject private var motionManager = MotionManager()
+    @ObservedObject var motionManager: MotionManager
     @State private var droneScene: SCNScene?
+    @State private var droneModelNode: SCNNode?
     @State private var manualIP: String = ""
     @State private var showIPEntry: Bool = false
 
@@ -33,11 +34,7 @@ struct DashboardView: View {
             if isSafeTestActive { safeTestOverlay }
         }
         .onAppear {
-            motionManager.startUpdates()
             loadScene()
-        }
-        .onDisappear {
-            motionManager.stopUpdates()
         }
         .onChange(of: isSafeTestActive) { active in
             if active { wsManager.sendSafeTest() }
@@ -146,8 +143,10 @@ struct DashboardView: View {
             if let scene = droneScene {
                 SceneView(scene: scene, options: [.autoenablesDefaultLighting, .allowsCameraControl])
                     .frame(height: 280)
-                    .onChange(of: wsManager.telemetry?.roll) { _ in
-                        updateSceneRotation(scene: scene)
+                    // Observe the whole telemetry value, not just `roll`, so the model
+                    // also reacts to pitch/yaw-only changes.
+                    .onChange(of: wsManager.telemetry) { _ in
+                        updateSceneRotation()
                     }
             } else {
                 VStack(spacing: 10) {
@@ -290,8 +289,14 @@ struct DashboardView: View {
             } else {
                 scene = makeFallbackScene()
             }
+            // The model node(s) are whatever exists before we add camera + lights,
+            // so capture the container now instead of guessing later by elimination.
+            let modelNode = scene.rootNode.childNodes.first
             setupSceneCamera(scene)
-            DispatchQueue.main.async { self.droneScene = scene }
+            DispatchQueue.main.async {
+                self.droneModelNode = modelNode
+                self.droneScene = scene
+            }
         }
     }
 
@@ -314,10 +319,9 @@ struct DashboardView: View {
         scene.background.contents = UIColor.clear
     }
 
-    private func updateSceneRotation(scene: SCNScene) {
-        guard let data = wsManager.telemetry else { return }
+    private func updateSceneRotation() {
+        guard let data = wsManager.telemetry, let node = droneModelNode else { return }
         let r: Float = .pi / 180.0
-        let node = scene.rootNode.childNodes.first { $0.camera == nil && $0.light == nil } ?? scene.rootNode
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.1
         node.eulerAngles = SCNVector3(data.pitch * r, data.yaw * r, -data.roll * r)
@@ -335,7 +339,7 @@ struct DashboardView: View {
 
 struct DashboardView_Previews: PreviewProvider {
     static var previews: some View {
-        DashboardView(wsManager: WebSocketManager())
+        DashboardView(wsManager: WebSocketManager(), motionManager: MotionManager())
             .preferredColorScheme(.dark)
     }
 }

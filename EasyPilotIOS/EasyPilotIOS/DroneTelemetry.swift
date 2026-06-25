@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents the telemetry data received from the drone via WebSocket.
-struct DroneTelemetry: Codable {
+struct DroneTelemetry: Codable, Equatable {
     let roll: Float
     let pitch: Float
     let yaw: Float
