@@ -221,20 +221,26 @@ tech = [
     ("coremotion.png", 1.0,  "CoreMotion", "Gyro / accelerometer read at 10 Hz for tilt control."),
     ("esp.png",        0.55, "Espressif ESP32", "On-drone firmware: WiFi, WebSocket server, beacon."),
 ]
-cw, ch = Inches(3.85), Inches(2.1)
+cw, ch = Inches(3.85), Inches(2.15)
 gx, gy = Inches(0.3), Inches(0.3)
 x0, y0 = Inches(0.85), Inches(2.0)
+ICON = 0.9          # uniform icon box; capped so art never grows into the text
+NAME_X = 1.45       # name column starts clear of the icon (icon ends at 0.3+0.9=1.2")
+DESC_Y = 1.42       # description sits BELOW the icon row (icon bottom at 0.32+0.9=1.22")
 for i,(img,hh,name,desc) in enumerate(tech):
     col, row = i % 3, i // 3
     x = Emu(int(x0)+col*(int(cw)+int(gx)))
     y = Emu(int(y0)+row*(int(ch)+int(gy)))
     card(s, x, y, cw, ch)
-    w,h = fit(os.path.join(LOGOS,img), 1.2, hh)
-    pic(s, os.path.join(LOGOS,img), x+Inches(0.28), y+Inches(0.32), h=h)
-    textbox(s, x+Inches(1.7), y+Inches(0.3), cw-Inches(1.9), Inches(0.6),
-            [[(name, 18, TEXT, True, None)]])
-    textbox(s, x+Inches(0.3), y+Inches(1.15), cw-Inches(0.55), Inches(0.85),
-            [[(desc, 13.5, MUTED, False, None)]], sp_after=0)
+    # icon — top-left, uniformly sized (never wider/taller than ICON)
+    w,h = fit(os.path.join(LOGOS,img), ICON, ICON)
+    pic(s, os.path.join(LOGOS,img), x+Inches(0.3), y+Inches(0.32), h=h)
+    # name — to the RIGHT of the icon, vertically centred against it
+    textbox(s, x+Inches(NAME_X), y+Inches(0.32), cw-Inches(NAME_X+0.25), Inches(ICON),
+            [[(name, 17, TEXT, True, None)]], anchor=MSO_ANCHOR.MIDDLE)
+    # description — full width, BELOW the icon (no overlap)
+    textbox(s, x+Inches(0.3), y+Inches(DESC_Y), cw-Inches(0.6), Inches(0.62),
+            [[(desc, 13, MUTED, False, None)]], sp_after=0)
 
 # ---- helper: code slide ----
 def code_slide(kick, ttl, subtitle, code_lines):
@@ -266,24 +272,7 @@ KW = RGBColor(0xFF,0x7A,0xB2); TY = RGBColor(0x7E,0xE0,0xC8)
 ST = RGBColor(0xC3,0xE8,0x8D); CM = RGBColor(0x5D,0x6B,0x8F)
 NU = RGBColor(0xF7,0xC8,0x73); FN = RGBColor(0x82,0xAA,0xFF); PL = TEXT
 
-# ---- Slide 4: discovery code ----
-code_slide("Code · Networking", "Zero-config discovery + WebSocket",
-    "The app finds the drone with no manual IP entry — it listens for the UDP beacon, then upgrades to WebSocket.",
-    [
-     [("// Listen for the ESP32's UDP beacon on port 4242", CM)],
-     [("private func ", KW),("receiveBeacon", FN),("(on conn: ", PL),("NWConnection", TY),(") {", PL)],
-     [("    conn.", PL),("receiveMessage", FN),(" { [", PL),("weak self", KW),("] data, _, _, _ ", PL),("in", KW)],
-     [("        if let", KW),(" data,", PL)],
-     [("           let", KW),(" text = ", PL),("String", TY),("(data: data, encoding: .utf8),", PL)],
-     [("           text.", PL),("hasPrefix", FN),("(", PL),("\"EASYPILOT:\"", ST),(") {", PL)],
-     [("            let", KW),(" ip = ", PL),("String", TY),("(text.", PL),("dropFirst", FN),("(10))", PL)],
-     [("            ", PL),("connectWebSocket", FN),("(to: ip)   ", PL),("// ws://<ip>:81", CM)],
-     [("        }", PL)],
-     [("    }", PL)],
-     [("}", PL)],
-    ])
-
-# ---- Slide 5: telemetry code ----
+# ---- Slide 4: telemetry code ----
 code_slide("Code · Live Telemetry", "Decoding 10 Hz telemetry into the UI", None,
     [
      [("// Codable struct mirrors the ESP32 JSON exactly", CM)],
@@ -301,7 +290,7 @@ code_slide("Code · Live Telemetry", "Decoding 10 Hz telemetry into the UI", Non
      [("    }", PL),("\n}", PL)],
     ])
 
-# ---- Slide 6: sensors + command ----
+# ---- Slide 5: sensors + command ----
 code_slide("Code · Sensors & Commands", "Phone tilt → drone command", None,
     [
      [("// CoreMotion device-motion updates @ 10 Hz", CM)],
@@ -318,7 +307,7 @@ code_slide("Code · Sensors & Commands", "Phone tilt → drone command", None,
      [("}", PL)],
     ])
 
-# ---- Slide 7: Challenges ----
+# ---- Slide 6: Challenges ----
 s = slide()
 kicker(s, "Challenges")
 title(s, "What was hard — and how we solved it")
@@ -339,7 +328,7 @@ for i,(t,desc,col) in enumerate(ch_data):
     textbox(s, cx+Inches(0.35), cy+Inches(0.95), cw-Inches(0.7), Inches(1.0),
             [[(desc, 14.5, MUTED, False, None)]], sp_after=0)
 
-# ---- Slide 8: threading code ----
+# ---- Slide 7: threading code ----
 code_slide("Code · The threading challenge", "Two threads, one drone",
     "Physics on SceneKit's render thread must never touch SwiftUI directly — so internal state is kept separate from published state.",
     [
@@ -357,7 +346,7 @@ code_slide("Code · The threading challenge", "Two threads, one drone",
      [("}", PL)],
     ])
 
-# ---- Slide 9: Summary ----
+# ---- Slide 8: Summary ----
 s = slide()
 kicker(s, "Wrap-up")
 title(s, "Where we are & what's next")

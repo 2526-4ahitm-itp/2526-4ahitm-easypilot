@@ -144,25 +144,7 @@
     </div>
   </section>
 
-  <!-- 4 CODE: WebSocket / discovery -->
-  <section class="slide">
-    <div class="kicker">Code · Networking</div>
-    <h2>Zero-config discovery + WebSocket</h2>
-    <p class="sub">The app finds the drone with no manual IP entry by listening for its UDP beacon, then upgrades to a WebSocket.</p>
-<pre><code><span class="c">// Listen for the ESP32's UDP beacon on port 4242</span>
-<span class="k">private func</span> <span class="f">receiveBeacon</span>(on conn: <span class="t">NWConnection</span>) {
-    conn.<span class="f">receiveMessage</span> { [<span class="k">weak self</span>] data, _, _, _ <span class="k">in</span>
-        <span class="k">if let</span> data,
-           <span class="k">let</span> text = <span class="t">String</span>(data: data, encoding: .utf8),
-           text.<span class="f">hasPrefix</span>(<span class="s">"EASYPILOT:"</span>) {
-            <span class="k">let</span> ip = <span class="t">String</span>(text.<span class="f">dropFirst</span>(<span class="s">"EASYPILOT:"</span>.count))
-            <span class="f">connectWebSocket</span>(to: ip)   <span class="c">// ws://&lt;ip&gt;:81</span>
-        }
-    }
-}</code></pre>
-  </section>
-
-  <!-- 5 CODE: telemetry decode -->
+  <!-- 4 CODE: telemetry decode -->
   <section class="slide">
     <div class="kicker">Code · Live Telemetry</div>
     <h2>Decoding 10&nbsp;Hz telemetry into the UI</h2>
@@ -182,7 +164,7 @@
 }</code></pre>
   </section>
 
-  <!-- 6 CODE: CoreMotion + command builder -->
+  <!-- 5 CODE: CoreMotion + command builder -->
   <section class="slide">
     <div class="kicker">Code · Sensors & Commands</div>
     <h2>Phone tilt → drone command</h2>
@@ -206,7 +188,7 @@ motionManager.<span class="f">startDeviceMotionUpdates</span>(
     </div>
   </section>
 
-  <!-- 7 CHALLENGES -->
+  <!-- 6 CHALLENGES -->
   <section class="slide">
     <div class="kicker">Challenges</div>
     <h2>What was hard — and how we solved it</h2>
@@ -235,7 +217,7 @@ motionManager.<span class="f">startDeviceMotionUpdates</span>(
     </div>
   </section>
 
-  <!-- 8 CODE: threading challenge -->
+  <!-- 7 CODE: threading challenge -->
   <section class="slide">
     <div class="kicker">Code · The threading challenge</div>
     <h2>Two threads, one drone</h2>
@@ -254,7 +236,7 @@ motionManager.<span class="f">startDeviceMotionUpdates</span>(
 }</code></pre>
   </section>
 
-  <!-- 9 SUMMARY -->
+  <!-- 8 SUMMARY -->
   <section class="slide">
     <div class="kicker">Wrap-up</div>
     <h2>Where we are &amp; what's next</h2>
