@@ -1,8 +1,11 @@
 import asyncio
+import os
 import websockets
 
+# Set RELAY_WS_URL to your relay/ngrok endpoint, e.g.
+#   export RELAY_WS_URL="wss://<your-subdomain>.ngrok-free.app/"
 async def test_connect():
-    uri = "wss://primate-finer-frankly.ngrok-free.app/"
+    uri = os.environ.get("RELAY_WS_URL", "wss://YOUR-NGROK-SUBDOMAIN.ngrok-free.app/")
     headers = {"ngrok-skip-browser-warning": "true"}
     print(f"Connecting to {uri}")
     try:

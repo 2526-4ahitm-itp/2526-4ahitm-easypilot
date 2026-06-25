@@ -6,9 +6,9 @@ config = configparser.ConfigParser()
 config_path = os.path.join(env.get("PROJECT_DIR"), "secrets.ini")
 header_path = os.path.join(env.get("PROJECT_DIR"), "include", "secrets_auto.h")
 
-# Default values
-ssid     = "Sim"
-password = "123456789"
+# Default placeholders — real values come from secrets.ini (gitignored).
+ssid     = "YOUR_WIFI_SSID"
+password = "YOUR_WIFI_PASSWORD"
 
 if os.path.exists(config_path):
     config.read(config_path)
