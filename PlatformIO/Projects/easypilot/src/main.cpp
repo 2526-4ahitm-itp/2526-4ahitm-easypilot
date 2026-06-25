@@ -2,12 +2,14 @@
 #include <WebServer.h>
 #include <esp_wifi.h>
 #include <ArduinoOTA.h>
+// Copy wifi_secrets.example.h -> wifi_secrets.h (gitignored) and fill in your WLAN/OTA data.
+#include "wifi_secrets.h"
 
 // ============================================================
 // 1. EINSTELLUNGEN
 // ============================================================
-const char* ssid     = "Dav";
-const char* password = "12345678";
+const char* ssid     = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 #define FC_TX_PIN 21
 #define FC_RX_PIN 20
@@ -521,7 +523,7 @@ void setup() {
   connectWiFi();
 
   ArduinoOTA.setHostname("ESP32-Drohne");
-  ArduinoOTA.setPassword("admin123");
+  ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]() { resetFlightState(); });
   ArduinoOTA.begin();
 
