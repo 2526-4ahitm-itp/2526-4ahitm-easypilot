@@ -5,6 +5,7 @@ import simd
 enum SimFlightMode: String, CaseIterable {
     case rate    = "RATE"
     case balance = "BALANCE"
+    case poshold = "POS"
 }
 
 /// Rate-mode and balance-mode 3D flight simulator driven by SceneKit's render loop.
@@ -27,6 +28,13 @@ class DroneSimulator: ObservableObject {
     @Published var m4: Int = 1000
     @Published var isArmed:   Bool = false
     @Published var isCrashed: Bool = false
+
+    // Autopilot "demand" values for visualisation — normalised [-1, 1] so the
+    // VirtualJoystick can mirror them on its thumb when the user has released
+    // the sticks and the "Autopilot sticks" option is enabled.
+    @Published var autopilotLeftY:  Double = 0   // throttle correction view (negative = pushed up)
+    @Published var autopilotRightX: Double = 0   // roll correction view
+    @Published var autopilotRightY: Double = 0   // pitch correction view
 
     // MARK: - Internal physics state (render thread)
 
@@ -86,9 +94,29 @@ class DroneSimulator: ObservableObject {
     var pitch:    Double = 0   // -1…1
     var roll:     Double = 0   // -1…1
 
-    // True while a thumb is on the right (attitude) joystick pad.
-    // When false, rate mode auto-stabilizes toward (0°, 0°) instead of integrating stick rate.
-    var rightStickActive: Bool = false
+    /// True while the LEFT stick (throttle/yaw) is being touched.
+    /// When false, altitude-hold takes over the throttle and yaw rate decays.
+    var leftStickTouched:  Bool = false
+    /// True while the RIGHT stick (pitch/roll) is being touched.
+    /// When false, attitude auto-levels per the active flight mode.
+    var rightStickTouched: Bool = false
+
+    /// True while at least one stick is touched — kept for legacy callers.
+    var sticksTouched: Bool { leftStickTouched || rightStickTouched }
+
+    // Altitude-hold state. Captures the altitude at the moment the left stick
+    // is released; PID below drives the drone back to it.
+    private var holdAltitude: Float = 0.05   // == groundLevel
+    /// Last effective throttle commanded by the auto-pilot (for stick visualisation).
+    private var apThrottle: Float = 0.45
+    // POSHOLD: previous-frame body-frame horizontal velocities, for the D term.
+    private var _lastVFwdBody:   Double = 0
+    private var _lastVRightBody: Double = 0
+    // POSHOLD: world-frame target position to actively fly back to.
+    // Captured at the moment the right stick is released; cleared while held.
+    private var _holdPosX:   Float = 0
+    private var _holdPosZ:   Float = 0
+    private var _hasHoldPos: Bool  = false
 
     // MARK: - Constants
 
@@ -124,63 +152,116 @@ class DroneSimulator: ObservableObject {
             return
         }
 
-        let thr    = Float(throttle)
-        let flying = thr > 0.02
+        // ── Effective throttle (altitude-hold when left stick released) ────
+        let userThrottle = Float(throttle)
+        let effectiveThrottle: Float
+        if leftStickTouched {
+            effectiveThrottle = userThrottle
+            // Track target altitude continuously so release locks current height
+            holdAltitude = _pos.y
+        } else {
+            // Altitude PID: hover thrust + altitude-error term − vertical-velocity damper.
+            // Tilt compensation: vertical lift = cos(pitch)·cos(roll)·thrust, so
+            // boost throttle to maintain lift while the drone is banked.
+            let pR = Float(-_pitch) * .pi / 180
+            let rR = Float(_roll)  * .pi / 180
+            let tiltComp = 1.0 / max(0.3, cos(pR) * cos(rR))
+            let hoverT: Float = gravity / maxThrust
+            let altError = holdAltitude - _pos.y
+            let kPAlt: Float = 0.25
+            let kDAlt: Float = 0.20
+            let raw = hoverT * tiltComp + kPAlt * altError - kDAlt * _vel.y
+            effectiveThrottle = max(0, min(1, raw))
+        }
+        apThrottle = effectiveThrottle
+        let flying = effectiveThrottle > 0.02
+
+        // Clear the position-hold target whenever the pilot is actively
+        // commanding pitch/roll. Re-capture happens on next release in POSHOLD.
+        if rightStickTouched { _hasHoldPos = false }
 
         // ── Attitude update ────────────────────────────────────────────────
-        switch flightMode {
-
-        case .rate:
-            if flying {
-                if !rightStickActive {
-                    // Auto-stabilize: no thumb on the right stick → drive roll/pitch to 0°
-                    // using the same P-controller balance mode uses. Yaw remains rate-controlled
-                    // off the left stick.
-                    _rollRate = 0; _pitchRate = 0
-                    _roll  += (-_roll)  * kPRoll  * kPScale * Double(dt)
-                    _pitch += (-_pitch) * kPPitch * kPScale * Double(dt)
-                    let dt2 = min(1.0, rateResponse * Double(dt))
-                    _yawRate += (yaw * maxYawRate - _yawRate) * dt2
-                    _yaw     += _yawRate * Double(dt)
-                } else {
-                    // Aerodynamic drag attenuates angular velocity every frame
-                    let drag = 1.0 - angularDrag * Double(dt)
-                    _rollRate  *= drag
-                    _pitchRate *= drag
-                    _yawRate   *= drag
-                    // Rate controller: actual rate tracks commanded rate with inertia
-                    let cmdRoll  =  roll  * maxRollRate
-                    let cmdPitch =  pitch * maxPitchRate   // sign handled by pFrac negate below
-                    let cmdYaw   =  yaw   * maxYawRate
-                    let dt2 = min(1.0, rateResponse * Double(dt))
-                    _rollRate  += (cmdRoll  - _rollRate)  * dt2
-                    _pitchRate += (cmdPitch - _pitchRate) * dt2
-                    _yawRate   += (cmdYaw   - _yawRate)   * dt2
-                    // Integrate angular velocity → attitude
-                    _roll  += _rollRate  * Double(dt)
-                    _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
-                    _yaw   += _yawRate   * Double(dt)
-                }
-            } else {
-                // Ground: snap attitude level, zero rates
-                _rollRate = 0; _pitchRate = 0; _yawRate = 0
+        // Pitch/roll stabilise when the RIGHT stick is released; yaw responds
+        // to LEFT stick (yaw axis) and decays naturally when released.
+        if flying && rightStickTouched {
+            integrateRatePhysics(dt: dt)
+        } else if !flying {
+            // Ground: snap level, zero all rates
+            _rollRate = 0; _pitchRate = 0; _yawRate = 0
+            let ret = 30.0 * Double(dt)
+            _roll  = nudge(_roll,  to: 0, step: ret)
+            _pitch = nudge(_pitch, to: 0, step: ret)
+        } else {
+            // Flying, right stick released → auto-level pitch/roll
+            _rollRate = 0; _pitchRate = 0
+            switch flightMode {
+            case .rate:
                 let ret = 30.0 * Double(dt)
                 _roll  = nudge(_roll,  to: 0, step: ret)
                 _pitch = nudge(_pitch, to: 0, step: ret)
+            case .balance:
+                _roll  += (0 - _roll)  * kPRoll  * kPScale * Double(dt)
+                _pitch += (0 - _pitch) * kPPitch * kPScale * Double(dt)
+            case .poshold:
+                // Loiter / position-hold. On release, capture the world-frame
+                // target position; thereafter compute a body-frame error and
+                // run a position-PD + velocity-PD on top of the same
+                // P-controller theory used in BALANCE. The drone actively
+                // flies back to the spot with real counter-tilt physics — no
+                // velocity damping cheats.
+                if !_hasHoldPos {
+                    _holdPosX   = _pos.x
+                    _holdPosZ   = _pos.z
+                    _hasHoldPos = true
+                }
+                let thetaD     = Double(-_yaw) * .pi / 180
+                let sT = sin(thetaD), cT = cos(thetaD)
+                // Body-frame horizontal velocity
+                let vFwdBody   = -sT * Double(_vel.x) - cT * Double(_vel.z)
+                let vRightBody =  cT * Double(_vel.x) - sT * Double(_vel.z)
+                // Body-frame position error (target − current)
+                let dPosX        = Double(_holdPosX - _pos.x)
+                let dPosZ        = Double(_holdPosZ - _pos.z)
+                let posErrFwd    = -sT * dPosX - cT * dPosZ
+                let posErrRight  =  cT * dPosX - sT * dPosZ
+                // D term on velocity: anticipates trajectory, kills overshoot.
+                let dtSafe       = max(0.001, Double(dt))
+                let aFwdBody     = (vFwdBody   - _lastVFwdBody)   / dtSafe
+                let aRightBody   = (vRightBody - _lastVRightBody) / dtSafe
+                _lastVFwdBody    = vFwdBody
+                _lastVRightBody  = vRightBody
+                // Gains tuned for a soft, GPS-loiter feel: drone drifts a
+                // bit, gently leans back, slowly returns to the spot. Real
+                // FC POSHOLD modes are quite gentle — snappy correction looks
+                // like cheating, not flying.
+                let kPP     = 2.0    // tilt° per m of position error
+                let kVP     = 3.0    // tilt° per m/s of velocity
+                let kVD     = 0.6    // tilt° per m/s² (mild anti-overshoot)
+                let maxTilt = 14.0
+                let targetPitch = max(-maxTilt, min(maxTilt,
+                    -kPP * posErrFwd  + kVP * vFwdBody   + kVD * aFwdBody))
+                let targetRoll  = max(-maxTilt, min(maxTilt,
+                     kPP * posErrRight - kVP * vRightBody - kVD * aRightBody))
+                // Slow attitude following — drone rolls into the lean over
+                // ~1 s instead of snapping there. Matches how a real airframe
+                // with inertia + ESC ramp responds.
+                let attResp = 1.0
+                _roll  += (targetRoll  - _roll)  * kPRoll  * kPScale * attResp * Double(dt)
+                _pitch += (targetPitch - _pitch) * kPPitch * kPScale * attResp * Double(dt)
             }
-
-        case .balance:
-            // Right stick sets a target angle; P-controller drives actual attitude toward it.
-            // Mimics the ESP32 BALANCE mode P-controller: correction = kP × error.
-            // kPScale converts firmware-unit kP to simulation angular velocity.
-            let targetRoll  =  roll  * maxBalanceAngle
-            let targetPitch = -pitch * maxBalanceAngle
-            let rollError   = targetRoll  - _roll
-            let pitchError  = targetPitch - _pitch
-            _roll  += rollError  * kPRoll  * kPScale * Double(dt)
-            _pitch += pitchError * kPPitch * kPScale * Double(dt)
-            // Yaw is always rate-based
-            _yaw += yaw * maxYawRate * Double(dt)
+            // Yaw still responds to left stick if it's held
+            if leftStickTouched {
+                let drag = 1.0 - angularDrag * Double(dt)
+                _yawRate *= drag
+                let cmdYaw = yaw * maxYawRate
+                let dt2 = min(1.0, rateResponse * Double(dt))
+                _yawRate += (cmdYaw - _yawRate) * dt2
+                _yaw     += _yawRate * Double(dt)
+            } else {
+                let drag = 1.0 - angularDrag * Double(dt)
+                _yawRate *= drag
+                _yaw += _yawRate * Double(dt)
+            }
         }
 
         _roll  = max(-80, min(80, _roll))
@@ -196,7 +277,7 @@ class DroneSimulator: ObservableObject {
         // and horizontal acceleration scales with throttle.
         let pitchRad = Float(-_pitch) * .pi / 180   // + when nose-down
         let rollRad  = Float(_roll)  * .pi / 180    // + when right-wing-down
-        let thrust   = thr * maxThrust
+        let thrust   = effectiveThrottle * maxThrust
 
         let vertThrust = thrust * cos(pitchRad) * cos(rollRad)
         let fwdThrust  = thrust * sin(pitchRad)       // forward component
@@ -211,6 +292,15 @@ class DroneSimulator: ObservableObject {
         // Frame-rate independent drag (preserves 60 fps feel)
         let dragFactor = pow(drag, dt * 60.0)
         _vel *= dragFactor
+
+        // Active horizontal brake when the pilot lets go of the right stick.
+        // Skipped in POSHOLD: that mode brakes via real counter-tilt physics.
+        if !rightStickTouched && _pos.y > Self.groundLevel + 0.02 && flightMode != .poshold {
+            let brake = max(0, 1.0 - 1.4 * dt)
+            _vel.x *= brake
+            _vel.z *= brake
+        }
+
         _pos += _vel * dt
 
         if _pos.y < Self.groundLevel {
@@ -231,27 +321,23 @@ class DroneSimulator: ObservableObject {
         // ── Motor mixing ───────────────────────────────────────────────────
         let airborne = flying || _pos.y > Self.groundLevel
         if airborne {
-            let base = 1000 + Int(throttle * 600)
+            let base = 1000 + Int(Double(effectiveThrottle) * 600)
 
-            switch flightMode {
-            case .rate:
+            if flightMode == .balance && !rightStickTouched {
+                // Visualise P-controller corrections like the real firmware does
+                let rCorr = Int((0 - _roll)  * kPRoll  * 0.8)
+                let pCorr = Int((0 - _pitch) * kPPitch * 0.8)
+                im1 = clampPWM(base - rCorr + pCorr)
+                im2 = clampPWM(base + rCorr + pCorr)
+                im3 = clampPWM(base - rCorr - pCorr)
+                im4 = clampPWM(base + rCorr - pCorr)
+            } else {
                 let rD = Int(_roll  * 0.5)
                 let pD = Int(_pitch * 0.5)
                 im1 = clampPWM(base - rD + pD)
                 im2 = clampPWM(base + rD + pD)
                 im3 = clampPWM(base - rD - pD)
                 im4 = clampPWM(base + rD - pD)
-
-            case .balance:
-                // Visualise P-controller corrections like the real firmware does
-                let tgtRoll  =  roll  * maxBalanceAngle
-                let tgtPitch = -pitch * maxBalanceAngle
-                let rCorr = Int((tgtRoll  - _roll)  * kPRoll  * 0.8)
-                let pCorr = Int((tgtPitch - _pitch) * kPPitch * 0.8)
-                im1 = clampPWM(base - rCorr + pCorr)
-                im2 = clampPWM(base + rCorr + pCorr)
-                im3 = clampPWM(base - rCorr - pCorr)
-                im4 = clampPWM(base + rCorr - pCorr)
             }
         } else {
             im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
@@ -265,6 +351,28 @@ class DroneSimulator: ObservableObject {
         mFil4 += (Double(im4) - mFil4) * α
     }
 
+    // MARK: - Shared rate physics
+
+    private func integrateRatePhysics(dt: Float) {
+        // Aerodynamic drag attenuates angular velocity every frame
+        let drag = 1.0 - angularDrag * Double(dt)
+        _rollRate  *= drag
+        _pitchRate *= drag
+        _yawRate   *= drag
+        // Rate controller: actual rate tracks commanded rate with inertia
+        let cmdRoll  = roll  * maxRollRate
+        let cmdPitch = pitch * maxPitchRate
+        let cmdYaw   = yaw   * maxYawRate
+        let dt2 = min(1.0, rateResponse * Double(dt))
+        _rollRate  += (cmdRoll  - _rollRate)  * dt2
+        _pitchRate += (cmdPitch - _pitchRate) * dt2
+        _yawRate   += (cmdYaw   - _yawRate)   * dt2
+        // Integrate angular velocity → attitude
+        _roll  += _rollRate  * Double(dt)
+        _pitch -= _pitchRate * Double(dt)  // minus: forward pitch input → nose down
+        _yaw   += _yawRate   * Double(dt)
+    }
+
     // MARK: - Sync to @Published (main thread)
 
     func syncPublished() {
@@ -274,6 +382,17 @@ class DroneSimulator: ObservableObject {
         altitude = Double(max(0, _pos.y - Self.groundLevel))
         speedH   = Double(sqrt(_vel.x * _vel.x + _vel.z * _vel.z))
         m1 = Int(mFil1); m2 = Int(mFil2); m3 = Int(mFil3); m4 = Int(mFil4)
+
+        // Autopilot demand for stick visualisation. Throttle: signed Y in
+        // [-1, 1] where -1 = full up (SwiftUI Y is inverted on the pad).
+        let apY = -((Double(apThrottle) - 0.5) * 2.0)
+        autopilotLeftY  = max(-1, min(1, apY))
+        // Right stick: the angle the autopilot is "asking for" — opposite of
+        // current tilt, clamped to ±maxBalanceAngle then normalised.
+        let demandRollDeg  = -_roll  * 0.5
+        let demandPitchDeg = -_pitch * 0.5
+        autopilotRightX = max(-1, min(1,  demandRollDeg  / max(1, maxBalanceAngle)))
+        autopilotRightY = max(-1, min(1, -demandPitchDeg / max(1, maxBalanceAngle)))
     }
 
     // MARK: - Private
@@ -307,5 +426,10 @@ class DroneSimulator: ObservableObject {
         im1 = 1000; im2 = 1000; im3 = 1000; im4 = 1000
         mFil1 = 1000; mFil2 = 1000; mFil3 = 1000; mFil4 = 1000
         throttle = 0; yaw = 0; pitch = 0; roll = 0
+        holdAltitude = Self.groundLevel
+        apThrottle = gravity / maxThrust
+        _lastVFwdBody = 0
+        _lastVRightBody = 0
+        _hasHoldPos = false
     }
 }
