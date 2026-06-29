@@ -128,7 +128,7 @@ def statement_block(statement, paras):
 def title_slide():
     rect(0, 0, SW_IN, SH_IN, NAVY)
     rect(0, 0, 0.16, SH_IN, ACCENT)
-    text(0.95, 1.5, "EASYPILOT  ·  4AHITM DROHNENPROJEKT", SANSB, 14, ACCENT)
+    text(0.95, 1.5, "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.", SANSB, 16, ACCENT)
     c.setFont(SANSB, 62); ty = H - IN(2.25) - 62
     c.setFillColor(white); c.drawString(IN(0.9), ty, "EasyPilot ")
     c.setFillColor(ACCENT); c.drawString(IN(0.9) + c.stringWidth("EasyPilot ", SANSB, 62), ty, "iOS")

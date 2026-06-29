@@ -140,8 +140,8 @@ def statement_block(s, statement, paras):
 def title_slide():
     s = slide(NAVY)
     rect(s, 0, 0, Inches(0.16), SH, ACCENT)
-    textbox(s, Inches(0.95), Inches(1.5), Inches(11), Inches(0.5),
-            [[("EASYPILOT  ·  4AHITM DROHNENPROJEKT", 14, ACCENT, True, HEAD)]])
+    textbox(s, Inches(0.95), Inches(1.5), Inches(11.6), Inches(0.5),
+            [[("Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.", 16, ACCENT, True, HEAD)]])
     textbox(s, Inches(0.9), Inches(2.25), Inches(11.5), Inches(1.5),
             [[("EasyPilot ", 62, WHITE, True, HEAD), ("iOS", 62, ACCENT, True, HEAD)]])
     rect(s, Inches(0.95), Inches(3.62), Inches(1.5), Pt(4), ACCENT)
