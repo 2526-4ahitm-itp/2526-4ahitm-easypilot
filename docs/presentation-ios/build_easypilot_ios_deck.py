@@ -171,13 +171,22 @@ def purpose_slide(num):
     )
 
 
-def wasist_slide(num):
+def wasist_slide(num, algo=False):
     s = slide(WHITE)
     header_band(s, "Was ist EasyPilot iOS", num)
-    statement_block(
-        s,
-        "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.",
-        [
+    if algo:
+        paras = [
+            (3.45, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
+                         "die wir mit einem ESP32 erweitert haben."),
+            (4.45, 0.62, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
+                         "WLAN mit der Drohne – ohne Eingabe einer IP-Adresse."),
+            (5.45, 0.62, "Sie zeigt die Telemetrie zehnmal pro Sekunde in Echtzeit an und bringt einen "
+                         "eigenen 3D-Flugsimulator direkt aufs Handy."),
+            (6.45, 0.62, "Über die App lassen sich außerdem Stabilisierungs- und Hilfsalgorithmen der "
+                         "Drohne steuern."),
+        ]
+    else:
+        paras = [
             (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
                          "die wir mit einem ESP32 erweitert haben."),
             (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
@@ -185,8 +194,9 @@ def wasist_slide(num):
             (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
                          "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
                          "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
-        ],
-    )
+        ]
+    statement_block(
+        s, "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.", paras)
 
 
 def arch_slide(num):
@@ -257,7 +267,7 @@ def build(out, extended):
         purpose_slide("02")
         wasist_slide("03"); arch_slide("04"); demo_slide("05")
     else:
-        wasist_slide("02"); arch_slide("03"); demo_slide("04")
+        wasist_slide("02", algo=True); arch_slide("03"); demo_slide("04")
     prs.save(out)
     print("saved", out)
 
