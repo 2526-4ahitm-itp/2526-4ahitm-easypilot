@@ -129,22 +129,22 @@ c.showPage()
 # ===================== Slide 2 — Was ist EasyPilot iOS (2x2) =====================
 rect(0, 0, SW_IN, SH_IN, white)
 header_band("Was ist EasyPilot iOS", "02")
-quad = [
-    (0.95, 2.35, "Modifizierte Drohne",
-     "Eine handelsübliche Drohne, die wir mit einem ESP32 erweitert haben – nicht selbstgebaut."),
-    (7.15, 2.35, "SwiftUI-App",
-     "Der mobile Co-Pilot, komplett in SwiftUI gebaut – nur mit Apple-Frameworks."),
-    (0.95, 4.65, "Auto-Discovery",
-     "Findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse."),
-    (7.15, 4.65, "Live am iPhone",
-     "Live-Telemetrie mit 10 Hz und ein 3D-Flugsimulator direkt am iPhone."),
+para(0.95, 1.85, 8.0, 1.4,
+     "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.",
+     27, TEAL, leading=31, font=SANSB)
+rect(0.97, 3.12, 1.6, 0.055, ACCENT)
+paras = [
+    (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
+                 "die wir mit einem ESP32 erweitert haben."),
+    (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
+                 "WLAN mit der Drohne, ganz ohne Eingabe einer IP-Adresse."),
+    (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
+                 "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
+                 "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
 ]
-for x, y, head, body in quad:
-    rect(x, y + 0.04, 0.28, 0.28, ACCENT)
-    text(x + 0.45, y - 0.05, head, SANSB, 21, TEAL)
-    para(x + 0.45, y + 0.52, 4.95, 1.5, body, 16, INK, leading=22)
-line(6.7, 2.25, 6.7, 6.6, ACCENT, 1.75)
-rect(0.95, 4.42, 11.45, 0.017, BORDER)
+for y, barh, body in paras:
+    rect(0.95, y + 0.03, 0.06, barh, ACCENT)
+    para(1.3, y, 6.9, 1.5, body, 16.5, INK, leading=23)
 c.showPage()
 
 # ===================== Slide 3 — Architektur (tech diagram) =====================
