@@ -69,5 +69,16 @@ def chip():
     img.save(os.path.join(LOGOS, "chip.png"))
 
 
-wifi(); websocket(); cube3d(); chip()
+def gyro():
+    img, d = canvas()
+    cx, cy, R, w = S/2, S/2, 175, 26
+    col = (0x7C, 0x5C, 0xFF, 255)
+    d.ellipse([cx-R, cy-R, cx+R, cy+R], outline=col, width=w)                 # outer ring
+    d.ellipse([cx-R*0.42, cy-R, cx+R*0.42, cy+R], outline=col, width=w)       # vertical gimbal
+    d.ellipse([cx-R, cy-R*0.42, cx+R, cy+R*0.42], outline=col, width=w)       # horizontal gimbal
+    d.ellipse([cx-24, cy-24, cx+24, cy+24], fill=col)                         # rotor hub
+    img.save(os.path.join(LOGOS, "gyro.png"))
+
+
+wifi(); websocket(); cube3d(); chip(); gyro()
 print("icons written to", LOGOS)
