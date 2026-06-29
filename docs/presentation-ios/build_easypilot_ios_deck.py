@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Builds the 4-slide 'EasyPilot iOS' deck (clean light style, blue accent).
+"""Builds the 4-slide 'EasyPilot iOS' deck — own modern style.
+
+Distinct from the Franklyn template: full-navy title slide, sans-serif bold
+headings, navy header bands with a blue square mark, blue square bullet marks,
+a vertical divider, slide-number chips. Same navy/white/blue colour family.
 
 Slides:
-  1. Title      - big "EasyPilot iOS" + one-line description + creator
-  2. Was ist..  - heading, a full-width accent line through the section,
-                  bullets + iPhone<->ESP32 diagram
-  3. Tech Stack - icon grid of understandable technologies (with icons)
-  4. Live Demo  - full navy slide, big serif title
+  1. Title      - full navy, big "EasyPilot iOS"
+  2. Was ist..  - navy header band, bullets + vertical divider + diagram
+  3. Tech Stack - icon grid, real technology names
+  4. Live Demo  - full navy
 """
 import os
 from PIL import Image
@@ -21,19 +24,18 @@ HERE  = os.path.dirname(os.path.abspath(__file__))
 LOGOS = os.path.join(HERE, "logos")
 OUT   = os.path.join(HERE, "EasyPilot-iOS.pptx")
 
-# ---- palette (blue accent instead of tan) ----
-NAVY   = RGBColor(0x2C, 0x36, 0x49)
-TEAL   = RGBColor(0x10, 0x3A, 0x50)
-ACCENT = RGBColor(0x2F, 0x80, 0xED)   # iOS-ish blue
+NAVY   = RGBColor(0x22, 0x2B, 0x3C)   # title / bands
+TEAL   = RGBColor(0x16, 0x21, 0x33)   # heading ink on white
+ACCENT = RGBColor(0x2F, 0x80, 0xED)   # blue
 WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-INK    = RGBColor(0x33, 0x3B, 0x47)
+INK    = RGBColor(0x2B, 0x33, 0x40)
 MUTED  = RGBColor(0x6B, 0x74, 0x82)
-LIGHT  = RGBColor(0xD7, 0xDC, 0xE3)
-CARD   = RGBColor(0xF6, 0xF8, 0xFB)
-BORDER = RGBColor(0xDD, 0xE1, 0xE7)
+LIGHT  = RGBColor(0xC4, 0xCE, 0xDE)   # light text on navy
+CARD   = RGBColor(0xF4, 0xF7, 0xFB)
+BORDER = RGBColor(0xE2, 0xE7, 0xEE)
 
-SERIF = "Georgia"
-SANS  = "Calibri"
+HEAD = "Segoe UI Semibold"
+SANS = "Segoe UI"
 
 prs = Presentation()
 prs.slide_width  = Inches(13.333)
@@ -88,17 +90,8 @@ def rect(s, x, y, w, h, fill, shape=MSO_SHAPE.RECTANGLE, border=None, bw=1.0, ra
     return c
 
 
-def freeform(s, pts, fill):
-    fb = s.shapes.build_freeform(Emu(pts[0][0]), Emu(pts[0][1]), scale=1)
-    fb.add_line_segments([(Emu(p[0]), Emu(p[1])) for p in pts[1:]], close=True)
-    shp = fb.convert_to_shape()
-    shp.fill.solid(); shp.fill.fore_color.rgb = fill
-    shp.line.fill.background(); shp.shadow.inherit = False
-    return shp
-
-
-def hline(s, x, y, w, col, pt=2.0):
-    ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x, y, Emu(int(x) + int(w)), y)
+def vline(s, x, y, h, col, pt=1.5):
+    ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x, y, x, Emu(int(y) + int(h)))
     ln.line.color.rgb = col; ln.line.width = Pt(pt); ln.shadow.inherit = False
     return ln
 
@@ -113,39 +106,49 @@ def fit(path, maxw_in, maxh_in):
 
 
 def icon(s, path, cx_in, top_in, box_w, box_h):
-    """Place an icon, fit into box, horizontally centered around cx_in."""
     w, h = fit(os.path.join(LOGOS, path), box_w, box_h)
     x = Inches(cx_in - w / 2)
     y = Inches(top_in + (box_h - h) / 2)
     s.shapes.add_picture(os.path.join(LOGOS, path), x, y, width=Inches(w), height=Inches(h))
 
 
+def header_band(s, title, num):
+    rect(s, 0, 0, SW, Inches(1.35), NAVY)
+    rect(s, Inches(0.85), Inches(0.5), Inches(0.34), Inches(0.34), ACCENT)
+    textbox(s, Inches(1.4), 0, Inches(10), Inches(1.35),
+            [[(title, 30, WHITE, True, HEAD)]], anchor=MSO_ANCHOR.MIDDLE)
+    textbox(s, Inches(12.0), 0, Inches(0.9), Inches(1.35),
+            [[(num, 16, ACCENT, True, HEAD)]], align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
+
+
+def page_num(s, num):
+    textbox(s, Inches(12.1), Inches(6.85), Inches(0.9), Inches(0.4),
+            [[(num, 13, MUTED, True, HEAD)]], align=PP_ALIGN.RIGHT)
+
+
 # =====================================================================
-# Slide 1 — Title
+# Slide 1 — Title (full navy)
 # =====================================================================
-s = slide(WHITE)
-freeform(s, [(0, int(SH*0.80)), (int(SW), int(SH*0.42)),
-             (int(SW), int(SH)), (0, int(SH))], NAVY)
-textbox(s, Inches(0.9), Inches(0.85), Inches(11), Inches(1.6),
-        [[("EasyPilot ", 60, TEAL, False, SERIF), ("iOS", 60, ACCENT, False, SERIF)]])
-rect(s, Inches(0.95), Inches(2.12), Inches(2.3), Pt(3.5), ACCENT)
-textbox(s, Inches(0.95), Inches(2.45), Inches(10.6), Inches(0.9),
-        [[("SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne",
-           21, MUTED, False, SANS)],
-         [("selbst im WLAN, zeigt Live-Telemetrie und fliegt einen 3D-Simulator.",
-           21, MUTED, False, SANS)]], sp_after=3)
-textbox(s, Inches(0.95), Inches(3.85), Inches(8), Inches(0.9),
-        [[("Simon Eder", 18, INK, False, SANS)],
-         [("Creator", 14, MUTED, False, SANS)]], sp_after=2)
+s = slide(NAVY)
+rect(s, 0, 0, Inches(0.16), SH, ACCENT)
+textbox(s, Inches(0.95), Inches(1.5), Inches(11), Inches(0.5),
+        [[("EASYPILOT  ·  4AHITM DROHNENPROJEKT", 14, ACCENT, True, HEAD)]])
+textbox(s, Inches(0.9), Inches(2.25), Inches(11.5), Inches(1.5),
+        [[("EasyPilot ", 62, WHITE, True, HEAD), ("iOS", 62, ACCENT, True, HEAD)]])
+rect(s, Inches(0.95), Inches(3.62), Inches(1.5), Pt(4), ACCENT)
+textbox(s, Inches(0.95), Inches(3.95), Inches(10.8), Inches(1.2),
+        [[("SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne", 20, LIGHT, False, SANS)],
+         [("selbst im WLAN, zeigt Live-Telemetrie und fliegt einen 3D-Flugsimulator.", 20, LIGHT, False, SANS)]],
+        sp_after=3)
+textbox(s, Inches(0.95), Inches(6.1), Inches(8), Inches(0.9),
+        [[("Simon Eder", 19, WHITE, True, HEAD)],
+         [("Creator", 14, LIGHT, False, SANS)]], sp_after=2)
 
 # =====================================================================
 # Slide 2 — Was ist EasyPilot iOS
 # =====================================================================
 s = slide(WHITE)
-textbox(s, Inches(0.85), Inches(0.7), Inches(11.6), Inches(1.0),
-        [[("Was ist EasyPilot iOS", 36, TEAL, False, SERIF)]])
-# the line that runs through the section
-hline(s, Inches(0.85), Inches(1.75), Inches(11.63), ACCENT, pt=2.25)
+header_band(s, "Was ist EasyPilot iOS", "02")
 
 bullets = [
     "EasyPilot ist unser 4AHITM-Drohnenprojekt: eine selbstgebaute Drohne mit ESP32-Steuerung.",
@@ -153,15 +156,15 @@ bullets = [
     "Sie findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse.",
     "Live-Telemetrie mit 10 Hz, ein 3D-Flugsimulator und das Senden von Flugbefehlen – alles auf dem iPhone.",
 ]
-runs = []
-for b in bullets:
-    runs.append([("●  ", 14, ACCENT, True, SANS), (b, 16.5, INK, False, SANS)])
-textbox(s, Inches(0.85), Inches(2.25), Inches(6.4), Inches(4.6), runs, sp_after=16, line=1.08)
+runs = [[("▪  ", 15, ACCENT, True, SANS), (b, 16.5, INK, False, SANS)] for b in bullets]
+textbox(s, Inches(0.85), Inches(1.95), Inches(6.3), Inches(4.8), runs, sp_after=16, line=1.1)
 
-# right device diagram
+# vertical divider between the two halves
+vline(s, Inches(7.55), Inches(2.05), Inches(4.6), ACCENT, pt=1.75)
+
 def devbox(label, sub, x, y, w, h, accent):
-    rect(s, x, y, w, h, WHITE, shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=accent, bw=2, rad=0.12)
-    textbox(s, x, y, w, h, [[(label, 18, TEAL, True, SANS)], [(sub, 12, MUTED, False, SANS)]],
+    rect(s, x, y, w, h, CARD, shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=accent, bw=1.75, rad=0.10)
+    textbox(s, x, y, w, h, [[(label, 18, TEAL, True, HEAD)], [(sub, 12, MUTED, False, SANS)]],
             align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, sp_after=2)
 
 def arrow(x1, y1, x2, y2):
@@ -170,56 +173,58 @@ def arrow(x1, y1, x2, y2):
     ln = a.line._get_or_add_ln()
     ln.append(ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'med', 'len': 'med'}))
 
-devbox("iPhone", "EasyPilot App (SwiftUI)", Inches(8.0), Inches(2.45), Inches(4.4), Inches(1.25), ACCENT)
-devbox("ESP32-C3", "Drohne · WLAN", Inches(8.0), Inches(5.45), Inches(4.4), Inches(1.25), NAVY)
-arrow(Inches(8.75), Inches(3.7), Inches(8.75), Inches(5.45))
-arrow(Inches(11.65), Inches(5.45), Inches(11.65), Inches(3.7))
-textbox(s, Inches(8.0), Inches(4.1), Inches(4.4), Inches(1.2),
-        [[("WLAN-Discovery · 10 Hz", 12.5, MUTED, False, SANS)],
+devbox("iPhone", "EasyPilot App (SwiftUI)", Inches(8.1), Inches(2.35), Inches(4.3), Inches(1.2), ACCENT)
+devbox("ESP32-C3", "Drohne · WLAN", Inches(8.1), Inches(5.3), Inches(4.3), Inches(1.2), NAVY)
+arrow(Inches(8.9), Inches(3.55), Inches(8.9), Inches(5.3))
+arrow(Inches(11.6), Inches(5.3), Inches(11.6), Inches(3.55))
+textbox(s, Inches(8.1), Inches(4.0), Inches(4.3), Inches(1.1),
+        [[("Auto-Discovery · 10 Hz", 12.5, MUTED, False, SANS)],
          [("Befehle ↑ · Telemetrie ↓", 12.5, MUTED, False, SANS)]],
         align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, sp_after=2)
 
 # =====================================================================
-# Slide 3 — Tech Stack (icon grid)
+# Slide 3 — Tech Stack (icon grid, real names)
 # =====================================================================
 s = slide(WHITE)
-rect(s, 0, 0, SW, Inches(1.6), NAVY)
-textbox(s, Inches(0.85), 0, Inches(11), Inches(1.6),
-        [[("EasyPilot iOS – Tech Stack", 34, WHITE, False, SERIF)]],
-        anchor=MSO_ANCHOR.MIDDLE)
+header_band(s, "Tech Stack", "03")
 
 tech = [
-    ("swift.png",     "Swift",        "Sprache der App"),
-    ("swiftui.png",   "SwiftUI",      "Benutzeroberfläche"),
-    ("wifi.png",      "WLAN",         "Findet die Drohne automatisch"),
-    ("websocket.png", "WebSocket",    "Live-Verbindung zur Drohne"),
-    ("cube3d.png",    "3D-Simulator", "Flugsimulator am iPhone"),
-    ("chip.png",      "ESP32",        "Mikrocontroller der Drohne"),
+    ("swift.png",     "Swift",              "Programmiersprache"),
+    ("swiftui.png",   "SwiftUI",            "User Interface"),
+    ("cube3d.png",    "SceneKit",           "3D-Flugsimulator"),
+    ("websocket.png", "WebSocket",          "Live-Telemetrie · 10 Hz"),
+    ("wifi.png",      "Network.framework",  "Auto-Discovery im WLAN"),
+    ("chip.png",      "ESP32-C3",           "Mikrocontroller der Drohne"),
 ]
-cols, rows = 3, 2
-mx, top0 = 0.85, 2.0
+cols = 3
+mx, top0 = 0.85, 1.95
 gx, gy = 0.45, 0.28
 cw = (13.333 - 2*mx - (cols-1)*gx) / cols
-chh = 2.35
+chh = 2.3
 for i, (img, name, sub) in enumerate(tech):
-    c, r = i % cols, i // cols
-    x = mx + c*(cw + gx)
-    y = top0 + r*(chh + gy)
+    cidx, ridx = i % cols, i // cols
+    x = mx + cidx*(cw + gx)
+    y = top0 + ridx*(chh + gy)
     rect(s, Inches(x), Inches(y), Inches(cw), Inches(chh), CARD,
-         shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=BORDER, bw=1, rad=0.06)
-    icon(s, img, x + cw/2, y + 0.32, 1.5, 1.0)
-    textbox(s, Inches(x), Inches(y + 1.5), Inches(cw), Inches(0.5),
-            [[(name, 18, TEAL, True, SANS)]], align=PP_ALIGN.CENTER)
-    textbox(s, Inches(x), Inches(y + 1.92), Inches(cw), Inches(0.4),
-            [[(sub, 12.5, MUTED, False, SANS)]], align=PP_ALIGN.CENTER)
+         shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=BORDER, bw=1, rad=0.05)
+    icon(s, img, x + cw/2, y + 0.3, 1.45, 0.95)
+    textbox(s, Inches(x), Inches(y + 1.42), Inches(cw), Inches(0.45),
+            [[(name, 17, TEAL, True, HEAD)]], align=PP_ALIGN.CENTER)
+    # short blue underline under the name
+    rect(s, Inches(x + cw/2 - 0.28), Inches(y + 1.86), Inches(0.56), Pt(2.5), ACCENT)
+    textbox(s, Inches(x), Inches(y + 1.95), Inches(cw), Inches(0.4),
+            [[(sub, 12, MUTED, False, SANS)]], align=PP_ALIGN.CENTER)
 
 # =====================================================================
-# Slide 4 — Live Demo
+# Slide 4 — Live Demo (full navy)
 # =====================================================================
 s = slide(NAVY)
-textbox(s, Inches(0.95), 0, Inches(9), SH,
-        [[("Live Demo", 64, WHITE, False, SERIF)]], anchor=MSO_ANCHOR.MIDDLE)
-rect(s, Inches(1.0), Inches(4.55), Inches(2.2), Pt(3.5), ACCENT)
+rect(s, 0, 0, Inches(0.16), SH, ACCENT)
+textbox(s, Inches(0.95), Inches(2.7), Inches(8), Inches(0.5),
+        [[("04  ·  DEMO", 14, ACCENT, True, HEAD)]])
+textbox(s, Inches(0.9), Inches(3.2), Inches(10), Inches(1.4),
+        [[("Live Demo", 66, WHITE, True, HEAD)]])
+rect(s, Inches(0.95), Inches(4.75), Inches(1.6), Pt(4), ACCENT)
 
 prs.save(OUT)
 print("saved", OUT)
