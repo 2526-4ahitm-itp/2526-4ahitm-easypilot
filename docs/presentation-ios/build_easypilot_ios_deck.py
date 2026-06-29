@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Builds the 4-slide 'EasyPilot iOS' deck — own modern style.
+"""Builds the 'EasyPilot iOS' PowerPoint decks — own modern style.
 
-Slides:
-  1. Title      - full navy, big "EasyPilot iOS"
-  2. Was ist..  - navy header band, 2x2 facts with a divider through the section
-  3. Architektur- diagram showing how the technologies work together
-  4. Live Demo  - full navy
+Produces two files from the same slide definitions:
+  EasyPilot-iOS.pptx           4 slides (Title, Was ist, Architektur, Live Demo)
+  EasyPilot-iOS-Extended.pptx  5 slides (adds a "Das Projekt EasyPilot" slide)
 """
 import os
 from PIL import Image
@@ -16,9 +14,10 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.oxml.ns import qn
 
-HERE  = os.path.dirname(os.path.abspath(__file__))
-LOGOS = os.path.join(HERE, "logos")
-OUT   = os.path.join(HERE, "EasyPilot-iOS.pptx")
+HERE   = os.path.dirname(os.path.abspath(__file__))
+LOGOS  = os.path.join(HERE, "logos")
+OUT     = os.path.join(HERE, "EasyPilot-iOS.pptx")
+OUT_EXT = os.path.join(HERE, "EasyPilot-iOS-Extended.pptx")
 
 NAVY   = RGBColor(0x22, 0x2B, 0x3C)
 TEAL   = RGBColor(0x16, 0x21, 0x33)
@@ -33,16 +32,21 @@ BORDER = RGBColor(0xE2, 0xE7, 0xEE)
 HEAD = "Segoe UI Semibold"
 SANS = "Segoe UI"
 RR   = MSO_SHAPE.ROUNDED_RECTANGLE
+SW   = Inches(13.333)
+SH   = Inches(7.5)
 
-prs = Presentation()
-prs.slide_width  = Inches(13.333)
-prs.slide_height = Inches(7.5)
-SW, SH = prs.slide_width, prs.slide_height
-blank = prs.slide_layouts[6]
+prs = None  # current presentation (set by build())
+
+
+def new_prs():
+    p = Presentation()
+    p.slide_width  = Inches(13.333)
+    p.slide_height = Inches(7.5)
+    return p
 
 
 def slide(bg=WHITE):
-    s = prs.slides.add_slide(blank)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
     r = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, SW, SH)
     r.fill.solid(); r.fill.fore_color.rgb = bg
     r.line.fill.background(); r.shadow.inherit = False
@@ -87,12 +91,6 @@ def rect(s, x, y, w, h, fill, shape=MSO_SHAPE.RECTANGLE, border=None, bw=1.0, ra
     return c
 
 
-def vline(s, x, y, h, col, pt=1.5):
-    ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x, y, x, Emu(int(y) + int(h)))
-    ln.line.color.rgb = col; ln.line.width = Pt(pt); ln.shadow.inherit = False
-    return ln
-
-
 def connector(s, x1, y1, x2, y2, col=NAVY, pt=2.25, head=True):
     a = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x1, y1, x2, y2)
     a.line.color.rgb = col; a.line.width = Pt(pt); a.shadow.inherit = False
@@ -127,110 +125,142 @@ def header_band(s, title, num):
             [[(num, 16, ACCENT, True, HEAD)]], align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
 
 
-# =====================================================================
-# Slide 1 — Title (full navy)
-# =====================================================================
-s = slide(NAVY)
-rect(s, 0, 0, Inches(0.16), SH, ACCENT)
-textbox(s, Inches(0.95), Inches(1.5), Inches(11), Inches(0.5),
-        [[("EASYPILOT  ·  4AHITM DROHNENPROJEKT", 14, ACCENT, True, HEAD)]])
-textbox(s, Inches(0.9), Inches(2.25), Inches(11.5), Inches(1.5),
-        [[("EasyPilot ", 62, WHITE, True, HEAD), ("iOS", 62, ACCENT, True, HEAD)]])
-rect(s, Inches(0.95), Inches(3.62), Inches(1.5), Pt(4), ACCENT)
-textbox(s, Inches(0.95), Inches(3.95), Inches(10.8), Inches(1.2),
-        [[("SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne", 20, LIGHT, False, SANS)],
-         [("selbst im WLAN, zeigt Live-Telemetrie und einen 3D-Flugsimulator.", 20, LIGHT, False, SANS)]],
-        sp_after=3)
-textbox(s, Inches(0.95), Inches(6.1), Inches(8), Inches(0.9),
-        [[("Simon Eder", 19, WHITE, True, HEAD)],
-         [("Creator", 14, LIGHT, False, SANS)]], sp_after=2)
+def statement_block(s, statement, paras):
+    """Big key statement + calm tick paragraphs (left column, right left empty)."""
+    textbox(s, Inches(0.95), Inches(1.85), Inches(8.2), Inches(1.4),
+            [[(statement, 27, TEAL, True, HEAD)]], line=1.08)
+    rect(s, Inches(0.97), Inches(3.12), Inches(1.6), Pt(4), ACCENT)
+    for y, barh, body in paras:
+        rect(s, Inches(0.95), Inches(y + 0.03), Inches(0.06), Inches(barh), ACCENT)
+        textbox(s, Inches(1.3), Inches(y), Inches(7.4), Inches(1.5),
+                [[(body, 16.5, INK, False, SANS)]], line=1.16)
 
-# =====================================================================
-# Slide 2 — Was ist EasyPilot iOS  (2x2 facts, divider through the section)
-# =====================================================================
-s = slide(WHITE)
-header_band(s, "Was ist EasyPilot iOS", "02")
-# big key statement (left), right half intentionally left empty
-textbox(s, Inches(0.95), Inches(1.85), Inches(8.0), Inches(1.4),
-        [[("Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.",
-           27, TEAL, True, HEAD)]], line=1.08)
-rect(s, Inches(0.97), Inches(3.12), Inches(1.6), Pt(4), ACCENT)
-# supporting text split into calm paragraphs, each with a small blue tick
-paras = [
-    (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
-                 "die wir mit einem ESP32 erweitert haben."),
-    (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
-                 "WLAN mit der Drohne, ganz ohne Eingabe einer IP-Adresse."),
-    (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
-                 "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
-                 "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
-]
-for y, barh, body in paras:
-    rect(s, Inches(0.95), Inches(y + 0.03), Inches(0.06), Inches(barh), ACCENT)
-    textbox(s, Inches(1.3), Inches(y), Inches(6.9), Inches(1.5),
-            [[(body, 16.5, INK, False, SANS)]], line=1.16)
 
-# =====================================================================
-# Slide 3 — Architektur (tech diagram)
-# =====================================================================
-s = slide(WHITE)
-header_band(s, "Architektur & Tech-Stack", "03")
+# --------------------------------------------------------------------- slides
+def title_slide():
+    s = slide(NAVY)
+    rect(s, 0, 0, Inches(0.16), SH, ACCENT)
+    textbox(s, Inches(0.95), Inches(1.5), Inches(11), Inches(0.5),
+            [[("EASYPILOT  ·  4AHITM DROHNENPROJEKT", 14, ACCENT, True, HEAD)]])
+    textbox(s, Inches(0.9), Inches(2.25), Inches(11.5), Inches(1.5),
+            [[("EasyPilot ", 62, WHITE, True, HEAD), ("iOS", 62, ACCENT, True, HEAD)]])
+    rect(s, Inches(0.95), Inches(3.62), Inches(1.5), Pt(4), ACCENT)
+    textbox(s, Inches(0.95), Inches(3.95), Inches(10.8), Inches(1.2),
+            [[("SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne", 20, LIGHT, False, SANS)],
+             [("selbst im WLAN, zeigt Live-Telemetrie und einen 3D-Flugsimulator.", 20, LIGHT, False, SANS)]],
+            sp_after=3)
+    textbox(s, Inches(0.95), Inches(6.1), Inches(8), Inches(0.9),
+            [[("Simon Eder", 19, WHITE, True, HEAD)],
+             [("Creator", 14, LIGHT, False, SANS)]], sp_after=2)
 
-# LEFT — the drone
-rect(s, Inches(0.85), Inches(2.45), Inches(2.95), Inches(3.0), CARD, RR, border=BORDER, bw=1, rad=0.05)
-textbox(s, Inches(0.85), Inches(2.62), Inches(2.95), Inches(0.4),
-        [[("DROHNE", 13, MUTED, True, HEAD)]], align=PP_ALIGN.CENTER)
-icon(s, "chip.png", 0.85 + 1.475, 3.05, 1.25, 0.9)
-textbox(s, Inches(0.85), Inches(4.1), Inches(2.95), Inches(0.45),
-        [[("ESP32-C3", 18, TEAL, True, HEAD)]], align=PP_ALIGN.CENTER)
-textbox(s, Inches(0.85), Inches(4.55), Inches(2.95), Inches(0.8),
-        [[("WebSocket-Server", 12.5, MUTED, False, SANS)],
-         [("UDP-Beacon (Discovery)", 12.5, MUTED, False, SANS)]],
-        align=PP_ALIGN.CENTER, sp_after=1)
 
-# ARROW drone -> app
-connector(s, Inches(3.8), Inches(3.62), Inches(5.35), Inches(3.62))
-textbox(s, Inches(3.7), Inches(2.95), Inches(1.75), Inches(0.6),
-        [[("WLAN · WebSocket", 11.5, MUTED, True, HEAD)]], align=PP_ALIGN.CENTER)
-textbox(s, Inches(3.7), Inches(3.78), Inches(1.75), Inches(0.5),
-        [[("Telemetrie · 10 Hz", 11.5, MUTED, False, SANS)]], align=PP_ALIGN.CENTER)
+def purpose_slide(num):
+    s = slide(WHITE)
+    header_band(s, "Das Projekt EasyPilot", num)
+    statement_block(
+        s,
+        "Eine gewöhnliche Drohne wird zur vernetzten Telemetrie- und Steuerplattform.",
+        [
+            (3.55, 0.62, "Ein ESP32-C3 an Bord macht die Drohne über WLAN ansprechbar – "
+                         "er sendet Telemetrie und nimmt Flugbefehle entgegen."),
+            (4.62, 0.62, "Mehrere Clients sind live dabei: eine iOS-App und ein 3D-Web-Viewer "
+                         "zeigen Lage und Daten der Drohne in Echtzeit."),
+            (5.69, 0.62, "Ein Schulprojekt der 4AHITM (HTL Leonding) – es verbindet "
+                         "Embedded-Firmware, Echtzeit-Netzwerk sowie App- und Web-Entwicklung."),
+        ],
+    )
 
-# RIGHT — the iPhone app
-APP_X, APP_W = 5.35, 7.05
-rect(s, Inches(APP_X), Inches(1.95), Inches(APP_W), Inches(4.95), WHITE, RR, border=ACCENT, bw=1.75, rad=0.04)
-textbox(s, Inches(APP_X + 0.3), Inches(2.12), Inches(4.2), Inches(0.45),
-        [[("iPhone-App", 18, TEAL, True, HEAD)]])
-textbox(s, Inches(APP_X + 0.3), Inches(2.58), Inches(4.2), Inches(0.4),
-        [[("gebaut mit Swift & SwiftUI", 12.5, MUTED, False, SANS)]])
-icon(s, "swift.png",   APP_X + APP_W - 1.65, 2.18, 1.25, 0.55)
-icon(s, "swiftui.png", APP_X + APP_W - 0.55, 2.12, 0.62, 0.62)
 
-comps = [
-    ("wifi.png", "Network.framework", "Verbindung & Auto-Discovery zur Drohne"),
-    ("cube3d.png", "SceneKit",         "Rendert den 3D-Flugsimulator"),
-    ("gyro.png", "CoreMotion",         "Liest das Gyroskop des Handys"),
-]
-cx, cw, chh = APP_X + 0.3, APP_W - 0.6, 1.05
-cy = 3.15
-for img, name, sub in comps:
-    rect(s, Inches(cx), Inches(cy), Inches(cw), Inches(chh), CARD, RR, border=BORDER, bw=1, rad=0.08)
-    icon(s, img, cx + 0.7, cy + 0.12, 0.95, chh - 0.24)
-    textbox(s, Inches(cx + 1.4), Inches(cy + 0.18), Inches(cw - 1.6), Inches(0.45),
-            [[(name, 17, TEAL, True, HEAD)]])
-    textbox(s, Inches(cx + 1.4), Inches(cy + 0.6), Inches(cw - 1.6), Inches(0.4),
-            [[(sub, 12.5, MUTED, False, SANS)]])
-    cy += chh + 0.13
+def wasist_slide(num):
+    s = slide(WHITE)
+    header_band(s, "Was ist EasyPilot iOS", num)
+    statement_block(
+        s,
+        "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.",
+        [
+            (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
+                         "die wir mit einem ESP32 erweitert haben."),
+            (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
+                         "WLAN mit der Drohne, ganz ohne Eingabe einer IP-Adresse."),
+            (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
+                         "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
+                         "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
+        ],
+    )
 
-# =====================================================================
-# Slide 4 — Live Demo (full navy)
-# =====================================================================
-s = slide(NAVY)
-rect(s, 0, 0, Inches(0.16), SH, ACCENT)
-textbox(s, Inches(0.95), Inches(2.7), Inches(8), Inches(0.5),
-        [[("04  ·  DEMO", 14, ACCENT, True, HEAD)]])
-textbox(s, Inches(0.9), Inches(3.2), Inches(10), Inches(1.4),
-        [[("Live Demo", 66, WHITE, True, HEAD)]])
-rect(s, Inches(0.95), Inches(4.75), Inches(1.6), Pt(4), ACCENT)
 
-prs.save(OUT)
-print("saved", OUT)
+def arch_slide(num):
+    s = slide(WHITE)
+    header_band(s, "Architektur & Tech-Stack", num)
+
+    # LEFT — the drone
+    rect(s, Inches(0.85), Inches(2.45), Inches(2.95), Inches(3.0), CARD, RR, border=BORDER, bw=1, rad=0.05)
+    textbox(s, Inches(0.85), Inches(2.62), Inches(2.95), Inches(0.4),
+            [[("DROHNE", 13, MUTED, True, HEAD)]], align=PP_ALIGN.CENTER)
+    icon(s, "chip.png", 0.85 + 1.475, 3.05, 1.25, 0.9)
+    textbox(s, Inches(0.85), Inches(4.1), Inches(2.95), Inches(0.45),
+            [[("ESP32-C3", 18, TEAL, True, HEAD)]], align=PP_ALIGN.CENTER)
+    textbox(s, Inches(0.85), Inches(4.55), Inches(2.95), Inches(0.8),
+            [[("WebSocket-Server", 12.5, MUTED, False, SANS)],
+             [("UDP-Beacon (Discovery)", 12.5, MUTED, False, SANS)]],
+            align=PP_ALIGN.CENTER, sp_after=1)
+
+    # ARROW drone -> app
+    connector(s, Inches(3.8), Inches(3.62), Inches(5.35), Inches(3.62))
+    textbox(s, Inches(3.7), Inches(2.95), Inches(1.75), Inches(0.6),
+            [[("WLAN · WebSocket", 11.5, MUTED, True, HEAD)]], align=PP_ALIGN.CENTER)
+    textbox(s, Inches(3.7), Inches(3.78), Inches(1.75), Inches(0.5),
+            [[("Telemetrie · 10 Hz", 11.5, MUTED, False, SANS)]], align=PP_ALIGN.CENTER)
+
+    # RIGHT — the iPhone app
+    APP_X, APP_W = 5.35, 7.05
+    rect(s, Inches(APP_X), Inches(1.95), Inches(APP_W), Inches(4.95), WHITE, RR, border=ACCENT, bw=1.75, rad=0.04)
+    textbox(s, Inches(APP_X + 0.3), Inches(2.12), Inches(4.2), Inches(0.45),
+            [[("iPhone-App", 18, TEAL, True, HEAD)]])
+    textbox(s, Inches(APP_X + 0.3), Inches(2.58), Inches(4.2), Inches(0.4),
+            [[("gebaut mit Swift & SwiftUI", 12.5, MUTED, False, SANS)]])
+    icon(s, "swift.png",   APP_X + APP_W - 1.65, 2.18, 1.25, 0.55)
+    icon(s, "swiftui.png", APP_X + APP_W - 0.55, 2.12, 0.62, 0.62)
+
+    comps = [
+        ("wifi.png", "Network.framework", "Verbindung & Auto-Discovery zur Drohne"),
+        ("cube3d.png", "SceneKit",         "Rendert den 3D-Flugsimulator"),
+        ("gyro.png", "CoreMotion",         "Liest das Gyroskop des Handys"),
+    ]
+    cx, cw, chh = APP_X + 0.3, APP_W - 0.6, 1.05
+    cy = 3.15
+    for img, name, sub in comps:
+        rect(s, Inches(cx), Inches(cy), Inches(cw), Inches(chh), CARD, RR, border=BORDER, bw=1, rad=0.08)
+        icon(s, img, cx + 0.7, cy + 0.12, 0.95, chh - 0.24)
+        textbox(s, Inches(cx + 1.4), Inches(cy + 0.18), Inches(cw - 1.6), Inches(0.45),
+                [[(name, 17, TEAL, True, HEAD)]])
+        textbox(s, Inches(cx + 1.4), Inches(cy + 0.6), Inches(cw - 1.6), Inches(0.4),
+                [[(sub, 12.5, MUTED, False, SANS)]])
+        cy += chh + 0.13
+
+
+def demo_slide(num):
+    s = slide(NAVY)
+    rect(s, 0, 0, Inches(0.16), SH, ACCENT)
+    textbox(s, Inches(0.95), Inches(2.7), Inches(8), Inches(0.5),
+            [[(f"{num}  ·  DEMO", 14, ACCENT, True, HEAD)]])
+    textbox(s, Inches(0.9), Inches(3.2), Inches(10), Inches(1.4),
+            [[("Live Demo", 66, WHITE, True, HEAD)]])
+    rect(s, Inches(0.95), Inches(4.75), Inches(1.6), Pt(4), ACCENT)
+
+
+def build(out, extended):
+    global prs
+    prs = new_prs()
+    title_slide()
+    if extended:
+        purpose_slide("02")
+        wasist_slide("03"); arch_slide("04"); demo_slide("05")
+    else:
+        wasist_slide("02"); arch_slide("03"); demo_slide("04")
+    prs.save(out)
+    print("saved", out)
+
+
+build(OUT, False)
+build(OUT_EXT, True)
