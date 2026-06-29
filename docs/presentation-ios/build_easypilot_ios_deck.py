@@ -150,25 +150,25 @@ textbox(s, Inches(0.95), Inches(6.1), Inches(8), Inches(0.9),
 # =====================================================================
 s = slide(WHITE)
 header_band(s, "Was ist EasyPilot iOS", "02")
-quad = [
-    (0.95, 2.35, "Modifizierte Drohne",
-     "Eine handelsübliche Drohne, die wir mit einem ESP32 erweitert haben – nicht selbstgebaut."),
-    (7.15, 2.35, "SwiftUI-App",
-     "Der mobile Co-Pilot, komplett in SwiftUI gebaut – nur mit Apple-Frameworks."),
-    (0.95, 4.65, "Auto-Discovery",
-     "Findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse."),
-    (7.15, 4.65, "Live am iPhone",
-     "Live-Telemetrie mit 10 Hz und ein 3D-Flugsimulator direkt am iPhone."),
+# big key statement (left), right half intentionally left empty
+textbox(s, Inches(0.95), Inches(1.85), Inches(8.0), Inches(1.4),
+        [[("Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.",
+           27, TEAL, True, HEAD)]], line=1.08)
+rect(s, Inches(0.97), Inches(3.12), Inches(1.6), Pt(4), ACCENT)
+# supporting text split into calm paragraphs, each with a small blue tick
+paras = [
+    (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
+                 "die wir mit einem ESP32 erweitert haben."),
+    (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
+                 "WLAN mit der Drohne, ganz ohne Eingabe einer IP-Adresse."),
+    (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
+                 "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
+                 "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
 ]
-for x, y, head, body in quad:
-    rect(s, Inches(x), Inches(y + 0.04), Inches(0.28), Inches(0.28), ACCENT)
-    textbox(s, Inches(x + 0.45), Inches(y - 0.05), Inches(4.9), Inches(0.5),
-            [[(head, 21, TEAL, True, HEAD)]])
-    textbox(s, Inches(x + 0.45), Inches(y + 0.52), Inches(4.95), Inches(1.5),
-            [[(body, 16, INK, False, SANS)]], line=1.14)
-# divider lines running through the section
-vline(s, Inches(6.7), Inches(2.25), Inches(4.35), ACCENT, pt=1.75)
-rect(s, Inches(0.95), Inches(4.42), Inches(11.45), Pt(1.25), BORDER)
+for y, barh, body in paras:
+    rect(s, Inches(0.95), Inches(y + 0.03), Inches(0.06), Inches(barh), ACCENT)
+    textbox(s, Inches(1.3), Inches(y), Inches(6.9), Inches(1.5),
+            [[(body, 16.5, INK, False, SANS)]], line=1.16)
 
 # =====================================================================
 # Slide 3 — Architektur (tech diagram)
