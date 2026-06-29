@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Builds EasyPilot-iOS.pdf — same modern style as the PPTX.
-
-Slide canvas 13.333 x 7.5 in = 960 x 540 pt; top-left inches are converted to
-reportlab's bottom-left points. Segoe UI is registered for visual parity.
-"""
+"""Builds EasyPilot-iOS.pdf — same modern style as the PPTX (with architecture
+diagram on slide 3). Segoe UI registered for visual parity."""
 import os
 from PIL import Image
 from reportlab.pdfgen import canvas
@@ -29,7 +26,6 @@ LIGHT  = HexColor("#C4CEDE")
 CARD   = HexColor("#F4F7FB")
 BORDER = HexColor("#E2E7EE")
 
-# Segoe UI for parity with the pptx; fall back to Helvetica if unavailable.
 SANS, SANSB = "Helvetica", "Helvetica-Bold"
 try:
     pdfmetrics.registerFont(TTFont("Segoe", r"C:\Windows\Fonts\segoeui.ttf"))
@@ -60,10 +56,15 @@ def line(x1, y1, x2, y2, col, lw, arrow=False):
     X1, Y1, X2, Y2 = IN(x1), H - IN(y1), IN(x2), H - IN(y2)
     c.line(X1, Y1, X2, Y2)
     if arrow:
-        c.setFillColor(col); d = 6; up = 1 if Y2 > Y1 else -1
+        c.setFillColor(col); d = 7
         p = c.beginPath(); p.moveTo(X2, Y2)
-        p.lineTo(X2 - d, Y2 - up*2*d); p.lineTo(X2 + d, Y2 - up*2*d); p.close()
-        c.drawPath(p, fill=1, stroke=0)
+        if abs(X2 - X1) >= abs(Y2 - Y1):           # horizontal
+            sx = 1 if X2 > X1 else -1
+            p.lineTo(X2 - sx*2*d, Y2 - d); p.lineTo(X2 - sx*2*d, Y2 + d)
+        else:                                       # vertical
+            sy = 1 if Y2 > Y1 else -1
+            p.lineTo(X2 - d, Y2 - sy*2*d); p.lineTo(X2 + d, Y2 - sy*2*d)
+        p.close(); c.drawPath(p, fill=1, stroke=0)
 
 
 def text(x_in, y_in, s, font, size, col, align=TA_LEFT):
@@ -98,9 +99,8 @@ def fit(path, maxw, maxh):
 def icon(name, cx_in, top_in, box_w, box_h):
     path = os.path.join(LOGOS, name)
     w, h = fit(path, box_w, box_h)
-    x = cx_in - w/2
-    y = top_in + (box_h - h)/2
-    c.drawImage(path, IN(x), H - IN(y) - IN(h), IN(w), IN(h), mask='auto')
+    c.drawImage(path, IN(cx_in - w/2), H - IN(top_in + (box_h - h)/2) - IN(h),
+                IN(w), IN(h), mask='auto')
 
 
 def header_band(title, num):
@@ -120,61 +120,70 @@ c.setFillColor(ACCENT); c.drawString(IN(0.9) + c.stringWidth("EasyPilot ", SANSB
 rect(0.95, 3.62, 1.5, 0.055, ACCENT)
 para(0.95, 3.95, 11.0, 1.2,
      "SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne "
-     "selbst im WLAN, zeigt Live-Telemetrie und fliegt einen 3D-Flugsimulator.",
+     "selbst im WLAN, zeigt Live-Telemetrie und einen 3D-Flugsimulator.",
      20, LIGHT, leading=27)
 text(0.95, 6.1, "Simon Eder", SANSB, 19, white)
 text(0.95, 6.5, "Creator", SANS, 14, LIGHT)
 c.showPage()
 
-# ===================== Slide 2 — Was ist EasyPilot iOS =====================
+# ===================== Slide 2 — Was ist EasyPilot iOS (2x2) =====================
 rect(0, 0, SW_IN, SH_IN, white)
 header_band("Was ist EasyPilot iOS", "02")
-bullets = [
-    "EasyPilot ist unser 4AHITM-Drohnenprojekt: eine selbstgebaute Drohne mit ESP32-Steuerung.",
-    "Die iOS-App ist der mobile Co-Pilot – komplett in SwiftUI, nur mit Apple-Frameworks.",
-    "Sie findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse.",
-    "Live-Telemetrie mit 10 Hz, ein 3D-Flugsimulator und das Senden von Flugbefehlen – alles auf dem iPhone.",
+quad = [
+    (0.95, 2.35, "Modifizierte Drohne",
+     "Eine handelsübliche Drohne, die wir mit einem ESP32 erweitert haben – nicht selbstgebaut."),
+    (7.15, 2.35, "SwiftUI-App",
+     "Der mobile Co-Pilot, komplett in SwiftUI gebaut – nur mit Apple-Frameworks."),
+    (0.95, 4.65, "Auto-Discovery",
+     "Findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse."),
+    (7.15, 4.65, "Live am iPhone",
+     "Live-Telemetrie mit 10 Hz und ein 3D-Flugsimulator direkt am iPhone."),
 ]
-html = "".join(f'<font color="#2F80ED">▪</font>&nbsp;&nbsp;{b}<br/><br/>' for b in bullets)
-para(0.85, 1.95, 6.3, 4.8, html, 16.5, INK, leading=23)
-line(7.55, 2.05, 7.55, 6.65, ACCENT, 1.75)  # vertical divider
-
-def devbox(label, sub, x, y, w, h, accent):
-    rect(x, y, w, h, CARD, stroke=accent, sw=1.75, rad=0.10)
-    text(x + w/2, y + h/2 - 0.18, label, SANSB, 18, TEAL, align=TA_CENTER)
-    text(x + w/2, y + h/2 + 0.12, sub, SANS, 12, MUTED, align=TA_CENTER)
-
-devbox("iPhone", "EasyPilot App (SwiftUI)", 8.1, 2.35, 4.3, 1.2, ACCENT)
-devbox("ESP32-C3", "Drohne · WLAN", 8.1, 5.3, 4.3, 1.2, NAVY)
-line(8.9, 3.55, 8.9, 5.3, NAVY, 2.25, arrow=True)
-line(11.6, 5.3, 11.6, 3.55, NAVY, 2.25, arrow=True)
-text(10.25, 4.3, "Auto-Discovery · 10 Hz", SANS, 12, MUTED, align=TA_CENTER)
-text(10.25, 4.6, "Befehle ↑ · Telemetrie ↓", SANS, 12, MUTED, align=TA_CENTER)
+for x, y, head, body in quad:
+    rect(x, y + 0.04, 0.28, 0.28, ACCENT)
+    text(x + 0.45, y - 0.05, head, SANSB, 21, TEAL)
+    para(x + 0.45, y + 0.52, 4.95, 1.5, body, 16, INK, leading=22)
+line(6.7, 2.25, 6.7, 6.6, ACCENT, 1.75)
+rect(0.95, 4.42, 11.45, 0.017, BORDER)
 c.showPage()
 
-# ===================== Slide 3 — Tech Stack (icon grid, real names) =====================
+# ===================== Slide 3 — Architektur (tech diagram) =====================
 rect(0, 0, SW_IN, SH_IN, white)
-header_band("Tech Stack", "03")
-tech = [
-    ("swift.png",     "Swift",              "Programmiersprache"),
-    ("swiftui.png",   "SwiftUI",            "User Interface"),
-    ("cube3d.png",    "SceneKit",           "3D-Flugsimulator"),
-    ("websocket.png", "WebSocket",          "Live-Telemetrie · 10 Hz"),
-    ("wifi.png",      "Network.framework",  "Auto-Discovery im WLAN"),
-    ("chip.png",      "ESP32-C3",           "Mikrocontroller der Drohne"),
+header_band("Architektur & Tech-Stack", "03")
+
+# LEFT — the drone
+rect(0.85, 2.45, 2.95, 3.0, CARD, stroke=BORDER, sw=1, rad=0.05)
+text(2.325, 2.62, "DROHNE", SANSB, 13, MUTED, align=TA_CENTER)
+icon("chip.png", 2.325, 3.05, 1.25, 0.9)
+text(2.325, 4.1, "ESP32-C3", SANSB, 18, TEAL, align=TA_CENTER)
+text(2.325, 4.58, "WebSocket-Server", SANS, 12.5, MUTED, align=TA_CENTER)
+text(2.325, 4.82, "UDP-Beacon (Discovery)", SANS, 12.5, MUTED, align=TA_CENTER)
+
+# ARROW drone -> app
+line(3.8, 3.62, 5.35, 3.62, NAVY, 2.25, arrow=True)
+text(4.575, 2.98, "WLAN · WebSocket", SANSB, 11.5, MUTED, align=TA_CENTER)
+text(4.575, 3.82, "Telemetrie · 10 Hz", SANS, 11.5, MUTED, align=TA_CENTER)
+
+# RIGHT — the iPhone app
+APP_X, APP_W = 5.35, 7.05
+rect(APP_X, 1.95, APP_W, 4.95, white, stroke=ACCENT, sw=1.75, rad=0.04)
+text(APP_X + 0.3, 2.12, "iPhone-App", SANSB, 18, TEAL)
+text(APP_X + 0.3, 2.6, "gebaut mit Swift & SwiftUI", SANS, 12.5, MUTED)
+icon("swift.png",   APP_X + APP_W - 1.65, 2.18, 1.25, 0.55)
+icon("swiftui.png", APP_X + APP_W - 0.55, 2.12, 0.62, 0.62)
+
+comps = [
+    ("wifi.png",  "Network.framework", "Verbindung & Auto-Discovery zur Drohne"),
+    ("cube3d.png", "SceneKit",         "Rendert den 3D-Flugsimulator"),
+    ("gyro.png",  "CoreMotion",        "Liest das Gyroskop des Handys"),
 ]
-cols = 3
-mx, top0, gx, gy, chh = 0.85, 1.95, 0.45, 0.28, 2.3
-cw = (SW_IN - 2*mx - (cols-1)*gx) / cols
-for i, (img, name, sub) in enumerate(tech):
-    cidx, ridx = i % cols, i // cols
-    x = mx + cidx*(cw + gx)
-    y = top0 + ridx*(chh + gy)
-    rect(x, y, cw, chh, CARD, stroke=BORDER, sw=1, rad=0.05)
-    icon(img, x + cw/2, y + 0.3, 1.45, 0.95)
-    text(x + cw/2, y + 1.42, name, SANSB, 17, TEAL, align=TA_CENTER)
-    rect(x + cw/2 - 0.28, y + 1.86, 0.56, 0.035, ACCENT)
-    text(x + cw/2, y + 1.98, sub, SANS, 12, MUTED, align=TA_CENTER)
+cx, cw, chh, cy = APP_X + 0.3, APP_W - 0.6, 1.05, 3.15
+for img, name, sub in comps:
+    rect(cx, cy, cw, chh, CARD, stroke=BORDER, sw=1, rad=0.08)
+    icon(img, cx + 0.7, cy + 0.12, 0.95, chh - 0.24)
+    text(cx + 1.4, cy + 0.2, name, SANSB, 17, TEAL)
+    text(cx + 1.4, cy + 0.62, sub, SANS, 12.5, MUTED)
+    cy += chh + 0.13
 c.showPage()
 
 # ===================== Slide 4 — Live Demo (full navy) =====================
