@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Builds the 4-slide 'EasyPilot iOS' deck in the clean Franklyn style.
+"""Builds the 4-slide 'EasyPilot iOS' deck (clean light style, blue accent).
 
 Slides:
   1. Title      - big "EasyPilot iOS" + one-line description + creator
-  2. Was ist..  - left navy panel with bullets, right device diagram
-  3. Tech Stack - navy header bar + tech tiles (app side / drone side)
+  2. Was ist..  - heading, a full-width accent line through the section,
+                  bullets + iPhone<->ESP32 diagram
+  3. Tech Stack - icon grid of understandable technologies (with icons)
   4. Live Demo  - full navy slide, big serif title
 """
 import os
+from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
@@ -15,18 +17,20 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.oxml.ns import qn
 
-import os
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "EasyPilot-iOS.pptx")
+HERE  = os.path.dirname(os.path.abspath(__file__))
+LOGOS = os.path.join(HERE, "logos")
+OUT   = os.path.join(HERE, "EasyPilot-iOS.pptx")
 
-# ---- Franklyn-inspired palette ----
-NAVY   = RGBColor(0x2C, 0x36, 0x49)   # dark slate panels / triangle
-TEAL   = RGBColor(0x10, 0x3A, 0x50)   # dark teal serif title on white
+# ---- palette (blue accent instead of tan) ----
+NAVY   = RGBColor(0x2C, 0x36, 0x49)
+TEAL   = RGBColor(0x10, 0x3A, 0x50)
+ACCENT = RGBColor(0x2F, 0x80, 0xED)   # iOS-ish blue
 WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-INK    = RGBColor(0x33, 0x3B, 0x47)   # body text on white
-MUTED  = RGBColor(0x6B, 0x74, 0x82)   # secondary text
-TAN    = RGBColor(0xC9, 0xB7, 0x9C)   # warm accent line
-LIGHT  = RGBColor(0xD7, 0xDC, 0xE3)   # light text on navy
-CARD   = RGBColor(0xF3, 0xF5, 0xF8)   # light tile fill on white
+INK    = RGBColor(0x33, 0x3B, 0x47)
+MUTED  = RGBColor(0x6B, 0x74, 0x82)
+LIGHT  = RGBColor(0xD7, 0xDC, 0xE3)
+CARD   = RGBColor(0xF6, 0xF8, 0xFB)
+BORDER = RGBColor(0xDD, 0xE1, 0xE7)
 
 SERIF = "Georgia"
 SANS  = "Calibri"
@@ -67,10 +71,24 @@ def textbox(s, x, y, w, h, runs, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP,
     return tb
 
 
+def rect(s, x, y, w, h, fill, shape=MSO_SHAPE.RECTANGLE, border=None, bw=1.0, rad=None):
+    c = s.shapes.add_shape(shape, x, y, w, h)
+    if fill is None:
+        c.fill.background()
+    else:
+        c.fill.solid(); c.fill.fore_color.rgb = fill
+    if border is None:
+        c.line.fill.background()
+    else:
+        c.line.color.rgb = border; c.line.width = Pt(bw)
+    c.shadow.inherit = False
+    if rad is not None:
+        try: c.adjustments[0] = rad
+        except Exception: pass
+    return c
+
+
 def freeform(s, pts, fill):
-    """Filled polygon from a list of (x_emu, y_emu) points."""
-    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-    left, top = min(xs), min(ys)
     fb = s.shapes.build_freeform(Emu(pts[0][0]), Emu(pts[0][1]), scale=1)
     fb.add_line_segments([(Emu(p[0]), Emu(p[1])) for p in pts[1:]], close=True)
     shp = fb.convert_to_shape()
@@ -79,38 +97,44 @@ def freeform(s, pts, fill):
     return shp
 
 
-def tile(s, x, y, w, h, head, sub, accent=NAVY):
-    c = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h)
-    c.fill.solid(); c.fill.fore_color.rgb = CARD
-    c.line.color.rgb = RGBColor(0xDD, 0xE1, 0xE7); c.line.width = Pt(1)
-    c.shadow.inherit = False
-    try: c.adjustments[0] = 0.10
-    except Exception: pass
-    # left accent stripe
-    bar = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, Inches(0.08), h)
-    bar.fill.solid(); bar.fill.fore_color.rgb = accent
-    bar.line.fill.background(); bar.shadow.inherit = False
-    textbox(s, x + Inches(0.28), y, w - Inches(0.42), h,
-            [[(head, 16, TEAL, True, SANS)], [(sub, 11.5, MUTED, False, SANS)]],
-            anchor=MSO_ANCHOR.MIDDLE, sp_after=2)
+def hline(s, x, y, w, col, pt=2.0):
+    ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x, y, Emu(int(x) + int(w)), y)
+    ln.line.color.rgb = col; ln.line.width = Pt(pt); ln.shadow.inherit = False
+    return ln
+
+
+def fit(path, maxw_in, maxh_in):
+    iw, ih = Image.open(path).size
+    ar = iw / ih
+    w, h = maxw_in, maxw_in / ar
+    if h > maxh_in:
+        h, w = maxh_in, maxh_in * ar
+    return w, h
+
+
+def icon(s, path, cx_in, top_in, box_w, box_h):
+    """Place an icon, fit into box, horizontally centered around cx_in."""
+    w, h = fit(os.path.join(LOGOS, path), box_w, box_h)
+    x = Inches(cx_in - w / 2)
+    y = Inches(top_in + (box_h - h) / 2)
+    s.shapes.add_picture(os.path.join(LOGOS, path), x, y, width=Inches(w), height=Inches(h))
 
 
 # =====================================================================
 # Slide 1 — Title
 # =====================================================================
 s = slide(WHITE)
-# navy diagonal wedge across the bottom
-freeform(s, [(0, int(SH*0.78)), (int(SW), int(SH*0.40)),
+freeform(s, [(0, int(SH*0.80)), (int(SW), int(SH*0.42)),
              (int(SW), int(SH)), (0, int(SH))], NAVY)
-
 textbox(s, Inches(0.9), Inches(0.85), Inches(11), Inches(1.6),
-        [[("EasyPilot ", 60, TEAL, False, SERIF), ("iOS", 60, TAN, False, SERIF)]])
-textbox(s, Inches(0.95), Inches(2.35), Inches(10.5), Inches(0.8),
+        [[("EasyPilot ", 60, TEAL, False, SERIF), ("iOS", 60, ACCENT, False, SERIF)]])
+rect(s, Inches(0.95), Inches(2.12), Inches(2.3), Pt(3.5), ACCENT)
+textbox(s, Inches(0.95), Inches(2.45), Inches(10.6), Inches(0.9),
         [[("SwiftUI-Companion-App für die EasyPilot-Drohne – findet die Drohne",
            21, MUTED, False, SANS)],
          [("selbst im WLAN, zeigt Live-Telemetrie und fliegt einen 3D-Simulator.",
            21, MUTED, False, SANS)]], sp_after=3)
-textbox(s, Inches(0.95), Inches(3.7), Inches(8), Inches(0.9),
+textbox(s, Inches(0.95), Inches(3.85), Inches(8), Inches(0.9),
         [[("Simon Eder", 18, INK, False, SANS)],
          [("Creator", 14, MUTED, False, SANS)]], sp_after=2)
 
@@ -118,113 +142,84 @@ textbox(s, Inches(0.95), Inches(3.7), Inches(8), Inches(0.9),
 # Slide 2 — Was ist EasyPilot iOS
 # =====================================================================
 s = slide(WHITE)
-PANEL_W = Inches(6.4)
-panel = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, PANEL_W, SH)
-panel.fill.solid(); panel.fill.fore_color.rgb = NAVY
-panel.line.fill.background(); panel.shadow.inherit = False
-# tan diagonal accent line across lower-left
-ln = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, 0, int(SH*0.86),
-                            int(PANEL_W), int(SH*0.62))
-ln.line.color.rgb = TAN; ln.line.width = Pt(2.5); ln.shadow.inherit = False
+textbox(s, Inches(0.85), Inches(0.7), Inches(11.6), Inches(1.0),
+        [[("Was ist EasyPilot iOS", 36, TEAL, False, SERIF)]])
+# the line that runs through the section
+hline(s, Inches(0.85), Inches(1.75), Inches(11.63), ACCENT, pt=2.25)
 
-textbox(s, Inches(0.6), Inches(0.75), Inches(5.4), Inches(1.0),
-        [[("Was ist EasyPilot iOS", 34, WHITE, False, SERIF)]])
-textbox(s, Inches(0.62), Inches(1.95), Inches(5.4), Inches(4.6),
-        [[("●  ", 14, TAN, True, SANS), ("EasyPilot ist unser 4AHITM-Drohnenprojekt: eine "
-          "selbstgebaute Drohne mit ESP32-Steuerung.", 16, LIGHT, False, SANS)],
-         [("●  ", 14, TAN, True, SANS), ("Die iOS-App ist der mobile Co-Pilot – komplett "
-          "in SwiftUI mit reinen Apple-Frameworks, ohne Fremd-Bibliotheken.", 16, LIGHT, False, SANS)],
-         [("●  ", 14, TAN, True, SANS), ("Sie findet die Drohne automatisch im WLAN (kein "
-          "Eintippen einer IP) und verbindet sich per WebSocket.", 16, LIGHT, False, SANS)],
-         [("●  ", 14, TAN, True, SANS), ("Live-Telemetrie mit 10 Hz, ein 3D-Flugsimulator "
-          "und das Senden von Flugbefehlen – alles auf dem iPhone.", 16, LIGHT, False, SANS)]],
-        sp_after=14, line=1.05)
+bullets = [
+    "EasyPilot ist unser 4AHITM-Drohnenprojekt: eine selbstgebaute Drohne mit ESP32-Steuerung.",
+    "Die iOS-App ist der mobile Co-Pilot – komplett in SwiftUI, nur mit Apple-Frameworks.",
+    "Sie findet die Drohne automatisch im WLAN – ohne Eintippen einer IP-Adresse.",
+    "Live-Telemetrie mit 10 Hz, ein 3D-Flugsimulator und das Senden von Flugbefehlen – alles auf dem iPhone.",
+]
+runs = []
+for b in bullets:
+    runs.append([("●  ", 14, ACCENT, True, SANS), (b, 16.5, INK, False, SANS)])
+textbox(s, Inches(0.85), Inches(2.25), Inches(6.4), Inches(4.6), runs, sp_after=16, line=1.08)
 
-# right side: simple device-link diagram
+# right device diagram
 def devbox(label, sub, x, y, w, h, accent):
-    b = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h)
-    b.fill.solid(); b.fill.fore_color.rgb = WHITE
-    b.line.color.rgb = accent; b.line.width = Pt(2)
-    b.shadow.inherit = False
-    try: b.adjustments[0] = 0.12
-    except Exception: pass
+    rect(s, x, y, w, h, WHITE, shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=accent, bw=2, rad=0.12)
     textbox(s, x, y, w, h, [[(label, 18, TEAL, True, SANS)], [(sub, 12, MUTED, False, SANS)]],
             align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, sp_after=2)
 
-def arrow_tail(conn):
-    ln = conn.line._get_or_add_ln()
-    tail = ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'med', 'len': 'med'})
-    ln.append(tail)
+def arrow(x1, y1, x2, y2):
+    a = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x1, y1, x2, y2)
+    a.line.color.rgb = NAVY; a.line.width = Pt(2.25); a.shadow.inherit = False
+    ln = a.line._get_or_add_ln()
+    ln.append(ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'med', 'len': 'med'}))
 
-devbox("iPhone", "EasyPilot App (SwiftUI)", Inches(7.5), Inches(1.7), Inches(4.6), Inches(1.25), TEAL)
-devbox("ESP32-C3", "Drohne · WLAN", Inches(7.5), Inches(4.9), Inches(4.6), Inches(1.25), TAN)
-# arrows between
-a1 = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(9.4), Inches(2.95), Inches(9.4), Inches(4.9))
-a1.line.color.rgb = NAVY; a1.line.width = Pt(2.25); a1.shadow.inherit = False
-arrow_tail(a1)
-a2 = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(10.2), Inches(4.9), Inches(10.2), Inches(2.95))
-a2.line.color.rgb = NAVY; a2.line.width = Pt(2.25); a2.shadow.inherit = False
-arrow_tail(a2)
-textbox(s, Inches(7.5), Inches(3.35), Inches(4.6), Inches(1.4),
-        [[("UDP-Discovery · Port 4242", 12.5, MUTED, False, SANS)],
-         [("WebSocket · Port 81 · 10 Hz", 12.5, MUTED, False, SANS)]],
+devbox("iPhone", "EasyPilot App (SwiftUI)", Inches(8.0), Inches(2.45), Inches(4.4), Inches(1.25), ACCENT)
+devbox("ESP32-C3", "Drohne · WLAN", Inches(8.0), Inches(5.45), Inches(4.4), Inches(1.25), NAVY)
+arrow(Inches(8.75), Inches(3.7), Inches(8.75), Inches(5.45))
+arrow(Inches(11.65), Inches(5.45), Inches(11.65), Inches(3.7))
+textbox(s, Inches(8.0), Inches(4.1), Inches(4.4), Inches(1.2),
+        [[("WLAN-Discovery · 10 Hz", 12.5, MUTED, False, SANS)],
+         [("Befehle ↑ · Telemetrie ↓", 12.5, MUTED, False, SANS)]],
         align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, sp_after=2)
 
 # =====================================================================
-# Slide 3 — Tech Stack
+# Slide 3 — Tech Stack (icon grid)
 # =====================================================================
 s = slide(WHITE)
-bar = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, SW, Inches(1.75))
-bar.fill.solid(); bar.fill.fore_color.rgb = NAVY
-bar.line.fill.background(); bar.shadow.inherit = False
-textbox(s, Inches(0.85), 0, Inches(11), Inches(1.75),
+rect(s, 0, 0, SW, Inches(1.6), NAVY)
+textbox(s, Inches(0.85), 0, Inches(11), Inches(1.6),
         [[("EasyPilot iOS – Tech Stack", 34, WHITE, False, SERIF)]],
         anchor=MSO_ANCHOR.MIDDLE)
 
-# section labels
-textbox(s, Inches(0.85), Inches(2.15), Inches(5.5), Inches(0.4),
-        [[("APP · iPHONE", 13, TEAL, True, SANS)]])
-textbox(s, Inches(7.4), Inches(2.15), Inches(5.5), Inches(0.4),
-        [[("DROHNE · ESP32-C3", 13, TAN, True, SANS)]])
-
-# left column (app)
-ax, ay, aw, ah, gap = Inches(0.85), Inches(2.65), Inches(5.4), Inches(0.80), Inches(0.13)
-app = [
-    ("Swift", "Programmiersprache der App"),
-    ("SwiftUI", "Deklarative UI, Live-Bindings"),
-    ("Network.framework", "UDP-Discovery + WebSocket"),
-    ("SceneKit", "3D-Flugsimulator (.usdz-Modell)"),
-    ("CoreMotion", "Gyro/Beschleunigung @ 10 Hz"),
+tech = [
+    ("swift.png",     "Swift",        "Sprache der App"),
+    ("swiftui.png",   "SwiftUI",      "Benutzeroberfläche"),
+    ("wifi.png",      "WLAN",         "Findet die Drohne automatisch"),
+    ("websocket.png", "WebSocket",    "Live-Verbindung zur Drohne"),
+    ("cube3d.png",    "3D-Simulator", "Flugsimulator am iPhone"),
+    ("chip.png",      "ESP32",        "Mikrocontroller der Drohne"),
 ]
-y = ay
-for h, sub in app:
-    tile(s, ax, y, aw, ah, h, sub, TEAL)
-    y = Emu(int(y) + int(ah) + int(gap))
-
-# right column (drone)
-bx = Inches(7.4)
-drone = [
-    ("ESP32-C3", "WLAN-Mikrocontroller der Drohne"),
-    ("WebSocket-Server", "Befehle + Telemetrie, Port 81"),
-    ("UDP-Beacon", "\"EASYPILOT:<IP>\" · Port 4242"),
-    ("Arduino / C++", "Firmware & Balancing-Algorithmus"),
-]
-y = ay
-for h, sub in drone:
-    tile(s, bx, y, aw, ah, h, sub, TAN)
-    y = Emu(int(y) + int(ah) + int(gap))
+cols, rows = 3, 2
+mx, top0 = 0.85, 2.0
+gx, gy = 0.45, 0.28
+cw = (13.333 - 2*mx - (cols-1)*gx) / cols
+chh = 2.35
+for i, (img, name, sub) in enumerate(tech):
+    c, r = i % cols, i // cols
+    x = mx + c*(cw + gx)
+    y = top0 + r*(chh + gy)
+    rect(s, Inches(x), Inches(y), Inches(cw), Inches(chh), CARD,
+         shape=MSO_SHAPE.ROUNDED_RECTANGLE, border=BORDER, bw=1, rad=0.06)
+    icon(s, img, x + cw/2, y + 0.32, 1.5, 1.0)
+    textbox(s, Inches(x), Inches(y + 1.5), Inches(cw), Inches(0.5),
+            [[(name, 18, TEAL, True, SANS)]], align=PP_ALIGN.CENTER)
+    textbox(s, Inches(x), Inches(y + 1.92), Inches(cw), Inches(0.4),
+            [[(sub, 12.5, MUTED, False, SANS)]], align=PP_ALIGN.CENTER)
 
 # =====================================================================
 # Slide 4 — Live Demo
 # =====================================================================
 s = slide(NAVY)
-textbox(s, Inches(0.95), 0, Inches(8), SH,
-        [[("Live Demo", 64, WHITE, False, SERIF)]],
-        anchor=MSO_ANCHOR.MIDDLE)
-# small tan accent under the title
-acc = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.0), Inches(4.55), Inches(2.2), Pt(3))
-acc.fill.solid(); acc.fill.fore_color.rgb = TAN
-acc.line.fill.background(); acc.shadow.inherit = False
+textbox(s, Inches(0.95), 0, Inches(9), SH,
+        [[("Live Demo", 64, WHITE, False, SERIF)]], anchor=MSO_ANCHOR.MIDDLE)
+rect(s, Inches(1.0), Inches(4.55), Inches(2.2), Pt(3.5), ACCENT)
 
 prs.save(OUT)
 print("saved", OUT)
