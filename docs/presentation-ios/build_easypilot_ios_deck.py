@@ -176,24 +176,18 @@ def wasist_slide(num, algo=False):
     header_band(s, "Was ist EasyPilot iOS", num)
     if algo:
         paras = [
-            (3.45, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
-                         "die wir mit einem ESP32 erweitert haben."),
-            (4.45, 0.62, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
-                         "WLAN mit der Drohne – ohne Eingabe einer IP-Adresse."),
-            (5.45, 0.62, "Sie zeigt die Telemetrie zehnmal pro Sekunde in Echtzeit an und bringt einen "
+            (3.55, 0.62, "Verbindet sich von selbst über das WLAN mit der Drohne – ohne Eingabe einer "
+                         "IP-Adresse."),
+            (4.70, 0.62, "Zeigt die Telemetrie zehnmal pro Sekunde in Echtzeit an und bringt einen "
                          "eigenen 3D-Flugsimulator direkt aufs Handy."),
-            (6.45, 0.62, "Über die App lassen sich außerdem Stabilisierungs- und Hilfsalgorithmen der "
-                         "Drohne steuern."),
+            (5.85, 0.62, "Stabilisierungs- und Hilfsalgorithmen lassen sich durch die App steuern."),
         ]
     else:
         paras = [
-            (3.55, 0.62, "EasyPilot ist unser Drohnenprojekt der 4AHITM – eine handelsübliche Drohne, "
-                         "die wir mit einem ESP32 erweitert haben."),
-            (4.62, 0.85, "Die iOS-App ist der mobile Co-Pilot: Sie verbindet sich von selbst über das "
-                         "WLAN mit der Drohne, ganz ohne Eingabe einer IP-Adresse."),
-            (5.85, 0.95, "Sobald die Verbindung steht, zeigt sie die Telemetrie zehnmal pro Sekunde in "
-                         "Echtzeit an und bringt einen eigenen 3D-Flugsimulator direkt aufs Handy. "
-                         "Gebaut ist alles in SwiftUI – nur mit Apple-eigenen Frameworks."),
+            (3.70, 0.62, "Verbindet sich von selbst über das WLAN mit der Drohne – ohne Eingabe einer "
+                         "IP-Adresse."),
+            (5.00, 0.62, "Zeigt die Telemetrie zehnmal pro Sekunde in Echtzeit an und bringt einen "
+                         "eigenen 3D-Flugsimulator direkt aufs Handy."),
         ]
     statement_block(
         s, "Das iPhone wird zur Anzeige- und Steuerzentrale für unsere Drohne.", paras)
