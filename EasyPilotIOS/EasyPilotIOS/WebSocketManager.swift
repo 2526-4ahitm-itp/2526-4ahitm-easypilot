@@ -58,7 +58,12 @@ class WebSocketManager: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastSafeTestTime) >= Self.safeTestDebounce else { return }
         lastSafeTestTime = now
-        sendCommand("SAFE_TEST")
+        send(.safeTest)
+    }
+
+    /// Sends a typed command, encoding its wire payload.
+    func send(_ command: DroneCommand) {
+        sendCommand(command.payload)
     }
 
     func sendCommand(_ command: String) {
@@ -98,7 +103,12 @@ class WebSocketManager: ObservableObject {
                text.hasPrefix("EASYPILOT:") {
                 let ip = String(text.dropFirst("EASYPILOT:".count))
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !ip.isEmpty && ip != self.esp32IP {
+                // Connect when we see a new IP, OR re-connect to the same IP after a
+                // dropped link. Without the `!isConnected` clause the app would stay
+                // stuck OFFLINE forever once the socket dropped, since the ESP32 keeps
+                // broadcasting the same IP. Beacons arrive every 5 s, which rate-limits
+                // reconnect attempts.
+                if !ip.isEmpty && (ip != self.esp32IP || !self.isConnected) {
                     print("[Beacon] ESP32 discovered at \(ip)")
                     DispatchQueue.main.async {
                         self.esp32IP = ip
