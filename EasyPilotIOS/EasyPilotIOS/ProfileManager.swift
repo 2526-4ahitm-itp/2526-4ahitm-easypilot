@@ -5,8 +5,12 @@ class ProfileManager: ObservableObject {
     @Published var profiles: [ControlProfile] = []
 
     private let storageKey = "easypilot.controlProfiles"
+    private let defaults: UserDefaults
 
-    init() { load() }
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        load()
+    }
 
     // MARK: - CRUD
 
@@ -34,11 +38,11 @@ class ProfileManager: ObservableObject {
 
     private func persist() {
         guard let data = try? JSONEncoder().encode(profiles) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        defaults.set(data, forKey: storageKey)
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
+        guard let data = defaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([ControlProfile].self, from: data)
         else { return }
         profiles = decoded
