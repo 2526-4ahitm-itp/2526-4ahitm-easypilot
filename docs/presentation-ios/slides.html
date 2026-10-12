@@ -3,162 +3,102 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>EasyPilot — iOS-App Slides</title>
+<title>EasyPilot iOS-App</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/monokai.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/white.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 <style>
-  :root{
-    --bg:#0a0f1e; --card:#141c33; --accent:#2979ff; --success:#33d980;
-    --warning:#ff9900; --text:#e9eefb; --muted:#8a97b8;
-    --r-background-color:#0a0f1e;
-    --r-main-font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
-    --r-heading-font:var(--r-main-font);
-    --r-main-color:var(--text);
-    --r-heading-color:var(--text);
-    --r-link-color:#7fb0ff;
-    --r-main-font-size:34px;
-  }
-  .reveal{font-weight:400}
-  .reveal h1,.reveal h2,.reveal h3{text-transform:none;font-weight:700;letter-spacing:0}
-  .reveal h1{font-size:2.3em}
-  .reveal h2{font-size:1.45em;margin-bottom:.6em}
-  .reveal .slides section{text-align:left}
-  .reveal .kicker{color:var(--accent);font-size:.5em;font-weight:700;letter-spacing:.18em;
-    text-transform:uppercase;margin-bottom:.5em}
-  .reveal .sub{color:var(--muted);font-size:.7em;line-height:1.5;max-width:42em}
-  .reveal .accent{color:var(--accent)}
-
-  .reveal .grid{display:grid;gap:.7em;margin-top:.4em}
-  .reveal .g2{grid-template-columns:1fr 1fr}
-  .reveal .g3{grid-template-columns:repeat(3,1fr)}
-  .reveal .card{background:var(--card);border:1px solid rgba(41,121,255,.28);
-    border-radius:14px;padding:.7em .9em;font-size:.62em}
-  .reveal .card h3{font-size:1.15em;margin:0 0 .35em;display:flex;align-items:center;gap:.5em}
-  .reveal .card p{margin:0;color:var(--muted);line-height:1.45}
-  .reveal .card img{height:1.5em;width:auto;margin:0;border:0;box-shadow:none;background:none}
-  .reveal .card ul{list-style:none;margin:0;padding:0}
-  .reveal .card li{color:var(--muted);padding-left:1.1em;position:relative;margin:.3em 0;line-height:1.4}
-  .reveal .card li::before{content:"▸";color:var(--accent);position:absolute;left:0}
-  .reveal .card.ok{border-color:rgba(51,217,128,.45)}
-  .reveal .card.next{border-color:rgba(255,153,0,.45)}
-  .reveal code{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
-  .reveal p code,.reveal li code{background:rgba(41,121,255,.16);padding:.05em .35em;border-radius:6px;font-size:.88em}
-  .reveal pre{width:100%;box-shadow:none;font-size:.5em;margin:.4em 0 0;border-radius:12px;
-    border:1px solid rgba(41,121,255,.25)}
-  .reveal pre code{max-height:none;padding:.9em 1.1em;line-height:1.5;background:#0c1326}
-  .reveal .tag{display:inline-block;background:rgba(41,121,255,.16);color:#bcd2ff;
-    border:1px solid rgba(41,121,255,.3);border-radius:999px;padding:.15em .75em;
-    font-size:.5em;margin:.2em .3em .2em 0;font-weight:600}
-
-  .reveal .flow{display:flex;align-items:center;justify-content:center;gap:.6em;margin-top:.6em}
-  .reveal .node{background:var(--card);border:1px solid rgba(41,121,255,.4);border-radius:14px;
-    padding:.6em .9em;font-size:.6em;text-align:center;line-height:1.35}
-  .reveal .node b{display:block;font-size:1.1em;margin-bottom:.2em}
-  .reveal .node small{color:var(--muted)}
-  .reveal .wire{font-size:.5em;color:var(--success);text-align:center;line-height:1.7;
-    font-family:"SF Mono",ui-monospace,Menlo,monospace}
-  .reveal .tabs{display:flex;gap:.7em;margin-top:.5em}
-  .reveal .tab{flex:1;background:var(--card);border:1px solid rgba(41,121,255,.3);
-    border-radius:14px;padding:.7em .8em;font-size:.58em;line-height:1.45;color:var(--muted)}
-  .reveal .tab b{display:block;color:var(--text);font-size:1.15em;margin-bottom:.3em}
-  .reveal .banner{margin-top:.8em;font-size:.55em;color:var(--muted)}
-  .reveal .banner strong{color:var(--text)}
-  .reveal .back{position:fixed;left:14px;bottom:10px;font-size:13px;z-index:30;opacity:.55}
-  .reveal .back a{color:var(--muted)}
+  .reveal h1,.reveal h2,.reveal h3{text-transform:none}
+  .reveal h2{font-size:1.6em}
+  .reveal ul,.reveal ol{display:block;font-size:.8em}
+  .reveal li{margin:.25em 0}
+  .reveal pre{width:100%;font-size:.42em;box-shadow:none;border:1px solid #ddd}
+  .reveal pre code{max-height:none;padding:.8em 1em}
+  .reveal pre.ascii{font-size:.5em;border:none}
+  .reveal pre.ascii code{background:none}
+  .reveal table{font-size:.65em}
+  .reveal .small{font-size:.6em;color:#666}
+  .reveal .cols{display:flex;gap:2em;text-align:left}
+  .reveal .cols > div{flex:1}
+  .reveal .cols h3{font-size:.9em}
+  .reveal .cols ul{font-size:.7em}
+  .back{position:fixed;left:12px;bottom:8px;font-size:13px;z-index:30}
+  .back a{color:#888}
 </style>
 </head>
 <body>
 <div class="reveal">
 <div class="slides">
 
-  <!-- 1 Titel -->
   <section id="titel">
-    <div class="kicker">EasyPilot · 4AHITM Drohnenprojekt</div>
-    <h1>Die EasyPilot <span class="accent">iOS-App</span></h1>
-    <p class="sub">SwiftUI-Companion-App: findet die Drohne im WLAN, zeigt Telemetrie mit
-      10&nbsp;Hz, bietet einen 3D-Flugsimulator und sendet Flugbefehle per WebSocket.</p>
-    <div style="margin-top:1.2em">
-      <span class="tag">SwiftUI</span><span class="tag">Network.framework</span>
-      <span class="tag">SceneKit</span><span class="tag">CoreMotion</span><span class="tag">Combine</span>
-    </div>
+    <h1>EasyPilot</h1>
+    <h3>Die iOS-App</h3>
+    <p class="small">4AHITM · HTL Leonding · 2025/26</p>
     <aside class="notes">
-      Das ist die iOS-Seite von EasyPilot. Die App findet die Drohne selbst im WLAN,
-      streamt Telemetrie mit 10 Hz, hat einen 3D-Flugsimulator und sendet Flugbefehle
-      per WebSocket. Gebaut nur mit Apple-Frameworks, keine Third-Party-Libraries.
+      Ich stelle die iOS-App von EasyPilot vor. Die App ist die Verbindung zwischen
+      dem iPhone und dem ESP32 auf der Drohne.
     </aside>
   </section>
 
-  <!-- 2 Wofür -->
   <section id="wofuer">
-    <div class="kicker">Überblick</div>
-    <h2>Wofür wird die App gebraucht?</h2>
-    <div class="grid g2">
-      <div class="card"><h3>📡 Verbinden</h3>
-        <p>Automatische Erkennung des ESP32 im WLAN – ohne IP-Eingabe.</p></div>
-      <div class="card"><h3>📊 Beobachten</h3>
-        <p>Live-Telemetrie: Roll/Pitch/Yaw, Motoren, Akku, Flugmodus, 3D-Modell.</p></div>
-      <div class="card"><h3>🎛️ Steuern</h3>
-        <p>ARM/DISARM, Balance-, Manual- und Sound-Mode, speicherbare Profile.</p></div>
-      <div class="card"><h3>🎮 Üben</h3>
-        <p>Simulator mit echter Physik und virtuellen Joysticks – ohne Risiko für die Hardware.</p></div>
-    </div>
+    <h2>Was macht die App?</h2>
+    <ul>
+      <li>findet den ESP32 automatisch im WLAN</li>
+      <li>zeigt Telemetrie an: Lage, Motorwerte, Akku, Flugmodus</li>
+      <li>schickt Befehle: ARM/DISARM, Balance, Manual, Sound Mode</li>
+      <li>hat einen Simulator zum Üben mit virtuellen Joysticks</li>
+    </ul>
     <aside class="notes">
-      Vier Aufgaben: verbinden, beobachten, steuern, üben. Der Simulator ist wichtig,
-      weil man den Steuerpfad testen kann, ohne dass Propeller drehen.
+      Der Simulator ist wichtig, weil man die Steuerung testen kann, ohne dass sich
+      Propeller drehen.
     </aside>
   </section>
 
-  <!-- 3 Architektur -->
   <section id="architektur">
-    <div class="kicker">Architektur</div>
-    <h2>iPhone ↔ ESP32 ↔ Flight Controller</h2>
-    <div class="flow">
-      <div class="node"><b>iOS-App</b>SwiftUI<br><small>Dashboard · Simulator · Algorithms</small></div>
-      <div class="wire">◀── UDP :4242 "EASYPILOT:&lt;IP&gt;" (alle 5 s)<br>◀▶ WebSocket :81 · JSON 10&nbsp;Hz</div>
-      <div class="node"><b>ESP32-C3</b>WebSocket-Server<br><small>UDP-Beacon · MSP-Master</small></div>
-      <div class="wire">UART<br>MSP</div>
-      <div class="node"><b>Betaflight FC</b>IMU · ESCs<br><small>Motoren</small></div>
-    </div>
-    <p class="banner"><strong>Discovery:</strong> iOS hört auf den Beacon, liest die IP und öffnet den WebSocket.
-      <strong>Datenpfad:</strong> Telemetrie rein, Befehle raus.</p>
+    <h2>Architektur</h2>
+<pre class="ascii"><code class="nohighlight">  iOS-App (SwiftUI)
+        │
+        │  UDP :4242   "EASYPILOT:&lt;IP&gt;" alle 5 s
+        │  WebSocket :81   Telemetrie (JSON, 10 Hz) + Befehle
+        ▼
+  ESP32-C3 SuperMini
+        │
+        │  UART, MSP
+        ▼
+  Betaflight Flight Controller → Motoren</code></pre>
     <aside class="notes">
-      Der ESP32 broadcastet alle 5 Sekunden seine IP per UDP. Die App liest sie und
-      verbindet sich auf ws://IP:81. Darüber kommt Telemetrie als JSON mit 10 Hz,
-      Befehle gehen als Text zurück. Der ESP32 spricht per MSP mit dem Flight Controller.
+      Der ESP32 schickt alle 5 Sekunden seine IP per UDP-Broadcast. Die App liest die IP
+      und verbindet sich per WebSocket auf Port 81. Der ESP32 redet per MSP mit dem
+      Flight Controller.
     </aside>
   </section>
 
-  <!-- 4 Stack -->
-  <section id="stack">
-    <div class="kicker">Technologien</div>
-    <h2>Der iOS-Stack</h2>
-    <div class="grid g3">
-      <div class="card"><h3><img src="logos/swift.png" alt="">Swift</h3><p>Sprache der App – ohne Third-Party-Libraries.</p></div>
-      <div class="card"><h3><img src="logos/swiftui.png" alt="">SwiftUI</h3><p>Komplette UI, <code>TabView</code>, eigenes Glass-Design-System.</p></div>
-      <div class="card"><h3><img src="logos/network.png" alt="">Network.framework</h3><p><code>NWListener</code> für den UDP-Beacon.</p></div>
-      <div class="card"><h3><img src="logos/websocket.png" alt="">WebSocket</h3><p><code>URLSessionWebSocketTask</code> für Telemetrie und Befehle.</p></div>
-      <div class="card"><h3><img src="logos/scenekit.png" alt="">SceneKit</h3><p>3D-Drohne (<code>.usdz</code>) im Dashboard und Simulator.</p></div>
-      <div class="card"><h3><img src="logos/coremotion.png" alt="">CoreMotion</h3><p>Neigung des iPhones mit 10&nbsp;Hz.</p></div>
-    </div>
-    <aside class="notes">
-      Alles Apple-Frameworks. SwiftUI ist deklarativ – ändert sich die Telemetrie,
-      zeichnet sich die Oberfläche selbst neu. usdz ist Apples 3D-Format.
-    </aside>
+  <section id="technologien">
+    <h2>Technologien</h2>
+    <table>
+      <thead><tr><th>Technologie</th><th>Wofür</th></tr></thead>
+      <tbody>
+        <tr><td>Swift / SwiftUI</td><td>gesamte Oberfläche</td></tr>
+        <tr><td>Network.framework</td><td>UDP-Beacon empfangen (<code>NWListener</code>)</td></tr>
+        <tr><td>URLSessionWebSocketTask</td><td>WebSocket zum ESP32</td></tr>
+        <tr><td>SceneKit</td><td>3D-Modell der Drohne, Simulator</td></tr>
+        <tr><td>CoreMotion</td><td>Neigung des iPhones</td></tr>
+        <tr><td>Combine</td><td><code>@Published</code>-Werte an die Views</td></tr>
+      </tbody>
+    </table>
+    <p class="small">Keine externen Libraries, nur Apple-Frameworks.</p>
   </section>
 
-  <!-- 5 App-Aufbau -->
   <section id="aufbau">
-    <div class="kicker">App-Aufbau</div>
-    <h2>Drei Tabs, ein Besitzer pro Ressource</h2>
-    <div class="tabs">
-      <div class="tab"><b>Dashboard</b>Live-Telemetrie, 3D-Drohne, iPhone-Neigung, Safe-Test.</div>
-      <div class="tab"><b>Simulator</b>Physik-Simulation, Joysticks, SIM/LIVE-Umschalter.</div>
-      <div class="tab"><b>Algorithms</b>ARM/DISARM, Modus-Auswahl, Profile, Sound Mode.</div>
-    </div>
-<pre><code class="language-swift" data-trim data-noescape>struct ContentView: View {
+    <h2>Aufbau der App</h2>
+    <ul>
+      <li><b>Dashboard</b>: Telemetrie, 3D-Drohne, Safe-Test</li>
+      <li><b>Simulator</b>: Physik, Joysticks, SIM/LIVE</li>
+      <li><b>Algorithms</b>: ARM/DISARM, Modi, Profile, Sound Mode</li>
+    </ul>
+<pre><code class="language-swift" data-trim>struct ContentView: View {
     @StateObject private var wsManager = WebSocketManager()
-    @StateObject private var motionManager = MotionManager()  // genau einer pro App
+    @StateObject private var motionManager = MotionManager()
 
     var body: some View {
         TabView {
@@ -169,22 +109,18 @@
     }
 }</code></pre>
     <aside class="notes">
-      ContentView besitzt genau einen WebSocketManager und einen MotionManager und
-      reicht sie an die Tabs weiter. Apple empfiehlt einen CMMotionManager pro Prozess –
-      vorher hatten Dashboard und Algorithms jeweils einen eigenen.
+      Es gibt nur einen WebSocketManager und einen MotionManager. Beide werden in
+      ContentView erstellt und an die Tabs weitergegeben.
     </aside>
   </section>
 
-  <!-- 6 Discovery + Reconnect -->
-  <section id="discovery">
-    <div class="kicker">Code · Verbindung</div>
-    <h2>Beacon → WebSocket, auch nach Abbruch</h2>
-<pre><code class="language-swift" data-trim>// WebSocketManager.receiveBeacon
-if text.hasPrefix("EASYPILOT:") {
+  <section id="verbindung">
+    <h2>Verbindung zum ESP32</h2>
+<pre><code class="language-swift" data-trim>if text.hasPrefix("EASYPILOT:") {
     let ip = String(text.dropFirst("EASYPILOT:".count))
         .trimmingCharacters(in: .whitespacesAndNewlines)
 
-    // neue IP ODER verlorene Verbindung zur selben IP
+    // neue IP oder Verbindung verloren
     if !ip.isEmpty && (ip != self.esp32IP || !self.isConnected) {
         DispatchQueue.main.async {
             self.esp32IP = ip
@@ -192,146 +128,133 @@ if text.hasPrefix("EASYPILOT:") {
         }
     }
 }</code></pre>
-    <p class="sub" style="margin-top:.8em">Der Beacon kommt alle 5&nbsp;s – das begrenzt automatisch die Reconnect-Versuche.
-      Zusätzlich: Ping alle 5&nbsp;s, 3&nbsp;s ohne Telemetrie ⇒ <code>isConnected = false</code>.</p>
-    <aside class="notes">
-      Früher blieb die App nach einem Verbindungsabbruch auf OFFLINE hängen, weil der
-      ESP32 dieselbe IP weiter sendet und die App nur bei neuer IP verbunden hat.
-      Die Bedingung "oder nicht verbunden" behebt das.
-    </aside>
+    <ul>
+      <li>Ping alle 5 s, nach 3 s ohne Telemetrie gilt die Verbindung als getrennt</li>
+      <li>vorher ist die App nach einem Abbruch auf OFFLINE hängen geblieben</li>
+    </ul>
   </section>
 
-  <!-- 7 DroneCommand -->
   <section id="befehle">
-    <div class="kicker">Code · Befehle</div>
-    <h2>Typisierte Befehle statt JSON-Strings</h2>
+    <h2>Befehle</h2>
 <pre><code class="language-swift" data-trim>enum DroneCommand {
     case arm, disarm, stop, safeTest
     case startBalance(baseThrottle: Int, kPRoll: Double, kPPitch: Double)
     case startSound(maxPWM: Int)
     case tiltSound(pwm: Int)
-    // … startManual / updateManual
+    // ...
 
-    var payload: String {            // exakt das, was main.cpp parst
+    var payload: String {
         switch self {
-        case .arm:  return #"{"cmd":"ARM"}"#
+        case .arm: return #"{"cmd":"ARM"}"#
         case let .tiltSound(pwm):
             return #"{"cmd":"TILT_SOUND","pwm":\#(pwm)}"#
         case .safeTest: return "SAFE_TEST"
-        // …
+        // ...
         }
     }
 }
 
 wsManager.send(.tiltSound(pwm: 1200))</code></pre>
     <aside class="notes">
-      Das Wire-Format steht an genau einer Stelle. Tippfehler in Befehlsnamen sind
-      damit Compile-Fehler statt Laufzeitfehler. Auch FlightMode ist ein Enum, dessen
-      Raw-Values den Firmware-Strings entsprechen.
+      Früher wurden die JSON-Strings direkt in den Views zusammengebaut. Jetzt steht
+      das Format an einer Stelle und ein Tippfehler fällt schon beim Kompilieren auf.
     </aside>
   </section>
 
-  <!-- 8 Threads -->
+  <section id="simulator">
+    <h2>Simulator</h2>
+    <div class="cols">
+      <div>
+        <h3>Modi</h3>
+        <ul>
+          <li>Rate</li>
+          <li>Balance (P-Regler)</li>
+          <li>PosHold</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Steuerung</h3>
+        <ul>
+          <li>Stick halten: Lage bleibt</li>
+          <li>Stick loslassen: Drohne richtet sich auf</li>
+          <li>Landscape: Joysticks in den Ecken</li>
+          <li>LIVE: Stick-Werte gehen als <code>RC</code> an den ESP32</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <section id="threads">
-    <div class="kicker">Code · Threading</div>
-    <h2>Zwei Threads, eine Drohne</h2>
-    <p class="sub">Die Physik läuft im SceneKit-Render-Thread, SwiftUI darf nur im Main-Thread aktualisiert werden.</p>
+    <h2>Threading im Simulator</h2>
+    <p class="small">Physik läuft im Render-Thread von SceneKit, SwiftUI darf nur im Main-Thread geändert werden.</p>
 <pre><code class="language-swift" data-trim>class DroneSimulator: ObservableObject {
-    // nur Main-Thread – treibt SwiftUI
+    // Main-Thread, für SwiftUI
     @Published var simRoll: Double = 0
     @Published var isCrashed = false
 
-    // nur Render-Thread – rohe Physik
+    // Render-Thread, Physik
     var _roll: Double = 0
     var _vel: SIMD3&lt;Float&gt; = .zero
 
-    func tick(dt: Float) { /* Render-Thread: Physik integrieren */ }
-    func syncPublished() { simRoll = _roll /* Main-Thread: _vars → @Published */ }
+    func tick(dt: Float) { /* Physik rechnen */ }
+    func syncPublished() { simRoll = _roll /* ... */ }
 }</code></pre>
-    <aside class="notes">
-      Zwei getrennte Zustände: _roll usw. gehören dem Render-Thread, @Published dem
-      Main-Thread. syncPublished kopiert in festem Takt. Keine Locks, keine Race Conditions.
-    </aside>
   </section>
 
-  <!-- 9 Simulator -->
-  <section id="simulator">
-    <div class="kicker">Simulator</div>
-    <h2>Fliegen wie mit echter Hardware</h2>
-    <div class="grid g2">
-      <div class="card"><h3>Flugmodi</h3><ul>
-        <li><b>Rate</b> – roh, wie Acro</li>
-        <li><b>Balance</b> – P-Regler hält die Lage</li>
-        <li><b>PosHold</b> – hält die Position (GPS-Hold-Gefühl)</li></ul></div>
-      <div class="card"><h3>Touch-aware Stabilisierung</h3><ul>
-        <li>Sticks gehalten ⇒ Lage wird gehalten</li>
-        <li>Sticks losgelassen ⇒ Drohne richtet sich auf</li>
-        <li>Linker Stick los ⇒ Höhenhaltung</li></ul></div>
-      <div class="card"><h3>Landscape-UI</h3><ul>
-        <li>3D-Szene vollflächig</li>
-        <li>Joysticks als schwebende Corner-Pads</li>
-        <li>Einstellungen als Drawer von rechts</li></ul></div>
-      <div class="card"><h3>SIM / LIVE</h3><ul>
-        <li>LIVE nur bei bestehender Verbindung</li>
-        <li>Stick-Werte als <code>RC</code>-Paket mit 10&nbsp;Hz</li>
-        <li>Moduswechsel ⇒ DISARM</li></ul></div>
-    </div>
-    <aside class="notes">
-      Sprint 5: Landscape-UI und touch-bewusste Stabilisierung. Loslassen eines Sticks
-      ist eine bewusste Geste wie bei mechanischen Sticks. LIVE sendet die Stick-Werte
-      als RC-Pakete an den ESP32. Der RC-Befehl ist noch ein Format-String in der View
-      und nicht im DroneCommand-Enum.
-    </aside>
-  </section>
-
-  <!-- 10 Safety -->
   <section id="sicherheit">
-    <div class="kicker">Sicherheit</div>
-    <h2>Fail-safe an mehreren Stellen</h2>
-    <div class="grid g2">
-      <div class="card"><h3>In der App</h3><ul>
-        <li>ARM nur per Hold-to-arm (1,5&nbsp;s)</li>
-        <li>Sound Mode: Neigung &gt; 60° ⇒ Notstopp</li>
-        <li>Safe-Test entprellt (max. alle 2&nbsp;s)</li>
-        <li>Moduswechsel stoppt laufende Modi</li></ul></div>
-      <div class="card"><h3>In der Firmware</h3><ul>
-        <li>Sound Mode: 1&nbsp;s ohne Paket ⇒ Motoren aus</li>
-        <li>Heartbeat-Watchdog, Auto-Disarm bei WS-Verlust</li>
-        <li>PWM im Sound Mode auf 1000–1500 begrenzt</li></ul></div>
+    <h2>Sicherheit</h2>
+    <div class="cols">
+      <div>
+        <h3>App</h3>
+        <ul>
+          <li>ARM nur durch 1,5 s gedrückt halten</li>
+          <li>Sound Mode: über 60° Neigung Notstopp</li>
+          <li>Safe-Test höchstens alle 2 s</li>
+        </ul>
+      </div>
+      <div>
+        <h3>ESP32</h3>
+        <ul>
+          <li>Sound Mode: 1 s kein Paket, Motoren aus</li>
+          <li>Disarm bei Verbindungsverlust</li>
+          <li>PWM im Sound Mode max. 1500</li>
+        </ul>
+      </div>
     </div>
-    <aside class="notes">
-      Sicherheit liegt in beiden Schichten. Die Firmware darf sich nie darauf verlassen,
-      dass die App richtig reagiert.
-    </aside>
   </section>
 
-  <!-- 11 Stand -->
   <section id="stand">
-    <div class="kicker">Stand</div>
-    <h2>Wo wir stehen &amp; was offen ist</h2>
-    <div class="grid g2">
-      <div class="card ok"><h3>✅ Erledigt</h3><ul>
-        <li>Discovery, Telemetrie, Auto-Reconnect</li>
-        <li>Dashboard mit 3D-Drohne</li>
-        <li>Simulator: Rate / Balance / PosHold</li>
-        <li>Virtuelle Joysticks, Landscape-UI, SIM/LIVE</li>
-        <li>Profile und Sound Mode</li>
-        <li>Refactoring: typisierte Befehle &amp; Modi, ein MotionManager</li></ul></div>
-      <div class="card next"><h3>🚧 Offen</h3><ul>
-        <li>RC-Befehl in <code>DroneCommand</code> aufnehmen</li>
-        <li>Unit-Tests für Befehls-Encoding</li>
-        <li>LIVE-Modus am echten Flug erproben</li></ul></div>
+    <h2>Aktueller Stand</h2>
+    <div class="cols">
+      <div>
+        <h3>Fertig</h3>
+        <ul>
+          <li>Discovery, Telemetrie, Reconnect</li>
+          <li>Dashboard mit 3D-Drohne</li>
+          <li>Simulator mit drei Modi</li>
+          <li>Joysticks, Landscape, SIM/LIVE</li>
+          <li>Profile, Sound Mode</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Offen</h3>
+        <ul>
+          <li><code>RC</code>-Befehl ins <code>DroneCommand</code>-Enum</li>
+          <li>Unit-Tests für die Befehle</li>
+          <li>LIVE an der echten Drohne testen</li>
+        </ul>
+      </div>
     </div>
-    <p class="banner">EasyPilot · 4AHITM HTL · iOS-Subsystem</p>
-    <aside class="notes">
-      Erledigt ist der komplette Steuer- und Visualisierungspfad. Offen sind vor allem
-      Aufräumarbeiten und die Erprobung des LIVE-Modus. Danke – Fragen?
-    </aside>
+  </section>
+
+  <section id="ende">
+    <h2>Danke!</h2>
+    <p>Fragen?</p>
   </section>
 
 </div>
-<div class="back"><a href="../">← Übersicht</a> · S = Speaker-Ansicht · O = Overview · F = Vollbild</div>
 </div>
+<div class="back"><a href="../">← zurück</a></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
@@ -339,10 +262,7 @@ wsManager.send(.tiltSound(pwm: 1200))</code></pre>
 <script>
   Reveal.initialize({
     hash: true,
-    width: 1280, height: 720,
-    margin: 0.06,
-    transition: 'slide',
-    controls: true, progress: true, slideNumber: 'c/t',
+    slideNumber: true,
     plugins: [RevealHighlight, RevealNotes]
   });
 </script>
