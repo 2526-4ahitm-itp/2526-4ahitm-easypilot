@@ -37,6 +37,13 @@ A **second** firmware project (`PlatformIO/Projects/easypilot/`) hosts a
 self-contained web dashboard on the ESP32 itself for tethered desk
 testing. It does not interact with the iOS app.
 
+**Phase 2 (since 2026-09-14): web simulator.** Because the drone's DJI O4 Air
+Unit is broken, the project now builds a browser-based drone simulation with a
+physics engine on top of the React + three.js viewer in `webinterface/frontend`.
+The Quarkus backend (`webinterface/backend`) and the web simulator are deployed
+to the **LeoCloud (Kubernetes)**. The Python relay stays in the local network,
+because its UDP broadcast only reaches devices on the same LAN.
+
 ## Subsystem Specs
 
 | Spec | What it covers |
