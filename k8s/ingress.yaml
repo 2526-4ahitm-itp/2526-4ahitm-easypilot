@@ -1,0 +1,19 @@
+# Host comes from LEOCLOUD_HOST at deploy time: envsubst < k8s/ingress.yaml | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: easypilot
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ${LEOCLOUD_HOST}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: easypilot-backend, port: { number: 8080 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: easypilot-web, port: { number: 80 } }
