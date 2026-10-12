@@ -49,10 +49,24 @@ A new "Simulator" tab SHALL be added to the app's `TabView`.
 - **Then** the screen shows: header (mode toggle, armed state), joystick area (two pads), and a telemetry strip (horizon indicator, roll/pitch/yaw values, four motor bars)
 
 #### Scenario: Sim / Live mode toggle
-- **Given** the user taps the "Live" segment of the mode pill
-- **Then** a tooltip/label reads "Available in Sprint 5" and the toggle snaps back to Simulator
+- **Given** the WebSocket is connected
+- **When** the user taps the "LIVE" segment
+- **Then** the simulator is disarmed (if armed) and LIVE mode is active
+- **Given** the WebSocket is not connected
+- **When** the user taps "LIVE"
+- **Then** a "Not connected to drone" hint is shown and the mode stays SIM
+- **When** the user switches from LIVE back to SIM while armed
+- **Then** `{"cmd":"DISARM"}` is sent and the simulator disarms
 
-#### Scenario: Arm / Disarm
+#### Scenario: Arm / Disarm in LIVE mode
+- **Given** LIVE mode is active and throttle is at zero
+- **When** the user arms
+- **Then** `{"cmd":"ARM"}` and `{"cmd":"START_RC","kPRoll":…,"kPPitch":…}` are sent
+- **And** an `RC` packet with `thr, pit, rol, yaw` is sent every 100 ms while armed
+- **When** the user disarms
+- **Then** `{"cmd":"DISARM"}` is sent and RC packets stop
+
+#### Scenario: Arm / Disarm in SIM mode
 - **Given** the simulator is disarmed
 - **When** the user taps "Arm Simulator"
 - **Then** the simulator arms and physics begin
