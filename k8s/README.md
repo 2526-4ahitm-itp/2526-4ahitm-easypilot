@@ -39,9 +39,8 @@ GitHub Actions (`.github/workflows/images.yml`) baut bei jedem Push auf `main`, 
 - `ghcr.io/2526-4ahitm-itp/easypilot-backend:latest` und `:<commit>`
 - `ghcr.io/2526-4ahitm-itp/easypilot-web:latest` und `:<commit>`
 
-Neue Pakete auf ghcr.io sind zuerst **privat**. Nach dem ersten Lauf unter
-GitHub → Organisation → Packages die Sichtbarkeit beider Pakete auf *public* stellen,
-sonst kann die LeoCloud sie nicht ohne `imagePullSecret` laden.
+Beide Pakete sind öffentlich (wie das Repository), die LeoCloud lädt sie ohne
+`imagePullSecret`. Geprüft am 12.10.2026 mit einem anonymen Pull von `:latest`.
 
 ## Konfiguration
 
