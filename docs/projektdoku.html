@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.26">
 <meta name="description" content="Hybrid FPV-Drohne mit ESP32-Companion und iOS-Control — 4AHITM Diplomarbeit">
-<meta name="author" content="Team EasyPilot · HTL 4AHITM">
+<meta name="author" content="Simon Eder, David Windischbauer · HTL 4AHITM">
 <title>EasyPilot</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
@@ -555,7 +555,7 @@ pre.rouge .gs {
 <div id="header">
 <h1>EasyPilot</h1>
 <div class="details">
-<span id="author" class="author">Team EasyPilot · HTL 4AHITM</span><br>
+<span id="author" class="author">Simon Eder, David Windischbauer · HTL 4AHITM</span><br>
 <span id="revdate">2026</span>
 </div>
 <div id="toc" class="toc2">
@@ -566,27 +566,42 @@ pre.rouge .gs {
 <li><a href="#_features">1.1. Features</a></li>
 </ul>
 </li>
-<li><a href="#_systemarchitektur">2. Systemarchitektur</a></li>
-<li><a href="#_technologie_stack">3. Technologie-Stack</a></li>
-<li><a href="#_repository_struktur">4. Repository-Struktur</a></li>
-<li><a href="#_quick_start">5. Quick Start</a>
+<li><a href="#_aufgabenstellung">2. Aufgabenstellung</a>
 <ul class="sectlevel2">
-<li><a href="#_esp32_flashen">5.1. ESP32 flashen</a></li>
-<li><a href="#_ios_app_installieren">5.2. iOS-App installieren</a></li>
+<li><a href="#_aktuell_phase_2_drohnensimulation_mit_physik_engine_seit_14_09_2026">2.1. Aktuell: Phase 2 – Drohnensimulation mit Physik-Engine (seit 14.09.2026)</a></li>
+<li><a href="#_änderung_der_aufgabenstellung">2.2. Änderung der Aufgabenstellung</a></li>
+<li><a href="#_phase_1_drohnensteuerung_abgeschlossen">2.3. Phase 1: Drohnensteuerung (abgeschlossen)</a></li>
 </ul>
 </li>
-<li><a href="#_openspec_spec_driven_development">6. OpenSpec — Spec-driven Development</a></li>
-<li><a href="#_projektziele">7. Projektziele</a></li>
-<li><a href="#_projektumfang_abgrenzung">8. Projektumfang / Abgrenzung</a>
+<li><a href="#_systemarchitektur">3. Systemarchitektur</a></li>
+<li><a href="#_technologie_stack">4. Technologie-Stack</a></li>
+<li><a href="#_repository_struktur">5. Repository-Struktur</a></li>
+<li><a href="#_quick_start">6. Quick Start</a>
 <ul class="sectlevel2">
-<li><a href="#_umfang">8.1. Umfang</a></li>
-<li><a href="#_abgrenzung">8.2. Abgrenzung</a></li>
+<li><a href="#_esp32_flashen">6.1. ESP32 flashen</a></li>
+<li><a href="#_ios_app_installieren">6.2. iOS-App installieren</a></li>
 </ul>
 </li>
-<li><a href="#_erwartete_ergebnisse">9. Erwartete Ergebnisse</a></li>
-<li><a href="#_minutes_of_meeting">10. Minutes of Meeting</a></li>
-<li><a href="#_team">11. Team</a></li>
-<li><a href="#_lizenz">12. Lizenz</a></li>
+<li><a href="#_openspec_spec_driven_development">7. OpenSpec — Spec-driven Development</a></li>
+<li><a href="#_projektziele">8. Projektziele</a></li>
+<li><a href="#_projektumfang_abgrenzung">9. Projektumfang / Abgrenzung</a>
+<ul class="sectlevel2">
+<li><a href="#_umfang">9.1. Umfang</a></li>
+<li><a href="#_abgrenzung">9.2. Abgrenzung</a></li>
+</ul>
+</li>
+<li><a href="#_erwartete_ergebnisse">10. Erwartete Ergebnisse</a></li>
+<li><a href="#_aktueller_implementierungsstand">11. Aktueller Implementierungsstand</a></li>
+<li><a href="#_termine_und_meilensteine">12. Termine und Meilensteine</a>
+<ul class="sectlevel2">
+<li><a href="#_meilensteine">12.1. Meilensteine</a></li>
+</ul>
+</li>
+<li><a href="#_tests">13. Tests</a></li>
+<li><a href="#_bekannte_probleme">14. Bekannte Probleme</a></li>
+<li><a href="#_minutes_of_meeting">15. Minutes of Meeting</a></li>
+<li><a href="#_team">16. Team</a></li>
+<li><a href="#_lizenz">17. Lizenz</a></li>
 </ul>
 </div>
 </div>
@@ -603,7 +618,7 @@ eine <strong>SwiftUI iOS-App</strong> schickt.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="https://img.shields.io/badge/Status-Sprint%205-success?style=for-the-badge" alt="Status Sprint%205 success?style=for the badge">
+<img src="https://img.shields.io/badge/Status-Phase%202-success?style=for-the-badge" alt="Status Phase%202 success?style=for the badge">
 </div>
 </div>
 <div class="imageblock">
@@ -699,7 +714,54 @@ Companion-Computer und Funkbrücke zur iOS-App.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_systemarchitektur"><a class="anchor" href="#_systemarchitektur"></a>2. Systemarchitektur</h2>
+<h2 id="_aufgabenstellung"><a class="anchor" href="#_aufgabenstellung"></a>2. Aufgabenstellung</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_aktuell_phase_2_drohnensimulation_mit_physik_engine_seit_14_09_2026"><a class="anchor" href="#_aktuell_phase_2_drohnensimulation_mit_physik_engine_seit_14_09_2026"></a>2.1. Aktuell: Phase 2 – Drohnensimulation mit Physik-Engine (seit 14.09.2026)</h3>
+<div class="paragraph">
+<p>Ein Web-Simulator im Browser, aufbauend auf dem bestehenden 3D-Viewer
+(<code>webinterface/frontend</code>, React + three.js), simuliert die Drohne mit einer
+Physik-Engine. Ziel ist, Flugverhalten und Steuerung ohne die echte Drohne
+entwickeln und vorführen zu können.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_änderung_der_aufgabenstellung"><a class="anchor" href="#_änderung_der_aufgabenstellung"></a>2.2. Änderung der Aufgabenstellung</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Datum</th>
+<th class="tableblock halign-left valign-top">Änderung und Grund</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">14.09.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Wechsel von Phase 1 „Drohnensteuerung“ zu Phase 2 „Drohnensimulation mit
+  Physik-Engine“. <strong>Grund:</strong> Die DJI O4 Air Unit der Drohne ist defekt. Ohne sie
+  gibt es kein Videobild und keine Steuerung über Brille und Fernbedienung,
+  Tests mit der echten Drohne sind nicht mehr möglich.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_phase_1_drohnensteuerung_abgeschlossen"><a class="anchor" href="#_phase_1_drohnensteuerung_abgeschlossen"></a>2.3. Phase 1: Drohnensteuerung (abgeschlossen)</h3>
+<div class="paragraph">
+<p>Die ursprüngliche Aufgabenstellung (teilautonome FPV-Drohne mit ESP32-Companion
+und iOS-App) beschreiben die Abschnitte <a href="#_projektbeschreibung">Projektbeschreibung</a> und
+<a href="#_features">Features</a>. Ihr Ergebnis – Firmware, iOS-App und der Simulator in der App –
+bleibt Teil des Projekts.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_systemarchitektur"><a class="anchor" href="#_systemarchitektur"></a>3. Systemarchitektur</h2>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
@@ -735,7 +797,7 @@ Companion-Computer und Funkbrücke zur iOS-App.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_technologie_stack"><a class="anchor" href="#_technologie_stack"></a>3. Technologie-Stack</h2>
+<h2 id="_technologie_stack"><a class="anchor" href="#_technologie_stack"></a>4. Technologie-Stack</h2>
 <div class="sectionbody">
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -791,7 +853,7 @@ Companion-Computer und Funkbrücke zur iOS-App.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_repository_struktur"><a class="anchor" href="#_repository_struktur"></a>4. Repository-Struktur</h2>
+<h2 id="_repository_struktur"><a class="anchor" href="#_repository_struktur"></a>5. Repository-Struktur</h2>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
@@ -812,10 +874,10 @@ Companion-Computer und Funkbrücke zur iOS-App.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_quick_start"><a class="anchor" href="#_quick_start"></a>5. Quick Start</h2>
+<h2 id="_quick_start"><a class="anchor" href="#_quick_start"></a>6. Quick Start</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_esp32_flashen"><a class="anchor" href="#_esp32_flashen"></a>5.1. ESP32 flashen</h3>
+<h3 id="_esp32_flashen"><a class="anchor" href="#_esp32_flashen"></a>6.1. ESP32 flashen</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="rouge highlight"><code data-lang="bash"><span class="nb">cd </span>PlatformIO/Projects/EasyPilotIOS
@@ -826,7 +888,7 @@ pio device monitor</code></pre>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_ios_app_installieren"><a class="anchor" href="#_ios_app_installieren"></a>5.2. iOS-App installieren</h3>
+<h3 id="_ios_app_installieren"><a class="anchor" href="#_ios_app_installieren"></a>6.2. iOS-App installieren</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="rouge highlight"><code data-lang="bash">./deploy.sh                          <span class="c"># auto-detect iPhone</span>
@@ -842,7 +904,7 @@ pio device monitor</code></pre>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_openspec_spec_driven_development"><a class="anchor" href="#_openspec_spec_driven_development"></a>6. OpenSpec — Spec-driven Development</h2>
+<h2 id="_openspec_spec_driven_development"><a class="anchor" href="#_openspec_spec_driven_development"></a>7. OpenSpec — Spec-driven Development</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Alle Funktionen werden zuerst in <code>openspec/</code> spezifiziert, bevor Code
@@ -897,7 +959,7 @@ geschrieben wird. Subsystem-Specs:</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_projektziele"><a class="anchor" href="#_projektziele"></a>7. Projektziele</h2>
+<h2 id="_projektziele"><a class="anchor" href="#_projektziele"></a>8. Projektziele</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -924,10 +986,10 @@ geschrieben wird. Subsystem-Specs:</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_projektumfang_abgrenzung"><a class="anchor" href="#_projektumfang_abgrenzung"></a>8. Projektumfang / Abgrenzung</h2>
+<h2 id="_projektumfang_abgrenzung"><a class="anchor" href="#_projektumfang_abgrenzung"></a>9. Projektumfang / Abgrenzung</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_umfang"><a class="anchor" href="#_umfang"></a>8.1. Umfang</h3>
+<h3 id="_umfang"><a class="anchor" href="#_umfang"></a>9.1. Umfang</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -945,7 +1007,7 @@ ESP32-C3 SuperMini, 4S LiPo</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_abgrenzung"><a class="anchor" href="#_abgrenzung"></a>8.2. Abgrenzung</h3>
+<h3 id="_abgrenzung"><a class="anchor" href="#_abgrenzung"></a>9.2. Abgrenzung</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -963,7 +1025,7 @@ ESP32-C3 SuperMini, 4S LiPo</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_erwartete_ergebnisse"><a class="anchor" href="#_erwartete_ergebnisse"></a>9. Erwartete Ergebnisse</h2>
+<h2 id="_erwartete_ergebnisse"><a class="anchor" href="#_erwartete_ergebnisse"></a>10. Erwartete Ergebnisse</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -984,7 +1046,170 @@ ESP32-C3 SuperMini, 4S LiPo</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_minutes_of_meeting"><a class="anchor" href="#_minutes_of_meeting"></a>10. Minutes of Meeting</h2>
+<h2 id="_aktueller_implementierungsstand"><a class="anchor" href="#_aktueller_implementierungsstand"></a>11. Aktueller Implementierungsstand</h2>
+<div class="sectionbody">
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächliche Stand der Implementierung weicht in Teilen ab und wird in OpenSpec (<code>openspec/</code>) fortlaufend nachgeführt.
+</td>
+</tr>
+</table>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>iOS-Teilprojekt:</strong> Statt eines Raspberry-Pi-Companion-Computers wird ein <strong>ESP32</strong> (PlatformIO) als Bridge zum Flight Controller verwendet, mit dem <strong>MSP-Protokoll</strong> über UART. Die Kommunikation zur iOS-App ist <strong>hybrid</strong>: lokal direkt per UDP auf Port 4242, remote über ein Python-Relay mit WebSocket-Tunnel (Ngrok). Die iOS-App enthält zusätzlich einen <strong>Phone-Side Simulator</strong> (Mode-2 Joystick, Rate-Mode-Physik) für Steuergefühl ohne reale Drohne. Quellen: <code>openspec/changes/sprint-03</code>, <code>openspec/changes/sprint-04</code>, <code>EasyPilotIOS/</code>, <code>PlatformIO/</code>.</p>
+</li>
+<li>
+<p><strong>Webinterface-Teilprojekt:</strong> Separates Sub-Projekt (<code>webinterface/</code>) mit Java-Backend und React-Frontend. Wird nicht über OpenSpec geführt.</p>
+</li>
+<li>
+<p><strong>Sprint 5 (Juni 2026):</strong> Landscape-Layout des Simulator-Tabs mit Steuerelementen in den Ecken; der Simulator stabilisiert die Drohne nur, wenn kein Finger auf dem Stick liegt. Quellen: <code>openspec/changes/sprint-05</code>, <code>openspec/changes/2026-06-23-sprint-05-landscape-ui</code>.</p>
+</li>
+<li>
+<p><strong>Phase 2 (seit 14.09.2026):</strong> Der Web-Simulator baut auf dem 3D-Viewer in <code>webinterface/frontend</code> auf; die Physik-Engine ist noch offen. Parallel laufen Tests, CI und Doku aus Coaching Runde 1. Quelle: <code>openspec/changes/2026-10-12-coaching-r1</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_termine_und_meilensteine"><a class="anchor" href="#_termine_und_meilensteine"></a>12. Termine und Meilensteine</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Datum</th>
+<th class="tableblock halign-left valign-top">Ereignis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">07.10.2025</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Projektstart (erster Commit)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">25.11.2025</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sprintplanung: Live-Telemetrie im 3D-Modell</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">23.12.2025</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sprintplanung: Motoren einzeln ansteuern (Melodie)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">24.03.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Umstieg auf OpenSpec; Sprint 3: iPhone-Sensoren und hybride Verbindung</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">07.05.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sprint 4: Simulator in der iOS-App mit virtuellen Joysticks</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">02.06.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sprint 5: Landscape-UI und touch-aware Stabilisierung (Abschluss 23.06.2026)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">14.09.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Start Phase 2: Drohnensimulation mit Physik-Engine</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">08.10.2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Coaching Runde 1</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><em>vom Team zu ergänzen</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">weitere Termine Phase 2</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Die Daten stammen aus der Git-History, den Sitzungsprotokollen und
+<code>openspec/changes/</code>.</p>
+</div>
+<div class="sect2">
+<h3 id="_meilensteine"><a class="anchor" href="#_meilensteine"></a>12.1. Meilensteine</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>M1</strong> Live-Telemetrie im 3D-Modell ✓</p>
+</li>
+<li>
+<p><strong>M2</strong> Motoren einzeln ansteuern (Sound Mode) ✓</p>
+</li>
+<li>
+<p><strong>M3</strong> Echtzeit-Telemetrie über MSP, iPhone-Sensoren, hybride Verbindung – Sprint 3 ✓
+(Sprint 2 wurde nicht umgesetzt und ging in Sprint 3 auf)</p>
+</li>
+<li>
+<p><strong>M4</strong> Simulator in der iOS-App – Sprint 4 ✓</p>
+</li>
+<li>
+<p><strong>M5</strong> Landscape-UI und touch-aware Stabilisierung – Sprint 5 ✓ (Abschluss Phase 1);
+LIVE-Modus (Steuerung der echten Drohne aus dem Simulator) im Code seit 28.05.2026</p>
+</li>
+<li>
+<p><strong>M6</strong> Web-Simulator mit Physik-Engine – Phase 2, offen</p>
+</li>
+<li>
+<p><em>weitere Meilensteine Phase 2: vom Team zu ergänzen</em></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tests"><a class="anchor" href="#_tests"></a>13. Tests</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>iOS:</strong> Unit-Tests (Swift Testing) für Befehls-Format, Telemetrie-Decoding,
+Sound-Mode-Rechnung und Profil-Speicherung; UI-Smoke-Test der drei Tabs.</p>
+</li>
+<li>
+<p><strong>Backend:</strong> Quarkus-Tests für <code>GET /api/status</code>.</p>
+</li>
+<li>
+<p><strong>Frontend:</strong> Lint und Build.</p>
+</li>
+<li>
+<p>Alle laufen bei jedem Push und Pull Request in GitHub Actions.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bekannte_probleme"><a class="anchor" href="#_bekannte_probleme"></a>14. Bekannte Probleme</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Die DJI O4 Air Unit ist defekt (siehe <a href="#_änderung_der_aufgabenstellung">Änderung der Aufgabenstellung</a>).</p>
+</li>
+<li>
+<p>Firmware-Logik (MSP-Parser, Befehle) hat noch keine Unit-Tests.</p>
+</li>
+<li>
+<p>Meldet die Firmware den Modus <code>RC</code>, zeigt der Tab „Algorithms“ <code>IDLE</code> und
+blendet den STOP-Button aus.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_minutes_of_meeting"><a class="anchor" href="#_minutes_of_meeting"></a>15. Minutes of Meeting</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -999,38 +1224,22 @@ ESP32-C3 SuperMini, 4S LiPo</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_team"><a class="anchor" href="#_team"></a>11. Team</h2>
+<h2 id="_team"><a class="anchor" href="#_team"></a>16. Team</h2>
 <div class="sectionbody">
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 33.3333%;">
-<col style="width: 66.6667%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Rolle</th>
-<th class="tableblock halign-left valign-top">Person</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Hardware &amp; Firmware (ESP32)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">iOS-App &amp; Simulator</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Spec-Owner / OpenSpec</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Team EasyPilot</p></td>
-</tr>
-</tbody>
-</table>
+<div class="ulist">
+<ul>
+<li>
+<p>Simon Eder</p>
+</li>
+<li>
+<p>David Windischbauer</p>
+</li>
+</ul>
+</div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_lizenz"><a class="anchor" href="#_lizenz"></a>12. Lizenz</h2>
+<h2 id="_lizenz"><a class="anchor" href="#_lizenz"></a>17. Lizenz</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>MIT License — siehe <a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/LICENSE">LICENSE</a>
@@ -1045,7 +1254,7 @@ im Repository-Root.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-06-23 09:40:52 +0200
+Last updated 2026-10-12 11:54:48 +0200
 </div>
 </div>
 </body>
