@@ -4,6 +4,7 @@ Details zu jedem Punkt: `plan.md` in diesem Ordner.
 
 ## Status Tracking
 - [x] Plan und Proposal
+- [x] Handoff für Rechnerwechsel (`handoff.md`)
 - [x] `.mailmap`, einheitliche Git-Identität (`chore/mailmap`)
 - [ ] AP0: iOS-Stand nach `main` (`ep7-ios-app`)
 - [ ] AP1: iOS-Tests (`test/ios-unit-tests`)
