@@ -31,6 +31,8 @@ release.properties
 /api/node_modules
 node_modules
 package-lock.json
+# Frontend lockfile is committed so CI can run `npm ci`
+!webinterface/frontend/package-lock.json
 
 # ==========================
 # Xcode / iOS / macOS
