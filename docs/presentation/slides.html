@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EasyPilot · Projektpräsentation</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/white.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --navy:#0f1b33; --blue:#2266d6; --muted:#5d6778; --line:#e2e6ee; --soft:#f5f7fa;
+    --r-main-font:Inter,"Helvetica Neue",Arial,sans-serif;
+    --r-heading-font:Inter,"Helvetica Neue",Arial,sans-serif;
+    --r-main-color:#1f2633; --r-heading-color:#0f1b33; --r-link-color:#2266d6;
+    --r-main-font-size:36px;
+  }
+  .reveal h1,.reveal h2,.reveal h3{text-transform:none;letter-spacing:-.01em}
+  .reveal .slides section{text-align:left}
+  .reveal h2{font-size:1.5em;padding-bottom:.25em;margin-bottom:.7em;border-bottom:3px solid var(--blue);display:inline-block}
+  .reveal h3{font-size:.75em;color:var(--blue)}
+  .reveal ul,.reveal ol{display:block;font-size:.8em;margin-left:1em}
+  .reveal li{margin:.3em 0}
+  .reveal li::marker{color:var(--blue)}
+  .reveal code{font-family:"SF Mono",Menlo,Consolas,monospace}
+  .reveal p code,.reveal li code,.reveal td code{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0 .25em;font-size:.85em}
+  .reveal pre{width:100%;font-size:.42em;box-shadow:none;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:6px}
+  .reveal pre code{max-height:none;padding:.9em 1.1em;background:var(--soft)}
+  .reveal pre.ascii{font-size:.52em;border:none;border-left:4px solid var(--blue)}
+  .reveal pre.ascii code{background:var(--soft)}
+  .reveal table{font-size:.65em;border-collapse:collapse;margin:0}
+  .reveal table th{background:var(--navy);color:#fff;border:none}
+  .reveal table td{border-bottom:1px solid var(--line)}
+  .reveal table tr:nth-child(even) td{background:var(--soft)}
+  .reveal .small{font-size:.6em;color:var(--muted)}
+  .reveal .cols{display:flex;gap:2em}
+  .reveal .cols > div{flex:1}
+  .reveal .cols ul{font-size:.7em}
+
+  /* dark title and closing slides */
+  .reveal section.dark,.reveal section.dark h1,.reveal section.dark h2,.reveal section.dark h3{color:#fff}
+  .reveal section.dark h1{font-size:2.6em;margin-bottom:.1em}
+  .reveal section.dark h3{color:#8fb4ff;font-weight:600}
+  .reveal section.dark .small{color:#b8c3d9}
+  .reveal section.dark h2{border-bottom-color:#8fb4ff}
+
+  .footer{position:fixed;left:16px;bottom:10px;font-size:13px;color:#8a94a6;z-index:30;
+    font-family:Inter,Arial,sans-serif}
+  .footer a{color:#8a94a6}
+  /* C4 diagrams (Mermaid) */
+  .reveal pre.mermaid{box-shadow:none;border:none;background:none;font-size:16px;text-align:center;margin:0 auto}
+  .reveal pre.mermaid svg{max-width:100%;max-height:540px;height:auto}
+  .reveal table.wide{width:100%}
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+  <section id="titel" class="dark" data-background-color="#0f1b33">
+    <h1>EasyPilot</h1>
+    <h3>Phase 2: Drohnensimulation mit Physik-Engine</h3>
+    <p class="small">4AHITM · HTL Leonding · 2025/26</p>
+  </section>
+
+  <section id="team">
+    <h2>Team</h2>
+    <ul>
+      <li>Simon Eder</li>
+      <li>David Windischbauer</li>
+    </ul>
+  </section>
+
+  <section id="aufgabenstellung">
+    <h2>Aufgabenstellung</h2>
+    <h3>Phase 2 – seit 14.09.2026</h3>
+    <ul>
+      <li>Web-Simulator im Browser, der die Drohne mit einer Physik-Engine simuliert</li>
+      <li>baut auf dem bestehenden 3D-Viewer auf (<code>webinterface/frontend</code>, React + three.js)</li>
+      <li>Ziel: Flugverhalten und Steuerung ohne die echte Drohne entwickeln und vorführen</li>
+    </ul>
+  </section>
+
+  <section id="aenderung">
+    <h2>Änderung der Aufgabenstellung</h2>
+    <table class="wide">
+      <thead><tr><th>Datum</th><th>Änderung</th><th>Grund</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>14.09.2026</td>
+          <td>Phase 1 „Drohnensteuerung“ → Phase 2 „Drohnensimulation mit Physik-Engine“</td>
+          <td>DJI O4 Air Unit defekt: kein Videobild, keine Steuerung über Brille und Fernbedienung, keine Tests mit der echten Drohne</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="stand">
+    <h2>Aktueller Stand</h2>
+    <div class="cols">
+      <div>
+        <h3>Phase 1 – fertig</h3>
+        <ul>
+          <li>Firmware auf dem ESP32-C3 (WebSocket, UDP-Beacon, MSP)</li>
+          <li>iOS-App: Dashboard, Algorithms, Simulator</li>
+          <li>Simulator in der App, LIVE-Modus zur echten Drohne</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Phase 2 – in Arbeit</h3>
+        <ul>
+          <li>3D-Viewer im Browser vorhanden</li>
+          <li>Physik-Engine: noch offen</li>
+          <li>Tests und CI (GitHub Actions) für iOS, Backend, Frontend</li>
+          <li>Deployment auf die LeoCloud vorbereitet</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="termine">
+    <h2>Projekttermine</h2>
+    <table class="wide">
+      <thead><tr><th>Datum</th><th>Ereignis</th></tr></thead>
+      <tbody>
+        <tr><td>07.10.2025</td><td>Projektstart</td></tr>
+        <tr><td>25.11.2025</td><td>Sprintplanung: Live-Telemetrie im 3D-Modell</td></tr>
+        <tr><td>23.12.2025</td><td>Sprintplanung: Motoren einzeln ansteuern</td></tr>
+        <tr><td>24.03.2026</td><td>OpenSpec; Sprint 3: iPhone-Sensoren, hybride Verbindung</td></tr>
+        <tr><td>07.05.2026</td><td>Sprint 4: Simulator in der iOS-App</td></tr>
+        <tr><td>02.–23.06.2026</td><td>Sprint 5: Landscape-UI, touch-aware Stabilisierung</td></tr>
+        <tr><td>14.09.2026</td><td>Start Phase 2</td></tr>
+        <tr><td>08.10.2026</td><td>Coaching Runde 1</td></tr>
+        <tr><td><i>vom Team zu ergänzen</i></td><td>weitere Termine Phase 2</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="meilensteine">
+    <h2>Meilensteine</h2>
+    <ul>
+      <li><b>M1</b> Live-Telemetrie im 3D-Modell ✓</li>
+      <li><b>M2</b> Motoren einzeln ansteuern (Sound Mode) ✓</li>
+      <li><b>M3</b> MSP-Telemetrie, iPhone-Sensoren, hybride Verbindung – Sprint 3 ✓</li>
+      <li><b>M4</b> Simulator in der iOS-App – Sprint 4 ✓</li>
+      <li><b>M5</b> Landscape-UI, touch-aware Stabilisierung – Sprint 5 ✓ (Ende Phase 1)</li>
+      <li><b>M6</b> Web-Simulator mit Physik-Engine – Phase 2, offen</li>
+      <li><i>weitere Meilensteine Phase 2: vom Team zu ergänzen</i></li>
+    </ul>
+  </section>
+
+  <section id="c4-kontext">
+    <h2>C4: Systemkontext</h2>
+    <pre class="mermaid">
+C4Context
+  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+  Person(user, "Nutzer:in", "übt und testet das Fliegen im Browser")
+  Person(pilot, "Pilot:in", "nutzt die iOS-App mit der echten Drohne")
+  System(easypilot, "EasyPilot", "Web-Simulator mit Physik-Engine, iOS-App, Backend")
+  System_Ext(drone, "FPV-Drohne", "ESP32-C3 + Betaflight FC; Air Unit defekt")
+  System_Ext(leocloud, "LeoCloud", "Kubernetes der HTL Leonding")
+  System_Ext(github, "GitHub", "Code, CI, Pages")
+  Rel(user, easypilot, "fliegt simuliert", "HTTPS")
+  Rel(pilot, easypilot, "steuert und beobachtet")
+  Rel(easypilot, drone, "Befehle und Telemetrie", "WebSocket / UDP")
+  Rel(easypilot, leocloud, "läuft auf")
+  Rel(github, leocloud, "liefert Images", "ghcr.io")
+  UpdateRelStyle(user, easypilot, $offsetX="-90", $offsetY="-10")
+  UpdateRelStyle(pilot, easypilot, $offsetX="10", $offsetY="-10")
+  UpdateRelStyle(easypilot, drone, $offsetX="-55", $offsetY="-55")
+  UpdateRelStyle(easypilot, leocloud, $offsetX="-70", $offsetY="-10")
+  UpdateRelStyle(github, leocloud, $offsetX="-40", $offsetY="-30")
+    </pre>
+  </section>
+
+  <section id="c4-container">
+    <h2>C4: Container</h2>
+    <pre class="mermaid">
+C4Container
+  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+  Person(user, "Nutzer:in")
+  System_Ext(fc, "Betaflight FC", "IMU, Motoren")
+  Person(pilot, "Pilot:in")
+  System_Boundary(ep, "EasyPilot") {
+    Container(web, "Web-Simulator", "React 19, three.js, Physik-Engine", "3D-Simulation im Browser (Phase 2)")
+    Container(fw, "Firmware", "ESP32-C3, Arduino", "WebSocket :81, Beacon :4242")
+    Container(ios, "iOS-App", "SwiftUI, SceneKit", "Dashboard, Simulator, LIVE")
+    Container(api, "Backend", "Quarkus 3.28, Java 21", "REST /api/status")
+    Container(sender, "MSP-Sender", "Python", "liest den FC per USB-Serial (MSP)")
+    Container(relay, "Relay", "Python", "WebSocket → UDP im lokalen Netz")
+  }
+  Rel(user, web, "nutzt", "HTTPS")
+  Rel(fw, fc, "MSP", "UART")
+  Rel(pilot, ios, "bedient")
+  Rel(ios, fw, "Befehle / Telemetrie", "WS :81")
+  Rel(fw, ios, "Beacon", "UDP :4242")
+  Rel(web, api, "Status (geplant)", "HTTPS")
+  Rel(web, sender, "Telemetrie", "WS :8765")
+  Rel(relay, ios, "Beacon über Tunnel", "UDP :4242")
+  UpdateRelStyle(user, web, $offsetX="10", $offsetY="-10")
+  UpdateRelStyle(fw, fc, $offsetX="-70", $offsetY="-45")
+  UpdateRelStyle(pilot, ios, $offsetX="10", $offsetY="-10")
+  UpdateRelStyle(ios, fw, $offsetX="-65", $offsetY="-50")
+  UpdateRelStyle(fw, ios, $offsetX="-25", $offsetY="15")
+  UpdateRelStyle(web, api, $offsetX="10", $offsetY="-10")
+  UpdateRelStyle(web, sender, $offsetX="5", $offsetY="10")
+  UpdateRelStyle(relay, ios, $offsetX="10", $offsetY="-10")
+    </pre>
+  </section>
+
+  <section id="c4-komponenten">
+    <h2>C4: Komponenten Web-Simulator</h2>
+    <pre class="mermaid">
+C4Component
+  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+  Container_Boundary(web, "Web-Simulator") {
+    Component(app, "App", "React Router", "Routing zwischen den Seiten")
+    Component(home, "HomePage", "React", "Startseite, Befehle per WebSocket")
+    Component(modelPage, "ModelPage", "React", "3D-Ansicht, Telemetrie per WebSocket :8765")
+    Component(model, "Model", "react-three-fiber", "Drohnenmodell (three.js)")
+    Component(physics, "Physik-Schleife", "Physik-Engine", "Phase 2, geplant")
+  }
+  Rel(app, home, "rendert")
+  Rel(app, modelPage, "rendert")
+  Rel(modelPage, model, "rendert")
+  Rel(physics, model, "setzt Lage und Position (geplant)")
+  UpdateRelStyle(app, home, $offsetX="-25", $offsetY="-25")
+  UpdateRelStyle(app, modelPage, $offsetX="10", $offsetY="-10")
+  UpdateRelStyle(modelPage, model, $offsetX="-25", $offsetY="-25")
+  UpdateRelStyle(physics, model, $offsetX="10", $offsetY="0")
+    </pre>
+  </section>
+
+  <section id="deployment">
+    <h2>Deployment</h2>
+    <ul>
+      <li><b>Ziel:</b> LeoCloud (Kubernetes) für Backend und Web-Simulator – in Arbeit</li>
+      <li><b>Images:</b> GitHub Actions baut sie und legt sie auf <code>ghcr.io</code> ab</li>
+      <li><b>Ein Host, ein Ingress:</b> <code>/</code> → Web-Simulator, <code>/api</code> → Backend</li>
+      <li><b>Bleibt im LAN:</b> Python-Relay, weil sein UDP-Broadcast nur im selben Netz ankommt</li>
+      <li><b>Doku und Präsentation:</b> GitHub Pages</li>
+    </ul>
+  </section>
+
+  <section id="tests">
+    <h2>Tests &amp; CI</h2>
+    <ul>
+      <li><b>iOS:</b> Unit-Tests (Swift Testing) für Befehls-Format, Telemetrie, Sound Mode, Profile; UI-Smoke-Test der drei Tabs</li>
+      <li><b>Backend:</b> Quarkus-Tests für <code>GET /api/status</code></li>
+      <li><b>Frontend:</b> Lint und Build</li>
+      <li>alle laufen bei jedem Push und Pull Request in GitHub Actions</li>
+    </ul>
+  </section>
+
+  <section id="ende" class="dark" data-background-color="#0f1b33">
+    <h2>Danke!</h2>
+    <p>Fragen?</p>
+  </section>
+
+</div>
+</div>
+<div class="footer"><a href="../">EasyPilot</a> · Projektpräsentation</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral',
+    c4: { diagramMarginY: 0, messageFontSize: 15, personFontSize: 16, systemFontSize: 16, external_systemFontSize: 16,
+          containerFontSize: 16, external_containerFontSize: 16, componentFontSize: 16, boundaryFontSize: 16 } });
+  await mermaid.run({ querySelector: '.mermaid' });
+  Reveal.initialize({ hash: true, slideNumber: true, plugins: [RevealHighlight, RevealNotes] });
+</script>
+</body>
+</html>
