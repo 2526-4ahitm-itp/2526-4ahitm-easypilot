@@ -1,6 +1,6 @@
 = EasyPilot
 :description: Hybrid FPV-Drohne mit ESP32-Companion und iOS-Control — 4AHITM Diplomarbeit
-:author: Team EasyPilot · HTL 4AHITM
+:author: Simon Eder, David Windischbauer · HTL 4AHITM
 :revdate: 2026
 :toc: left
 :toclevels: 2
@@ -18,7 +18,7 @@ laufen über einen ESP32-C3 SuperMini, der via *MSP* mit dem
 *Betaflight Flight Controller* spricht und Telemetrie über *WiFi* an
 eine *SwiftUI iOS-App* schickt.
 
-image::https://img.shields.io/badge/Status-Sprint%205-success?style=for-the-badge[]
+image::https://img.shields.io/badge/Status-Phase%202-success?style=for-the-badge[]
 image::https://img.shields.io/badge/Platform-ESP32--C3-blue?style=for-the-badge[]
 image::https://img.shields.io/badge/iOS-SwiftUI-orange?style=for-the-badge[]
 image::https://img.shields.io/badge/FC-Betaflight-red?style=for-the-badge[]
@@ -71,6 +71,35 @@ Companion-Computer und Funkbrücke zur iOS-App.
 | Tilt-getriggerte Niedrigleistungs-Motor-Pulse für sichere
   Komponenten-Tests
 |===
+
+== Aufgabenstellung
+
+=== Aktuell: Phase 2 – Drohnensimulation mit Physik-Engine (seit 14.09.2026)
+
+Ein Web-Simulator im Browser, aufbauend auf dem bestehenden 3D-Viewer
+(`webinterface/frontend`, React + three.js), simuliert die Drohne mit einer
+Physik-Engine. Ziel ist, Flugverhalten und Steuerung ohne die echte Drohne
+entwickeln und vorführen zu können.
+
+=== Änderung der Aufgabenstellung
+
+[cols="1,3", options="header"]
+|===
+| Datum | Änderung und Grund
+
+| 14.09.2026
+| Wechsel von Phase 1 „Drohnensteuerung“ zu Phase 2 „Drohnensimulation mit
+  Physik-Engine“. *Grund:* Die DJI O4 Air Unit der Drohne ist defekt. Ohne sie
+  gibt es kein Videobild und keine Steuerung über Brille und Fernbedienung,
+  Tests mit der echten Drohne sind nicht mehr möglich.
+|===
+
+=== Phase 1: Drohnensteuerung (abgeschlossen)
+
+Die ursprüngliche Aufgabenstellung (teilautonome FPV-Drohne mit ESP32-Companion
+und iOS-App) beschreiben die Abschnitte <<_projektbeschreibung>> und
+<<_features>>. Ihr Ergebnis – Firmware, iOS-App und der Simulator in der App –
+bleibt Teil des Projekts.
 
 == Systemarchitektur
 
@@ -231,6 +260,55 @@ NOTE: Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächlic
 
 * *iOS-Teilprojekt:* Statt eines Raspberry-Pi-Companion-Computers wird ein *ESP32* (PlatformIO) als Bridge zum Flight Controller verwendet, mit dem *MSP-Protokoll* über UART. Die Kommunikation zur iOS-App ist *hybrid*: lokal direkt per UDP auf Port 4242, remote über ein Python-Relay mit WebSocket-Tunnel (Ngrok). Die iOS-App enthält zusätzlich einen *Phone-Side Simulator* (Mode-2 Joystick, Rate-Mode-Physik) für Steuergefühl ohne reale Drohne. Quellen: `openspec/changes/sprint-03`, `openspec/changes/sprint-04`, `EasyPilotIOS/`, `PlatformIO/`.
 * *Webinterface-Teilprojekt:* Separates Sub-Projekt (`webinterface/`) mit Java-Backend und React-Frontend. Wird nicht über OpenSpec geführt.
+* *Sprint 5 (Juni 2026):* Landscape-Layout des Simulator-Tabs mit Steuerelementen in den Ecken; der Simulator stabilisiert die Drohne nur, wenn kein Finger auf dem Stick liegt. Quellen: `openspec/changes/sprint-05`, `openspec/changes/2026-06-23-sprint-05-landscape-ui`.
+* *Phase 2 (seit 14.09.2026):* Der Web-Simulator baut auf dem 3D-Viewer in `webinterface/frontend` auf; die Physik-Engine ist noch offen. Parallel laufen Tests, CI und Doku aus Coaching Runde 1. Quelle: `openspec/changes/2026-10-12-coaching-r1`.
+
+== Termine und Meilensteine
+
+[cols="1,3", options="header"]
+|===
+| Datum | Ereignis
+
+| 07.10.2025 | Projektstart (erster Commit)
+| 25.11.2025 | Sprintplanung: Live-Telemetrie im 3D-Modell
+| 23.12.2025 | Sprintplanung: Motoren einzeln ansteuern (Melodie)
+| 24.03.2026 | Umstieg auf OpenSpec; Sprint 3: iPhone-Sensoren und hybride Verbindung
+| 07.05.2026 | Sprint 4: Simulator in der iOS-App mit virtuellen Joysticks
+| 02.06.2026 | Sprint 5: Landscape-UI und touch-aware Stabilisierung (Abschluss 23.06.2026)
+| 14.09.2026 | Start Phase 2: Drohnensimulation mit Physik-Engine
+| 08.10.2026 | Coaching Runde 1
+| _vom Team zu ergänzen_ | weitere Termine Phase 2
+|===
+
+Die Daten stammen aus der Git-History, den Sitzungsprotokollen und
+`openspec/changes/`.
+
+=== Meilensteine
+
+* *M1* Live-Telemetrie im 3D-Modell ✓
+* *M2* Motoren einzeln ansteuern (Sound Mode) ✓
+* *M3* Echtzeit-Telemetrie über MSP, iPhone-Sensoren, hybride Verbindung – Sprint 3 ✓
+  (Sprint 2 wurde nicht umgesetzt und ging in Sprint 3 auf)
+* *M4* Simulator in der iOS-App – Sprint 4 ✓
+* *M5* Landscape-UI und touch-aware Stabilisierung – Sprint 5 ✓ (Abschluss Phase 1);
+  LIVE-Modus (Steuerung der echten Drohne aus dem Simulator) im Code seit 28.05.2026
+* *M6* Web-Simulator mit Physik-Engine – Phase 2, offen
+* _weitere Meilensteine Phase 2: vom Team zu ergänzen_
+
+== Tests
+
+* *iOS:* Unit-Tests (Swift Testing) für Befehls-Format, Telemetrie-Decoding,
+  Sound-Mode-Rechnung und Profil-Speicherung; UI-Smoke-Test der drei Tabs.
+* *Backend:* Quarkus-Tests für `GET /api/status`.
+* *Frontend:* Lint und Build.
+* Alle laufen bei jedem Push und Pull Request in GitHub Actions.
+
+== Bekannte Probleme
+
+* Die DJI O4 Air Unit ist defekt (siehe <<_änderung_der_aufgabenstellung>>).
+* Firmware-Logik (MSP-Parser, Befehle) hat noch keine Unit-Tests.
+* Meldet die Firmware den Modus `RC`, zeigt der Tab „Algorithms“ `IDLE` und
+  blendet den STOP-Button aus.
 
 == Minutes of Meeting
 
@@ -239,14 +317,8 @@ NOTE: Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächlic
 
 == Team
 
-[cols="1,2", options="header"]
-|===
-| Rolle | Person
-
-| Hardware & Firmware (ESP32) | Team EasyPilot
-| iOS-App & Simulator         | Team EasyPilot
-| Spec-Owner / OpenSpec       | Team EasyPilot
-|===
+* Simon Eder
+* David Windischbauer
 
 == Lizenz
 
