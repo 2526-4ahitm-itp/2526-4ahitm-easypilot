@@ -30,10 +30,10 @@ struct ControlView: View {
     // MARK: - Computed (Sound Mode)
 
     private var currentTiltAngle: Double {
-        min(sqrt(pow(motionManager.pitch, 2) + pow(motionManager.roll, 2)), 90)
+        SoundMode.tiltAngle(pitch: motionManager.pitch, roll: motionManager.roll)
     }
     private var currentSoundPWM: Int {
-        1000 + Int((min(currentTiltAngle, 45.0) / 45.0) * (maxSoundPWM - 1000))
+        SoundMode.pwm(forTilt: currentTiltAngle, maxPWM: maxSoundPWM)
     }
 
     // MARK: - Body
@@ -497,7 +497,7 @@ struct ControlView: View {
 
         soundTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             // Emergency stop if phone is tilted past 60°
-            if self.currentTiltAngle > 60 {
+            if SoundMode.isEmergency(tilt: self.currentTiltAngle) {
                 self.stopSoundMode()
                 return
             }
