@@ -7,30 +7,54 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/white.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
 <style>
-  .reveal h1,.reveal h2,.reveal h3{text-transform:none}
-  .reveal h2{font-size:1.6em}
-  .reveal ul,.reveal ol{display:block;font-size:.8em}
-  .reveal li{margin:.25em 0}
-  .reveal pre{width:100%;font-size:.42em;box-shadow:none;border:1px solid #ddd}
-  .reveal pre code{max-height:none;padding:.8em 1em}
-  .reveal pre.ascii{font-size:.5em;border:none}
-  .reveal pre.ascii code{background:none}
-  .reveal table{font-size:.65em}
-  .reveal .small{font-size:.6em;color:#666}
-  .reveal .cols{display:flex;gap:2em;text-align:left}
+  :root{
+    --navy:#0f1b33; --blue:#2266d6; --muted:#5d6778; --line:#e2e6ee; --soft:#f5f7fa;
+    --r-main-font:Inter,"Helvetica Neue",Arial,sans-serif;
+    --r-heading-font:Inter,"Helvetica Neue",Arial,sans-serif;
+    --r-main-color:#1f2633; --r-heading-color:#0f1b33; --r-link-color:#2266d6;
+    --r-main-font-size:36px;
+  }
+  .reveal h1,.reveal h2,.reveal h3{text-transform:none;letter-spacing:-.01em}
+  .reveal .slides section{text-align:left}
+  .reveal h2{font-size:1.5em;padding-bottom:.25em;margin-bottom:.7em;border-bottom:3px solid var(--blue);display:inline-block}
+  .reveal h3{font-size:.75em;color:var(--blue)}
+  .reveal ul,.reveal ol{display:block;font-size:.8em;margin-left:1em}
+  .reveal li{margin:.3em 0}
+  .reveal li::marker{color:var(--blue)}
+  .reveal code{font-family:"SF Mono",Menlo,Consolas,monospace}
+  .reveal p code,.reveal li code,.reveal td code{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0 .25em;font-size:.85em}
+  .reveal pre{width:100%;font-size:.42em;box-shadow:none;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:6px}
+  .reveal pre code{max-height:none;padding:.9em 1.1em;background:var(--soft)}
+  .reveal pre.ascii{font-size:.52em;border:none;border-left:4px solid var(--blue)}
+  .reveal pre.ascii code{background:var(--soft)}
+  .reveal table{font-size:.65em;border-collapse:collapse;margin:0}
+  .reveal table th{background:var(--navy);color:#fff;border:none}
+  .reveal table td{border-bottom:1px solid var(--line)}
+  .reveal table tr:nth-child(even) td{background:var(--soft)}
+  .reveal .small{font-size:.6em;color:var(--muted)}
+  .reveal .cols{display:flex;gap:2em}
   .reveal .cols > div{flex:1}
-  .reveal .cols h3{font-size:.9em}
   .reveal .cols ul{font-size:.7em}
-  .back{position:fixed;left:12px;bottom:8px;font-size:13px;z-index:30}
-  .back a{color:#888}
+
+  /* dark title and closing slides */
+  .reveal section.dark,.reveal section.dark h1,.reveal section.dark h2,.reveal section.dark h3{color:#fff}
+  .reveal section.dark h1{font-size:2.6em;margin-bottom:.1em}
+  .reveal section.dark h3{color:#8fb4ff;font-weight:600}
+  .reveal section.dark .small{color:#b8c3d9}
+  .reveal section.dark h2{border-bottom-color:#8fb4ff}
+
+  .footer{position:fixed;left:16px;bottom:10px;font-size:13px;color:#8a94a6;z-index:30;
+    font-family:Inter,Arial,sans-serif}
+  .footer a{color:#8a94a6}
 </style>
 </head>
 <body>
 <div class="reveal">
 <div class="slides">
 
-  <section id="titel">
+  <section id="titel" class="dark" data-background-color="#0f1b33">
     <h1>EasyPilot</h1>
     <h3>Die iOS-App</h3>
     <p class="small">4AHITM · HTL Leonding · 2025/26</p>
@@ -247,14 +271,14 @@ wsManager.send(.tiltSound(pwm: 1200))</code></pre>
     </div>
   </section>
 
-  <section id="ende">
+  <section id="ende" class="dark" data-background-color="#0f1b33">
     <h2>Danke!</h2>
     <p>Fragen?</p>
   </section>
 
 </div>
 </div>
-<div class="back"><a href="../">← zurück</a></div>
+<div class="footer"><a href="../">EasyPilot</a> · iOS-App</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
