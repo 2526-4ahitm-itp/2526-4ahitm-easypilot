@@ -117,7 +117,7 @@ fill in your own values (the real files are gitignored):
 
 == Documentation
 
-* Project documentation: `docs/index.adoc`
+* Project documentation: `docs/projektdoku.adoc`
 * Specs & sprint workflow: `openspec/`
 
 == Team
