@@ -180,36 +180,7 @@ for p, hh in [("swift.png",0.7),("swiftui.png",0.85),("scenekit.png",0.85),
     img = pic(s, os.path.join(LOGOS,p), xs, y + (Inches(0.9)-h)//2, h=h)
     xs = Emu(int(xs) + int(img.width) + Inches(0.45))
 
-# ---- Slide 2: Architecture ----
-s = slide()
-kicker(s, "System Overview")
-title(s, "How the app talks to the drone")
-# esp box
-card(s, Inches(0.85), Inches(1.95), Inches(3.6), Inches(0.95), GREEN)
-textbox(s, Inches(0.85), Inches(1.95), Inches(3.6), Inches(0.95),
-        [[("ESP32-C3  ·  WiFi", 19, TEXT, True, None)]], align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-textbox(s, Inches(5.0), Inches(2.0), Inches(7.6), Inches(0.9),
-        [[("└─ UDP broadcast  ", 16, MUTED, False, None), ("\"EASYPILOT:<IP>\"", 16, GREEN, True, "mono"),
-          ("  every 5 s · port 4242", 16, MUTED, False, None)],
-         [("     → iOS auto-discovers the IP, no typing", 15, MUTED, False, None)]], sp_after=2)
-textbox(s, Inches(5.0), Inches(3.05), Inches(7.6), Inches(0.9),
-        [[("└─ WebSocket server · port 81", 16, ACCENT, True, None)],
-         [("     ←→ commands out · telemetry JSON in @ 10 Hz", 15, MUTED, False, None)]], sp_after=2)
-card(s, Inches(0.85), Inches(4.2), Inches(3.6), Inches(0.95), ACCENT)
-textbox(s, Inches(0.85), Inches(4.2), Inches(3.6), Inches(0.95),
-        [[("iPhone — EasyPilot App", 18, TEXT, True, None)]], align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-# stat cards
-stats = [("3", "tabs: Dashboard · Simulator · Algorithms"),
-         ("10 Hz", "telemetry & motion update rate"),
-         ("~3,400", "lines of Swift across 18 files")]
-cw = Inches(3.8); gap = Inches(0.3); x = Inches(0.85); y = Inches(5.55)
-for big, lab in stats:
-    card(s, x, y, cw, Inches(1.3))
-    textbox(s, x, Inches(5.65), cw, Inches(0.7), [[(big, 32, ACCENT, True, None)]], align=PP_ALIGN.CENTER)
-    textbox(s, x+Inches(0.2), Inches(6.35), cw-Inches(0.4), Inches(0.55), [[(lab, 13, MUTED, False, None)]], align=PP_ALIGN.CENTER)
-    x = Emu(int(x)+int(cw)+int(gap))
-
-# ---- Slide 3: Technologies (logos) ----
+# ---- Slide 2: Technologies (logos) ----
 s = slide()
 kicker(s, "Technologies Used")
 title(s, "The iOS stack")
@@ -272,25 +243,7 @@ KW = RGBColor(0xFF,0x7A,0xB2); TY = RGBColor(0x7E,0xE0,0xC8)
 ST = RGBColor(0xC3,0xE8,0x8D); CM = RGBColor(0x5D,0x6B,0x8F)
 NU = RGBColor(0xF7,0xC8,0x73); FN = RGBColor(0x82,0xAA,0xFF); PL = TEXT
 
-# ---- Slide 4: telemetry code ----
-code_slide("Code · Live Telemetry", "Decoding 10 Hz telemetry into the UI", None,
-    [
-     [("// Codable struct mirrors the ESP32 JSON exactly", CM)],
-     [("struct ", KW),("DroneTelemetry", TY),(": ", PL),("Codable", TY),(" {", PL)],
-     [("    let", KW),(" roll, pitch, yaw: ", PL),("Float", TY)],
-     [("    let", KW),(" m1, m2, m3, m4: ", PL),("Int", TY),("?", PL)],
-     [("    let", KW),(" voltage: ", PL),("Float", TY),("?, armed: ", PL),("Bool", TY),("?, mode: ", PL),("String", TY),("?", PL)],
-     [("}", PL)],
-     [("", PL)],
-     [("private func ", KW),("decodeJSON", FN),("(_ text: ", PL),("String", TY),(") {", PL)],
-     [("    let", KW),(" decoded = ", PL),("try", KW),(" ", PL),("JSONDecoder", TY),("().", PL),("decode", FN),("(", PL),("DroneTelemetry", TY),(".self, ...)", PL)],
-     [("    ", PL),("DispatchQueue", TY),(".main.", PL),("async", FN),(" {", PL)],
-     [("        self", KW),(".telemetry   = decoded   ", PL),("// @Published → SwiftUI redraws", CM)],
-     [("        self", KW),(".isConnected = ", PL),("true", KW)],
-     [("    }", PL),("\n}", PL)],
-    ])
-
-# ---- Slide 5: sensors + command ----
+# ---- Slide 3: sensors + command ----
 code_slide("Code · Sensors & Commands", "Phone tilt → drone command", None,
     [
      [("// CoreMotion device-motion updates @ 10 Hz", CM)],
@@ -307,28 +260,7 @@ code_slide("Code · Sensors & Commands", "Phone tilt → drone command", None,
      [("}", PL)],
     ])
 
-# ---- Slide 6: Challenges ----
-s = slide()
-kicker(s, "Challenges")
-title(s, "What was hard — and how we solved it")
-ch_data = [
-    ("Finding the drone", "The ESP32 gets a random DHCP IP. A UDP beacon broadcasts the IP every 5 s, so the app auto-connects — no typing.", GREEN),
-    ("Detecting a dropped link", "WiFi can die silently. A 3 s timeout timer + 5 s WebSocket pings flip isConnected false the instant data stops.", ACCENT),
-    ("Thread safety", "SceneKit physics runs on the render thread, SwiftUI only on main. Physics writes _vars, synced to @Published at 20 Hz.", ORANGE),
-    ("Flight safety", "Accidental motor spin is dangerous. 1.5 s hold-to-arm, debounced safe-test, and a tilt-over-60° emergency stop.", RGBColor(0xFF,0x45,0x45)),
-]
-cw, chh = Inches(5.85), Inches(2.05)
-x0, y0 = Inches(0.85), Inches(2.0)
-for i,(t,desc,col) in enumerate(ch_data):
-    cx = Emu(int(x0)+(i%2)*(int(cw)+int(Inches(0.3))))
-    cy = Emu(int(y0)+(i//2)*(int(chh)+int(Inches(0.3))))
-    card(s, cx, cy, cw, chh, col)
-    textbox(s, cx+Inches(0.35), cy+Inches(0.3), cw-Inches(0.6), Inches(0.6),
-            [[(t, 21, col, True, None)]])
-    textbox(s, cx+Inches(0.35), cy+Inches(0.95), cw-Inches(0.7), Inches(1.0),
-            [[(desc, 14.5, MUTED, False, None)]], sp_after=0)
-
-# ---- Slide 7: threading code ----
+# ---- Slide 4: threading code ----
 code_slide("Code · The threading challenge", "Two threads, one drone",
     "Physics on SceneKit's render thread must never touch SwiftUI directly — so internal state is kept separate from published state.",
     [
@@ -346,7 +278,7 @@ code_slide("Code · The threading challenge", "Two threads, one drone",
      [("}", PL)],
     ])
 
-# ---- Slide 8: Summary ----
+# ---- Slide 5: Summary ----
 s = slide()
 kicker(s, "Wrap-up")
 title(s, "Where we are & what's next")

@@ -1,7 +1,7 @@
 # EasyPilot iOS — Speaker Notes
 
 Personal talking script for the iOS overview deck (`EasyPilot-iOS-Overview.pptx`
-/ `index.html`). Eight slides. For each slide: **what's on screen**, **what to
+/ `index.html`). Five slides. For each slide: **what's on screen**, **what to
 say**, and **likely questions** with answers. Times are rough — the whole talk
 fits in ~8–10 minutes.
 
@@ -26,35 +26,7 @@ only Apple frameworks keeps it lightweight and dependency-free.
 
 ---
 
-## Slide 2 — Architecture: "How the app talks to the drone"  (~90 s)
-
-**On screen:** ESP32-C3 box → two lines (UDP beacon on 4242, WebSocket on 81)
-→ iPhone box. Three stat cards: 3 tabs, 10 Hz, ~3,400 lines of Swift.
-
-**Say:**
-> "Here's the whole communication picture. The drone has an ESP32-C3 micro-
-> controller on WiFi. It does two things on the network. First, every 5
-> seconds it shouts a UDP broadcast — literally the text `EASYPILOT:` followed
-> by its IP address — on port 4242. The phone listens for that, so it learns
-> the drone's address automatically; you never type an IP. Second, the ESP32
-> runs a WebSocket server on port 81. Once the app knows the IP, it opens that
-> socket — commands go out, and telemetry JSON comes back ten times a second."
->
-> "On the app side there are three tabs — Dashboard, Simulator, and Algorithms
-> — about 3,400 lines of Swift across 18 files, all running at that 10 Hz
-> update rate."
-
-**If asked "why UDP broadcast and not just type the IP?":** The drone gets a
-random DHCP address every time it connects, so the IP changes. Broadcasting it
-means the app always finds the current one with zero configuration.
-
-**If asked "why WebSocket and not plain HTTP?":** WebSocket is a persistent,
-two-way connection — ideal for a continuous 10 Hz stream and instant commands,
-without the overhead of opening a new request every time.
-
----
-
-## Slide 3 — "The iOS stack"  (~75 s)
+## Slide 2 — "The iOS stack"  (~75 s)
 
 **On screen:** Cards for Swift, SwiftUI, Network.framework, SceneKit,
 CoreMotion, Espressif ESP32 — each with a logo, a name, and one line.
@@ -75,29 +47,7 @@ equivalent of a JPEG. We use it for the drone model in the simulator.
 
 ---
 
-## Slide 4 — Code: "Decoding 10 Hz telemetry into the UI"  (~75 s)
-
-**On screen:** `DroneTelemetry` Codable struct + the `decodeJSON` function that
-decodes it and pushes it onto the main thread.
-
-**Say:**
-> "This is how telemetry gets into the screen. The drone sends JSON — roll,
-> pitch, yaw, the four motor values, voltage, armed state, mode. I mirror that
-> exactly with a Swift `Codable` struct, so Swift decodes the JSON into a typed
-> object in one line with `JSONDecoder`. The important detail is the bottom: the
-> data arrives on a background network thread, but UI updates must happen on the
-> main thread, so I hop to `DispatchQueue.main` and assign it to an `@Published`
-> property. That `@Published` is what makes SwiftUI automatically redraw."
-
-**If asked "what does `Codable` mean?":** It's a Swift protocol that lets a type
-encode/decode itself to formats like JSON automatically — no manual parsing.
-
-**If asked "why the optionals (`Int?`)?":** Not every telemetry packet contains
-every field, so optionals let decoding succeed even when something's missing.
-
----
-
-## Slide 5 — Code: "Phone tilt → drone command"  (~75 s)
+## Slide 3 — Code: "Phone tilt → drone command"  (~75 s)
 
 **On screen:** Left: CoreMotion device-motion handler converting radians to
 degrees. Right: a type-safe JSON command builder (`startBalanceCommand`).
@@ -119,35 +69,17 @@ balance controller — how hard it corrects when it tilts off level.
 
 ---
 
-## Slide 6 — "Challenges: what was hard, and how we solved it"  (~90 s)
-
-**On screen:** Four cards — Finding the drone, Detecting a dropped link, Thread
-safety, Flight safety.
-
-**Say:**
-> "Four real problems. **One — finding the drone:** the random IP, solved by the
-> UDP beacon I mentioned. **Two — knowing when the link dies:** WiFi can drop
-> silently with no error, so I run a 3-second timeout plus WebSocket pings; the
-> moment data stops, the app flips to disconnected. **Three — thread safety:**
-> the simulator's physics runs on the graphics render thread, but SwiftUI only
-> allows updates on the main thread — touching the UI from the wrong thread
-> crashes the app. **Four — flight safety:** spinning motors are dangerous, so
-> there's a 1.5-second hold-to-arm, a debounced safe-test, and an automatic
-> emergency stop if the phone tilts past 60 degrees."
-
-This slide sets up the next one — say: *"Let me show you how I solved number
-three."*
-
----
-
-## Slide 7 — Code: "Two threads, one drone"  (~75 s)
+## Slide 4 — Code: "Two threads, one drone"  (~75 s)
 
 **On screen:** `DroneSimulator` class — `@Published` vars (main thread) vs.
 `_`-prefixed raw physics vars (render thread), plus `tick()` and
 `syncPublished()`.
 
 **Say:**
-> "This is the thread-safety solution. The class keeps two sets of state. The
+> "One of the trickiest problems was thread safety. The simulator's physics runs
+> on the graphics render thread, but SwiftUI only allows updates on the main
+> thread — touching the UI from the wrong thread crashes the app. Here's the
+> solution. The class keeps two sets of state. The
 > `@Published` variables at the top are touched only on the main thread — those
 > drive SwiftUI. The underscore variables are the raw physics — position,
 > velocity, angles — and those are touched only on the render thread inside
@@ -162,7 +94,7 @@ simpler and faster.
 
 ---
 
-## Slide 8 — "Where we are & what's next"  (~45 s)
+## Slide 5 — "Where we are & what's next"  (~45 s)
 
 **On screen:** Done column (discovery + telemetry, Dashboard with 3D view, full
 simulator with Rate/Balance/PosHold, joysticks + profiles) and Next/Sprint 6.
