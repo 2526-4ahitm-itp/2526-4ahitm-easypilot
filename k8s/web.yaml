@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: easypilot-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: easypilot-web }
+  template:
+    metadata:
+      labels: { app: easypilot-web }
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/2526-4ahitm-itp/easypilot-web:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi, ephemeral-storage: 100Mi }
+            limits: { memory: 64Mi, ephemeral-storage: 500Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: easypilot-web
+spec:
+  selector: { app: easypilot-web }
+  ports:
+    - port: 80
+      targetPort: 80
