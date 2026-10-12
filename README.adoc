@@ -140,7 +140,9 @@ fill in your own values (the real files are gitignored):
 
 * Projektseite (GitHub Pages): https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/
 * Projektdokumentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/projektdoku.html (Quelle: `docs/projektdoku.adoc`)
-* Präsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation-ios/slides.html
+* Projektpräsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation/slides.html
+* iOS-App-Präsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation-ios/slides.html
+* Deployment (LeoCloud, vorbereitet): `k8s/README.md`, Ziel-URL https://it220234.cloud.htl-leonding.ac.at/
 * Specs & Sprint-Workflow: `openspec/`
 
 == Mitarbeit

@@ -592,16 +592,17 @@ pre.rouge .gs {
 </li>
 <li><a href="#_erwartete_ergebnisse">10. Erwartete Ergebnisse</a></li>
 <li><a href="#_aktueller_implementierungsstand">11. Aktueller Implementierungsstand</a></li>
-<li><a href="#_termine_und_meilensteine">12. Termine und Meilensteine</a>
+<li><a href="#_deployment">12. Deployment</a></li>
+<li><a href="#_termine_und_meilensteine">13. Termine und Meilensteine</a>
 <ul class="sectlevel2">
-<li><a href="#_meilensteine">12.1. Meilensteine</a></li>
+<li><a href="#_meilensteine">13.1. Meilensteine</a></li>
 </ul>
 </li>
-<li><a href="#_tests">13. Tests</a></li>
-<li><a href="#_bekannte_probleme">14. Bekannte Probleme</a></li>
-<li><a href="#_minutes_of_meeting">15. Minutes of Meeting</a></li>
-<li><a href="#_team">16. Team</a></li>
-<li><a href="#_lizenz">17. Lizenz</a></li>
+<li><a href="#_tests">14. Tests</a></li>
+<li><a href="#_bekannte_probleme">15. Bekannte Probleme</a></li>
+<li><a href="#_minutes_of_meeting">16. Minutes of Meeting</a></li>
+<li><a href="#_team">17. Team</a></li>
+<li><a href="#_lizenz">18. Lizenz</a></li>
 </ul>
 </div>
 </div>
@@ -1017,7 +1018,8 @@ ESP32-C3 SuperMini, 4S LiPo</p>
 <p>Kein Race-Drohnen-Fokus — Hybridbetrieb aus Autonomie und FPV</p>
 </li>
 <li>
-<p>Keine Cloud-Komponenten — bewusst lokal-only (Privacy + Latenz)</p>
+<p>Drohne, iOS-App und Relay laufen lokal (Latenz, UDP-Broadcast im LAN); nur Backend
+und Web-Simulator kommen in die LeoCloud (siehe <a href="#_deployment">Deployment</a>)</p>
 </li>
 </ul>
 </div>
@@ -1079,7 +1081,74 @@ Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächliche Sta
 </div>
 </div>
 <div class="sect1">
-<h2 id="_termine_und_meilensteine"><a class="anchor" href="#_termine_und_meilensteine"></a>12. Termine und Meilensteine</h2>
+<h2 id="_deployment"><a class="anchor" href="#_deployment"></a>12. Deployment</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Zielsystem</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LeoCloud der HTL Leonding (Kubernetes), Namespace <code>student-it220234</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Web-Simulator</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code><a href="https://it220234.cloud.htl-leonding.ac.at/" class="bare">https://it220234.cloud.htl-leonding.ac.at/</a></code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Backend</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code><a href="https://it220234.cloud.htl-leonding.ac.at/api/status" class="bare">https://it220234.cloud.htl-leonding.ac.at/api/status</a></code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Doku und Präsentation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/" class="bare">https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/</a> (GitHub Pages)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Nicht in der Cloud</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Python-Relay: sein UDP-Broadcast erreicht nur Geräte im selben LAN</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Vorbereitet, noch nicht deployt. Die URLs sind die vom Cluster vorgegebenen
+Ziel-URLs und gelten ab dem ersten Deploy.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p><strong>Ablauf</strong> (Details in <code>k8s/README.md</code>):</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Build und Auslieferung:</strong> GitHub Actions baut bei jedem Push auf <code>main</code> die Images
+<code>easypilot-backend</code> und <code>easypilot-web</code> und legt sie auf <code>ghcr.io</code> ab.</p>
+</li>
+<li>
+<p><strong>Deploy:</strong> <code>kubectl apply -f k8s/backend.yaml -f k8s/web.yaml</code>, danach
+<code>envsubst &lt; k8s/ingress.yaml | kubectl apply -f -</code> mit <code>LEOCLOUD_HOST</code>.</p>
+</li>
+<li>
+<p><strong>Neue Version:</strong> <code>kubectl rollout restart deployment/easypilot-backend deployment/easypilot-web</code>.</p>
+</li>
+<li>
+<p><strong>Prüfen:</strong> <code>curl -s <a href="https://it220234.cloud.htl-leonding.ac.at/api/status" class="bare">https://it220234.cloud.htl-leonding.ac.at/api/status</a></code>.</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_termine_und_meilensteine"><a class="anchor" href="#_termine_und_meilensteine"></a>13. Termine und Meilensteine</h2>
 <div class="sectionbody">
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1136,7 +1205,7 @@ Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächliche Sta
 <code>openspec/changes/</code>.</p>
 </div>
 <div class="sect2">
-<h3 id="_meilensteine"><a class="anchor" href="#_meilensteine"></a>12.1. Meilensteine</h3>
+<h3 id="_meilensteine"><a class="anchor" href="#_meilensteine"></a>13.1. Meilensteine</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -1168,7 +1237,7 @@ LIVE-Modus (Steuerung der echten Drohne aus dem Simulator) im Code seit 28.05.20
 </div>
 </div>
 <div class="sect1">
-<h2 id="_tests"><a class="anchor" href="#_tests"></a>13. Tests</h2>
+<h2 id="_tests"><a class="anchor" href="#_tests"></a>14. Tests</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -1190,7 +1259,7 @@ Sound-Mode-Rechnung und Profil-Speicherung; UI-Smoke-Test der drei Tabs.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_bekannte_probleme"><a class="anchor" href="#_bekannte_probleme"></a>14. Bekannte Probleme</h2>
+<h2 id="_bekannte_probleme"><a class="anchor" href="#_bekannte_probleme"></a>15. Bekannte Probleme</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -1201,6 +1270,10 @@ Sound-Mode-Rechnung und Profil-Speicherung; UI-Smoke-Test der drei Tabs.</p>
 <p>Firmware-Logik (MSP-Parser, Befehle) hat noch keine Unit-Tests.</p>
 </li>
 <li>
+<p>Der Web-Viewer verbindet sich fest auf <code>ws://localhost:8765</code>; in der Cloud gibt es
+diesen Telemetrie-Stream nicht.</p>
+</li>
+<li>
 <p>Meldet die Firmware den Modus <code>RC</code>, zeigt der Tab „Algorithms“ <code>IDLE</code> und
 blendet den STOP-Button aus.</p>
 </li>
@@ -1209,7 +1282,7 @@ blendet den STOP-Button aus.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_minutes_of_meeting"><a class="anchor" href="#_minutes_of_meeting"></a>15. Minutes of Meeting</h2>
+<h2 id="_minutes_of_meeting"><a class="anchor" href="#_minutes_of_meeting"></a>16. Minutes of Meeting</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -1224,7 +1297,7 @@ blendet den STOP-Button aus.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_team"><a class="anchor" href="#_team"></a>16. Team</h2>
+<h2 id="_team"><a class="anchor" href="#_team"></a>17. Team</h2>
 <div class="sectionbody">
 <div class="ulist">
 <ul>
@@ -1239,7 +1312,7 @@ blendet den STOP-Button aus.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_lizenz"><a class="anchor" href="#_lizenz"></a>17. Lizenz</h2>
+<h2 id="_lizenz"><a class="anchor" href="#_lizenz"></a>18. Lizenz</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>MIT License — siehe <a href="https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/LICENSE">LICENSE</a>
@@ -1254,7 +1327,7 @@ im Repository-Root.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-10-12 11:54:48 +0200
+Last updated 2026-10-12 12:06:39 +0200
 </div>
 </div>
 </body>

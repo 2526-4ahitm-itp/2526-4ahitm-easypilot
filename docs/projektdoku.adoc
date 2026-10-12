@@ -245,7 +245,8 @@ link:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/openspec
 
 * Keine Neuentwicklung eines eigenen Flight Controllers
 * Kein Race-Drohnen-Fokus — Hybridbetrieb aus Autonomie und FPV
-* Keine Cloud-Komponenten — bewusst lokal-only (Privacy + Latenz)
+* Drohne, iOS-App und Relay laufen lokal (Latenz, UDP-Broadcast im LAN); nur Backend
+  und Web-Simulator kommen in die LeoCloud (siehe <<_deployment>>)
 
 == Erwartete Ergebnisse
 
@@ -262,6 +263,29 @@ NOTE: Die obige Vision beschreibt den langfristigen Zielzustand. Der tatsächlic
 * *Webinterface-Teilprojekt:* Separates Sub-Projekt (`webinterface/`) mit Java-Backend und React-Frontend. Wird nicht über OpenSpec geführt.
 * *Sprint 5 (Juni 2026):* Landscape-Layout des Simulator-Tabs mit Steuerelementen in den Ecken; der Simulator stabilisiert die Drohne nur, wenn kein Finger auf dem Stick liegt. Quellen: `openspec/changes/sprint-05`, `openspec/changes/2026-06-23-sprint-05-landscape-ui`.
 * *Phase 2 (seit 14.09.2026):* Der Web-Simulator baut auf dem 3D-Viewer in `webinterface/frontend` auf; die Physik-Engine ist noch offen. Parallel laufen Tests, CI und Doku aus Coaching Runde 1. Quelle: `openspec/changes/2026-10-12-coaching-r1`.
+
+== Deployment
+
+[cols="1,3"]
+|===
+| Zielsystem | LeoCloud der HTL Leonding (Kubernetes), Namespace `student-it220234`
+| Web-Simulator | `https://it220234.cloud.htl-leonding.ac.at/`
+| Backend | `https://it220234.cloud.htl-leonding.ac.at/api/status`
+| Doku und Präsentation | https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/ (GitHub Pages)
+| Nicht in der Cloud | Python-Relay: sein UDP-Broadcast erreicht nur Geräte im selben LAN
+|===
+
+NOTE: Vorbereitet, noch nicht deployt. Die URLs sind die vom Cluster vorgegebenen
+Ziel-URLs und gelten ab dem ersten Deploy.
+
+*Ablauf* (Details in `k8s/README.md`):
+
+. *Build und Auslieferung:* GitHub Actions baut bei jedem Push auf `main` die Images
+  `easypilot-backend` und `easypilot-web` und legt sie auf `ghcr.io` ab.
+. *Deploy:* `kubectl apply -f k8s/backend.yaml -f k8s/web.yaml`, danach
+  `envsubst < k8s/ingress.yaml | kubectl apply -f -` mit `LEOCLOUD_HOST`.
+. *Neue Version:* `kubectl rollout restart deployment/easypilot-backend deployment/easypilot-web`.
+. *Prüfen:* `curl -s https://it220234.cloud.htl-leonding.ac.at/api/status`.
 
 == Termine und Meilensteine
 
@@ -307,6 +331,8 @@ Die Daten stammen aus der Git-History, den Sitzungsprotokollen und
 
 * Die DJI O4 Air Unit ist defekt (siehe <<_änderung_der_aufgabenstellung>>).
 * Firmware-Logik (MSP-Parser, Befehle) hat noch keine Unit-Tests.
+* Der Web-Viewer verbindet sich fest auf `ws://localhost:8765`; in der Cloud gibt es
+  diesen Telemetrie-Stream nicht.
 * Meldet die Firmware den Modus `RC`, zeigt der Tab „Algorithms“ `IDLE` und
   blendet den STOP-Button aus.
 
