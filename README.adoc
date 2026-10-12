@@ -6,6 +6,10 @@ image:https://img.shields.io/badge/Quarkus-3.28-4695EB?style=for-the-badge[Quark
 image:https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge[React]
 image:https://img.shields.io/badge/three.js-3D-049EF4?style=for-the-badge[three.js]
 
+image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/backend.yml/badge.svg[Backend CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/backend.yml]
+image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/ios.yml/badge.svg[iOS CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/ios.yml]
+image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/frontend.yml/badge.svg[Frontend CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/frontend.yml]
+
 EasyPilot is a drone telemetry and control system built as a school project at
 HTL Leonding (4AHITM). A custom ESP32-C3 board talks to a flight controller over
 MSP, broadcasts telemetry, and accepts flight commands. An iOS companion app
