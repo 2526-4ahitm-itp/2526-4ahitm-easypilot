@@ -1,0 +1,12 @@
+# Maps every identity a team member has committed under to one canonical
+# identity, so `git shortlog` and other git tools count each person once.
+
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <s.eder1@students.htl-leonding.ac.at>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <s.eder1@htblaleonding.onmicrosoft.com>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <simoneder@Simons-Mac-mini.local>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <simoneder@Simons-Mac-mini.fritz.box>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <simoneder@Macmini.fritz.box>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <it220234@WS8A20.htl-leonding.ac.at>
+SimonnEder <114646364+SimonnEder@users.noreply.github.com> <it220234@WS8A08.htl-leonding.ac.at>
+
+dwindischbauer <114646201+dwindischbauer@users.noreply.github.com> <d.windischbauer@students.htl-leonding.ac.at>
