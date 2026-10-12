@@ -22,7 +22,7 @@ React + three.js web viewer round out the stack.
 | ESP32-C3 firmware
 | `PlatformIO/Projects/EasyPilotIOS/`
 | WebSocket server (port 81) + UDP discovery beacon (port 4242). Drives the
-  flight controller over MSP; implements IDLE / BALANCE / MANUAL / SOUND modes.
+  flight controller over MSP; implements IDLE / BALANCE / MANUAL / SOUND / RC modes.
 
 | iOS app
 | `EasyPilotIOS/`
@@ -66,8 +66,8 @@ Web viewer
 [source,bash]
 ----
 cd PlatformIO/Projects/EasyPilotIOS
-# create secrets.ini (gitignored) with wifi_ssid / wifi_pass; load_secrets.py
-# generates include/secrets_auto.h at build time
+cp secrets.ini.example secrets.ini   # fill in wifi_ssid / wifi_pass (gitignored)
+# load_secrets.py generates include/secrets_auto.h at build time
 pio run            # build
 pio upload         # flash
 ----
@@ -107,18 +107,46 @@ npm install
 npm run dev
 ----
 
+== Tests
+
+[source,bash]
+----
+# iOS (Simulator, siehe CLAUDE.md für den Gerätenamen)
+xcodebuild test -project EasyPilotIOS/EasyPilotIOS.xcodeproj -scheme EasyPilotIOS \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+
+# Backend
+cd webinterface/backend && ./mvnw test
+
+# Frontend (Lint + Build)
+cd webinterface/frontend && npm ci && npm run lint && npm run build
+----
+
+Alle drei laufen automatisch in GitHub Actions (`.github/workflows/`).
+
 == Secrets
 
 WLAN and OTA credentials are never committed. Copy the provided templates and
 fill in your own values (the real files are gitignored):
 
-* PlatformIO firmware: create `secrets.ini` (consumed by `load_secrets.py`).
+* PlatformIO firmware: copy `secrets.ini.example` → `secrets.ini` (consumed by `load_secrets.py`).
 * Standalone sketches: copy `wifi_secrets.example.h` → `wifi_secrets.h`.
 
-== Documentation
+== Dokumentation
 
-* Project documentation: `docs/projektdoku.adoc`
-* Specs & sprint workflow: `openspec/`
+* Projektseite (GitHub Pages): https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/
+* Projektdokumentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/projektdoku.html (Quelle: `docs/projektdoku.adoc`)
+* Präsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation-ios/slides.html
+* Specs & Sprint-Workflow: `openspec/`
+
+== Mitarbeit
+
+* *Branches:* ein Branch pro Thema, `<typ>/<thema>`, z. B. `test/ios-unit-tests`. Nie direkt auf `main`.
+* *Commits:* https://www.conventionalcommits.org/de/[Conventional Commits], Betreff auf Deutsch im Imperativ:
+  `<typ>(<scope>): <was>` – Typen `feat`, `fix`, `test`, `docs`, `ci`, `chore`, `refactor`;
+  Scopes `ios`, `firmware`, `backend`, `web`, `k8s`, `docs`, `pages`.
+  Beispiel: `fix(ios): Reconnect nach Verbindungsabbruch`.
+* *Pull Requests:* ein PR pro Thema nach `main`, mit „Änderung“, „Warum“, „Wie getestet“.
 
 == Team
 
