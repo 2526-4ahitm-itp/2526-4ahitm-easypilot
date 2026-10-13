@@ -1,0 +1,25 @@
+@startuml hover-regelkreis
+!theme plain
+skinparam componentStyle rectangle
+left to right direction
+title Hover-Regler (Kaskade, 250 Hz)
+
+rectangle "Ziel\nPosition x/z\nHöhe h\nHeading" as ziel
+rectangle "Positionsregler\nPD: a = Kp·Δp − Kd·v" as pos
+rectangle "Neigung\natan(a/g), max 25°" as tilt
+rectangle "Lageregler\nRate = Katt·ΔWinkel" as att
+rectangle "Höhenregler\nv_soll = Kp·Δh\nGas = Schwebegas·(1+a/g) + I" as alt
+rectangle "Liftoff\n(Physik, Acro-FC)" as sim
+rectangle "Telemetrie\nPosition, Quaternion\n→ v, Pitch/Roll/Yaw" as tel
+
+ziel --> pos
+pos --> tilt
+tilt --> att
+att --> sim : Pitch/Roll/Yaw-Stick
+ziel --> alt
+alt --> sim : Gas
+sim --> tel : UDP
+tel --> pos
+tel --> att
+tel --> alt
+@enduml

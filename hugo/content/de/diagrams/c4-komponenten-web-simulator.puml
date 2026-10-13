@@ -1,0 +1,24 @@
+@startuml c4-komponenten-web-simulator
+!include <C4/C4_Component>
+LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+title Web-Simulator – Komponenten (Ziel Phase 2, Change 2026-10-13-phase2-web-simulator)
+
+Person(nutzer, "Nutzer:in")
+
+Container_Boundary(web, "Web-Simulator (React + three.js)") {
+  Component(input, "Eingabe", "Gamepad-API, Tastatur", "Mode 2, Deadband, Expo")
+  Component(modes, "Flugmodi", "TypeScript", "Rate, Angle, Hover (portiert aus hover.py)")
+  Component(physics, "Physik", "TypeScript, fester Zeitschritt", "Starrkörper, 4 Schubkräfte, Schwerkraft, Widerstand, Boden")
+  Component(scene, "Szene", "@react-three/fiber", "Drohnenmodell, Boden, Kamera")
+  Component(hud, "HUD", "React", "Höhe, Geschwindigkeit, Lage, Gas, Modus")
+  Component(viewer, "ModelPage", "React", "bestehend: Lage aus ws://localhost:8765")
+}
+
+Rel(nutzer, input, "steuert")
+Rel(input, modes, "Stick-Werte")
+Rel(modes, physics, "Motorbefehle")
+Rel(physics, modes, "Zustand")
+Rel(physics, scene, "Position, Lage")
+Rel(physics, hud, "Messwerte")
+@enduml

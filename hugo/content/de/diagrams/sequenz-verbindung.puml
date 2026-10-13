@@ -1,0 +1,31 @@
+@startuml sequenz-verbindung
+!theme plain
+title Verbindungsaufbau iOS-App ↔ ESP32 und LIVE-Steuerung
+
+participant "iOS-App" as ios
+participant "ESP32-C3" as esp
+participant "Betaflight-FC" as fc
+
+== Discovery ==
+loop alle 5 s
+  esp -> ios : UDP 255.255.255.255:4242\n"EASYPILOT:<IP>"
+end
+ios -> esp : WebSocket ws://<IP>:81
+
+== Telemetrie ==
+loop alle 100 ms
+  esp -> fc : MSP_ATTITUDE (108)
+  fc --> esp : roll, pitch, yaw
+  esp -> ios : {"roll":…,"pitch":…,"yaw":…,"m1":…,…,"mode":"IDLE","fc":true}
+end
+
+== LIVE-Modus ==
+ios -> esp : {"cmd":"ARM"}
+ios -> esp : {"cmd":"START_RC","kPRoll":…,"kPPitch":…}
+loop alle 100 ms, solange scharf
+  ios -> esp : {"cmd":"RC","thr":…,"pit":…,"rol":…,"yaw":…}
+  esp -> fc : MSP_SET_MOTOR (214)
+end
+note over esp : 500 ms ohne RC → Motoren aus, IDLE
+ios -> esp : {"cmd":"DISARM"}
+@enduml

@@ -1,0 +1,40 @@
+@startuml deployment
+!include <C4/C4_Deployment>
+title EasyPilot – Deployment
+
+Deployment_Node(gh, "GitHub", "2526-4ahitm-itp") {
+  Deployment_Node(actions, "GitHub Actions") {
+    Container(ci, "CI-Workflows", "backend, ios, frontend, simulator, openspec, images, hugo")
+  }
+  Deployment_Node(ghcr, "ghcr.io") {
+    Container(img, "Images", "easypilot-backend, easypilot-web")
+  }
+  Deployment_Node(pages, "GitHub Pages") {
+    Container(docs, "Doku-Seite", "Hugo + Hextra")
+  }
+}
+
+Deployment_Node(leo, "LeoCloud", "Kubernetes, Namespace student-it220234") {
+  Deployment_Node(ing, "Ingress nginx", "it220234.cloud.htl-leonding.ac.at") {
+    Container(webpod, "easypilot-web", "nginx, Vite-Build", "/")
+    Container(apipod, "easypilot-backend", "Quarkus", "/api")
+  }
+}
+
+Deployment_Node(lan, "WLAN der Drohne", "lokal") {
+  Container(esp, "ESP32-C3", "Companion-Firmware")
+  Container(phone, "iPhone", "iOS-App")
+  Container(laptop, "Laptop", "Relay, MSP-Sender")
+}
+
+Deployment_Node(pc, "Windows-PC", "lokal") {
+  Container(lo, "Liftoff + Liftoff-Hover", "Steam, Python, vJoy")
+}
+
+Rel(ci, img, "push")
+Rel(ci, docs, "deploy")
+Rel(img, webpod, "kubectl apply / rollout")
+Rel(img, apipod, "kubectl apply / rollout")
+Rel(phone, esp, "WebSocket / UDP")
+Rel(laptop, phone, "UDP-Broadcast")
+@enduml

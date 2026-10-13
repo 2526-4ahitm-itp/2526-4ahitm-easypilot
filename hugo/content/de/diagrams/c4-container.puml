@@ -1,0 +1,33 @@
+@startuml c4-container
+!include <C4/C4_Container>
+LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+title EasyPilot – Container (Stand 13.10.2026)
+
+Person(nutzer, "Nutzer:in")
+Person(pilot, "Pilot:in")
+
+System_Boundary(ep, "EasyPilot") {
+  Container(web, "Web-Simulator", "React 19, three.js", "Phase 2: Physik, Steuerung, HUD – in Arbeit; heute 3D-Viewer")
+  Container(api, "Backend", "Quarkus 3.28, Java 21", "GET /api/status")
+  Container(hover, "Liftoff-Hover", "Python 3.11, pygame, vJoy", "Autopilot auf Liftoff: bremsen, Position/Höhe/Heading halten")
+  Container(ios, "iOS-App", "SwiftUI, SceneKit", "Dashboard, Algorithms, Simulator, LIVE")
+  Container(fw, "Companion-Firmware", "ESP32-C3, C++/Arduino", "WebSocket :81, Beacon :4242, MSP")
+  Container(relay, "Relay / MSP-Sender", "Python", "WebSocket → UDP im LAN; FC per USB → ws :8765")
+}
+
+System_Ext(fc, "Betaflight-FC", "IMU, ESC")
+System_Ext(liftoff, "Liftoff", "Physik 500 Hz")
+
+Rel(nutzer, web, "fliegt", "HTTPS")
+Rel(web, api, "Status (geplant: Daten)", "HTTPS")
+Rel(pilot, hover, "Funk-Controller", "USB")
+Rel(hover, liftoff, "Sticks", "vJoy")
+Rel(liftoff, hover, "Position, Lage", "UDP :9001")
+Rel(pilot, ios, "bedient")
+Rel(ios, fw, "Befehle / Telemetrie", "WS :81")
+Rel(fw, ios, "Beacon", "UDP :4242")
+Rel(fw, fc, "MSP", "UART 115200")
+Rel(relay, ios, "Telemetrie", "UDP :4242")
+Rel(relay, web, "Lage für /model", "WS :8765")
+@enduml
