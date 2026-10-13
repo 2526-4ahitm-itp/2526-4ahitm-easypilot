@@ -38,8 +38,8 @@ footer:
   - identifier: footerProduct
     name: Projekt
     weight: 10
-  - name: Projektstand
-    pageRef: /slides/projektstand
+  - name: Präsentationen
+    pageRef: /slides
     parent: footerProduct
     weight: 11
   - name: Meilensteine

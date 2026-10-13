@@ -15,7 +15,7 @@ Präsentation und Deployment. Unten steht das Feedback und der Stand am 13.10.20
 | Tests | Tests in CI | 🔴 | 5 Workflows: Backend, iOS, Frontend, Simulator, OpenSpec |
 | Dokumentation | Link zur Doku im README | 🔴 | verlinkt |
 | Dokumentation | Doku erreichbar | 🟢 | GitHub Pages, jetzt als Hugo-Seite |
-| Präsentation | als reveal.js veröffentlicht | 🟡 | [Projektstand](../../../slides/projektstand) auf der Doku-Seite |
+| Präsentation | als reveal.js veröffentlicht | 🟡 | [Projektpräsentation (reveal.js)](../../../presentations/projektstand/) auf GitHub Pages |
 | Präsentation | Aufgabenstellung, aktuell | 🔴/🟡 | inkl. Änderung mit Datum und Grund |
 | Präsentation | Team | 🔴 | enthalten |
 | Präsentation | aktueller Stand | 🟡 | enthalten, mit Spec-Status |

@@ -16,7 +16,7 @@ layout: hextra-home
 </div>
 
 <div class="hx:mb-6">
-    <span class="hx:mr-2">{{< hextra/hero-button text="Projektstand" link="slides/projektstand" >}}</span>
+    <span class="hx:mr-2">{{< hextra/hero-button text="Projektpräsentation" link="presentations/projektstand/" >}}</span>
     <span class="hx:mr-2">{{< hextra/hero-button text="Dokumentation" link="docs" >}}</span>
     {{< hextra/hero-button text="Phase 2: Simulation" link="docs/explanation/phase-2" style="background-color: #64748b;" >}}
 </div>
