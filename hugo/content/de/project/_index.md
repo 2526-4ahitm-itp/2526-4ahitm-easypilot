@@ -31,4 +31,5 @@ Leonding, Schuljahr 2025/26).
 | 08.10.2026 | Coaching Runde 1 |
 | 12.10.2026 | Coaching-To-dos umgesetzt (Tests, CI, Präsentation, Deployment vorbereitet) |
 | 13.10.2026 | Doku auf Hugo umgestellt, OpenSpec neu aufgebaut, Liftoff-Hover ins Repo |
+| 14.10.2026 | Backend und Web in der LeoCloud deployt (it220270.cloud.htl-leonding.ac.at) |
 | *vom Team zu ergänzen* | weitere Termine Phase 2 |

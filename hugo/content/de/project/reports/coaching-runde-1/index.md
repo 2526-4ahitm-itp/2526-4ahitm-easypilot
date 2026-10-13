@@ -24,12 +24,11 @@ Präsentation und Deployment. Unten steht das Feedback und der Stand am 13.10.20
 | Präsentation | C4-Kontext / -Container | 🔴 | PlantUML-C4, gleiche Quellen wie die Doku |
 | Präsentation | C4-Komponente (Bonus) | ⚪ | Liftoff-Hover und Web-Simulator |
 | Präsentation | C4 zeigt neue Lösung | 🟡 | Phase 2 mit Liftoff und Web-Simulator |
-| Deployment | Zielserver / URLs / Ablauf | 🟡 | dokumentiert, Images und Manifeste fertig, **noch nicht deployt** |
+| Deployment | Zielserver / URLs / Ablauf | 🟡 | **live** seit 14.10.2026: https://it220270.cloud.htl-leonding.ac.at/ (Backend unter `/api/status`) |
 | Deployment | Konfiguration | 🟢 | – |
 
 ## Was noch fehlt
 
-- Deployment wirklich ausrollen (Task 6.2 im Phase-2-Change)
 - Termine und Meilensteine für den Rest von Phase 2
 - Web-Simulator mit Physik
 

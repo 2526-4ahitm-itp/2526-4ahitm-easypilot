@@ -27,6 +27,6 @@ weight: 6
 | URL | Was | Stand |
 |---|---|---|
 | https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/ | diese Doku | live nach Merge |
-| https://it220234.cloud.htl-leonding.ac.at/ | Web-Simulator | vorbereitet, nicht deployt |
-| https://it220234.cloud.htl-leonding.ac.at/api/status | Backend | vorbereitet, nicht deployt |
+| https://it220270.cloud.htl-leonding.ac.at/ | Web-Simulator (heute: 3D-Viewer) | live seit 14.10.2026 |
+| https://it220270.cloud.htl-leonding.ac.at/api/status | Backend | live seit 14.10.2026 |
 | `ghcr.io/2526-4ahitm-itp/easypilot-backend`, `…/easypilot-web` | Images | öffentlich |

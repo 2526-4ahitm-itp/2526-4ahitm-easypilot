@@ -52,9 +52,9 @@ Flugverhalten, Steuerung und Assistenzfunktionen **ohne Hardware** entwickeln, t
 ## Aktueller Stand
 
 {{< stats >}}
-{{< stat value="73" label="Anforderungen umgesetzt" color="success" >}}
+{{< stat value="74" label="Anforderungen umgesetzt" color="success" >}}
 {{< stat value="9" label="teilweise" color="warning" >}}
-{{< stat value="13" label="offen" color="error" >}}
+{{< stat value="12" label="offen" color="error" >}}
 {{< /stats >}}
 
 Phase 1 fertig: Firmware, iOS-App, Relay, Web-Viewer · Phase 2: Liftoff-Hover fertig, Web-Simulator offen
@@ -140,7 +140,7 @@ danach **keine messbare Drift** – Regler-Tests laufen in CI
 
 {{% slide-steps %}}
 
-**LeoCloud:** Web-Simulator `/` und Backend `/api` auf `it220234.cloud.htl-leonding.ac.at` – Images und Manifeste fertig, noch nicht ausgerollt
+**LeoCloud:** Web-Simulator `/` und Backend `/api` auf `it220270.cloud.htl-leonding.ac.at` – **live** seit 14.10.2026
 
 **ghcr.io:** Images aus GitHub Actions bei jedem Merge
 
@@ -171,8 +171,6 @@ danach **keine messbare Drift** – Regler-Tests laufen in CI
 Physik-Modul und Steuerung für den Web-Simulator
 
 Hover aus dem Liftoff-Prototyp in den Web-Simulator portieren
-
-Deployment in die LeoCloud ausrollen
 
 RC-Modus-Bug in der App beheben
 

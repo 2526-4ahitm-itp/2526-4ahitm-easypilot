@@ -50,10 +50,10 @@ The web simulator SHALL show height, speed, attitude, throttle and flight mode o
 
 ### Requirement: Delivered from the LeoCloud
 
-The web simulator SHALL be reachable at `https://it220234.cloud.htl-leonding.ac.at/` without installation and without a local network to the drone (§3.3, §12.2, US-08).
+The web simulator SHALL be reachable at `https://it220270.cloud.htl-leonding.ac.at/` without installation and without a local network to the drone (§3.3, §12.2, US-08).
 
 `status: partial`
 
 #### Scenario: Open URL
 - **WHEN** a browser opens the production URL
-- **THEN** the simulator loads (partial: image and manifests exist, but nothing is deployed yet and the page is still the viewer)
+- **THEN** the simulator loads (partial: deployed on 2026-10-14, but the page is still the viewer without physics)
