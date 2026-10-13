@@ -67,7 +67,7 @@ Hardware zu entwickeln, zu testen und vorzuführen. Dazu gibt es zwei Wege:
 ### 3.3 Infrastruktur
 
 - Backend und Web-Simulator laufen in der LeoCloud der HTL Leonding (Kubernetes), Namespace
-  `student-it220234`, Host `it220234.cloud.htl-leonding.ac.at`.
+  `student-it220270`, Host `it220270.cloud.htl-leonding.ac.at`.
 - Container-Images liegen auf `ghcr.io/2526-4ahitm-itp/`.
 - Drohne, iOS-App und Relay laufen im lokalen WLAN. UDP-Broadcasts erreichen nur Geräte im
   selben Netz.

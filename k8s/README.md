@@ -5,15 +5,15 @@
 | | |
 |---|---|
 | Cluster | LeoCloud der HTL Leonding (Kubernetes, Ingress-Klasse `nginx`) |
-| Namespace | `student-it220234` |
-| Host | `it220234.cloud.htl-leonding.ac.at` (der Namespace erlaubt genau diesen einen Host) |
+| Namespace | `student-it220270` |
+| Host | `it220270.cloud.htl-leonding.ac.at` (der Namespace erlaubt genau diesen einen Host) |
 
 Ein Host, ein Ingress:
 
 | URL | Ziel |
 |---|---|
-| `https://it220234.cloud.htl-leonding.ac.at/` | Web-Simulator (`easypilot-web`, nginx mit dem Vite-Build) |
-| `https://it220234.cloud.htl-leonding.ac.at/api/status` | Backend (`easypilot-backend`, Quarkus) |
+| `https://it220270.cloud.htl-leonding.ac.at/` | Web-Simulator (`easypilot-web`, nginx mit dem Vite-Build) |
+| `https://it220270.cloud.htl-leonding.ac.at/api/status` | Backend (`easypilot-backend`, Quarkus) |
 
 Doku und Präsentationen liegen auf GitHub Pages:
 https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/
@@ -46,7 +46,7 @@ Beide Pakete sind öffentlich (wie das Repository), die LeoCloud lädt sie ohne
 
 | Variable | Wert | Wofür |
 |---|---|---|
-| `LEOCLOUD_HOST` | `it220234.cloud.htl-leonding.ac.at` | Host im Ingress (per `envsubst`) |
+| `LEOCLOUD_HOST` | `it220270.cloud.htl-leonding.ac.at` | Host im Ingress (per `envsubst`) |
 
 `envsubst` gehört zu gettext (`brew install gettext` auf macOS).
 
@@ -56,7 +56,7 @@ Beide Pakete sind öffentlich (wie das Repository), die LeoCloud lädt sie ohne
 # 1. Build & Auslieferung: automatisch durch .github/workflows/images.yml bei Push auf main
 
 # 2. Deploy (lokal, kubectl mit LeoCloud-kubeconfig, Kontext leocloud)
-export LEOCLOUD_HOST=it220234.cloud.htl-leonding.ac.at
+export LEOCLOUD_HOST=it220270.cloud.htl-leonding.ac.at
 kubectl apply -f k8s/backend.yaml -f k8s/web.yaml
 envsubst < k8s/ingress.yaml | kubectl apply -f -
 
@@ -78,8 +78,9 @@ envsubst < k8s/ingress.yaml | kubectl apply --dry-run=server -f -
 
 ## Stand
 
-Vorbereitet, noch **nicht** deployt. Manifeste sind mit `--dry-run=server` gegen die
-LeoCloud geprüft, beide Images lokal gebaut und gestartet.
+**Live seit 14.10.2026** im Namespace `student-it220270` (Davids Namespace; auf `student-it220234`
+hat nur Simon Rechte). `curl -s https://it220270.cloud.htl-leonding.ac.at/api/status` liefert
+`{"name":"easypilot-backend","status":"UP","version":"1.0-SNAPSHOT"}`, unter `/` läuft der Web-Viewer.
 
 ## Bekannte Grenze
 

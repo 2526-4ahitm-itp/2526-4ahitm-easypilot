@@ -11,7 +11,7 @@
 **Goals:**
 - Fly the drone in the browser with gravity, thrust and drag, at a frame-rate independent time step.
 - Rate, Angle and Hover modes with the same feel as the iOS simulator and the Liftoff prototype.
-- Live at `https://it220234.cloud.htl-leonding.ac.at/`.
+- Live at `https://it220270.cloud.htl-leonding.ac.at/`.
 
 **Non-Goals:**
 - Connection to the real drone (no Air Unit).

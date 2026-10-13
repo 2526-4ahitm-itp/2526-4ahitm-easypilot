@@ -28,5 +28,5 @@
 ## 6. Delivery (§12.2, US-08, US-09)
 
 - [ ] 6.1 [GAP] Run the unit tests in the Frontend workflow
-- [ ] 6.2 [GAP] Deploy backend and web to namespace `student-it220234` and check `https://it220234.cloud.htl-leonding.ac.at/api/status`
+- [x] 6.2 [GAP] Deploy backend and web to namespace `student-it220270` and check `https://it220270.cloud.htl-leonding.ac.at/api/status`
 - [ ] 6.3 [SPEC] Update status markers in `web-simulator`, `cloud-deployment`, `ci-testing` and archive this change

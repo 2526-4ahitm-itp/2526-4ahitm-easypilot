@@ -14,8 +14,8 @@ Deployment_Node(gh, "GitHub", "2526-4ahitm-itp") {
   }
 }
 
-Deployment_Node(leo, "LeoCloud", "Kubernetes, Namespace student-it220234") {
-  Deployment_Node(ing, "Ingress nginx", "it220234.cloud.htl-leonding.ac.at") {
+Deployment_Node(leo, "LeoCloud", "Kubernetes, Namespace student-it220270") {
+  Deployment_Node(ing, "Ingress nginx", "it220270.cloud.htl-leonding.ac.at") {
     Container(webpod, "easypilot-web", "nginx, Vite-Build", "/")
     Container(apipod, "easypilot-backend", "Quarkus", "/api")
   }

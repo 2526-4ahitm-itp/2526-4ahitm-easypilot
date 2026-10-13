@@ -50,7 +50,7 @@ The web simulator SHALL show height, speed, attitude, throttle and flight mode o
 
 ### Requirement: Delivered from the LeoCloud
 
-The web simulator SHALL be reachable at `https://it220234.cloud.htl-leonding.ac.at/` without installation and without a local network to the drone (§3.3, §12.2, US-08).
+The web simulator SHALL be reachable at `https://it220270.cloud.htl-leonding.ac.at/` without installation and without a local network to the drone (§3.3, §12.2, US-08).
 
 `status: implemented`
 

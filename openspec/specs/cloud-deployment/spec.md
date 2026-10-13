@@ -21,18 +21,18 @@ On every push to `main` that changes `webinterface/`, GitHub Actions SHALL build
 `status: implemented`
 
 #### Scenario: Apply manifests
-- **WHEN** the manifests are applied with `LEOCLOUD_HOST=it220234.cloud.htl-leonding.ac.at`
+- **WHEN** the manifests are applied with `LEOCLOUD_HOST=it220270.cloud.htl-leonding.ac.at`
 - **THEN** both deployments become ready behind one ingress
 
 ### Requirement: Running production deployment
 
-Backend and web simulator SHALL be deployed and reachable at `https://it220234.cloud.htl-leonding.ac.at/` (§3.3, US-08, US-09).
+Backend and web simulator SHALL be deployed and reachable at `https://it220270.cloud.htl-leonding.ac.at/` (§3.3, US-08, US-09).
 
-`status: not-implemented`
+`status: implemented`
 
 #### Scenario: Status from outside
-- **WHEN** `curl https://it220234.cloud.htl-leonding.ac.at/api/status` is run
-- **THEN** it returns 200 (not deployed yet)
+- **WHEN** `curl https://it220270.cloud.htl-leonding.ac.at/api/status` is run
+- **THEN** it returns 200 with `"status":"UP"` (deployed 2026-10-14 to namespace `student-it220270`)
 
 ### Requirement: Relay stays in the LAN
 

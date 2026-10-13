@@ -5,7 +5,7 @@ weight: 1
 
 Die Anforderungen stehen in [`openspec/specs/`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/specs),
 eine Capability pro Ordner. Jede Requirement trägt einen Status, gegen den Code geprüft am
-13.10.2026. Fachliche Grundlage ist das Pflichtenheft
+13.10.2026, Deployment am 14.10.2026. Fachliche Grundlage ist das Pflichtenheft
 [`spec/fsd.md`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/blob/main/spec/fsd.md).
 
 | Capability | FSD | <span class="status-implemented">umgesetzt</span> | <span class="status-partial">teilweise</span> | <span class="status-not-implemented">offen</span> |
@@ -27,17 +27,16 @@ eine Capability pro Ordner. Jede Requirement trägt einen Status, gegen den Code
 | `web-simulator` | §10.2 | 0 | 1 | 4 |
 | `liftoff-hover` | §11 | 6 | 0 | 0 |
 | `backend-api` | §12.1 | 2 | 0 | 1 |
-| `cloud-deployment` | §12.2 | 3 | 0 | 1 |
+| `cloud-deployment` | §12.2 | 4 | 0 | 0 |
 | `ci-testing` | §13 | 3 | 0 | 2 |
 | `project-documentation` | §14 | 3 | 2 | 0 |
 | `openspec-project-config` | – | 4 | 0 | 0 |
-| **Summe (95 Requirements)** | | **73** | **9** | **13** |
+| **Summe (95 Requirements)** | | **74** | **9** | **12** |
 
 ## Die wichtigsten Lücken
 
 - **Web-Simulator** (Phase 2): Physik, Steuerung, Flugmodi und HUD fehlen →
   [Change `2026-10-13-phase2-web-simulator`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-13-phase2-web-simulator)
-- **Deployment:** Manifeste und Images fertig, aber noch nicht in der LeoCloud ausgerollt
 - **RC-Modus in der App** wird als IDLE angezeigt →
   [Change `2026-10-13-fix-ios-rc-mode`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-13-fix-ios-rc-mode)
 - **Tests** für Firmware und Python-Relay fehlen

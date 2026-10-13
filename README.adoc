@@ -154,7 +154,7 @@ fill in your own values (the real files are gitignored):
 ** Präsentation „Projektstand“: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/slides/projektstand/
 ** Meilensteine: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/releases/
 * Pflichtenheft: `spec/fsd.md`
-* Deployment (LeoCloud, vorbereitet): `k8s/README.md`, Ziel-URL https://it220234.cloud.htl-leonding.ac.at/
+* Deployment (LeoCloud, live seit 14.10.2026): https://it220270.cloud.htl-leonding.ac.at/ und https://it220270.cloud.htl-leonding.ac.at/api/status – Ablauf in `k8s/README.md`
 * Specs & Sprint-Workflow: `openspec/`
 
 == Mitarbeit
