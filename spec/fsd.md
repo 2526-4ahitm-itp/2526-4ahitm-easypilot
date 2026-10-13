@@ -87,7 +87,8 @@ Quad-X mit vier Motoren M1–M4. Jeder Motorbefehl liegt im PWM-Bereich 1000–2
 
 ### 4.3 Akku
 
-4S-LiPo: 16,8 V voll, 14,0 V kritisch. Die Spannung liefert der FC über `MSP_ANALOG`.
+4S-LiPo: 16,8 V voll, 14,0 V kritisch (Warnung in der App). Die Spannung liefert der FC über
+`MSP_ANALOG`. Der Prozentwert verläuft linear von 13,0 V (0 %) bis 16,8 V (100 %).
 
 ## 5. Kommunikation
 

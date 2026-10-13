@@ -36,7 +36,7 @@ Every motor command SHALL be clamped to the PWM range 1000–2000 µs, where 100
 
 ### Requirement: Battery voltage from the FC
 
-The platform SHALL report LiPo voltage measured by the FC via `MSP_ANALOG` and derive a battery percentage between 14.0 V (empty) and 16.8 V (full) for a 4S pack (§4.3).
+The platform SHALL report LiPo voltage measured by the FC via `MSP_ANALOG` and derive a battery percentage linearly between 13.0 V (0 %) and 16.8 V (100 %) for a 4S pack; 14.0 V is the critical warning level (§4.3).
 
 `status: implemented`
 
