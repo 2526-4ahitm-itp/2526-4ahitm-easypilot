@@ -1,91 +1,56 @@
-# OpenSpec for EasyPilot
+# OpenSpec bei EasyPilot
 
-OpenSpec is how the EasyPilot team writes down *what* the system has to do
-before *how* it does it. The benefit during a normal sprint: before you
-touch code, you and your reviewer can disagree about a sentence in a
-spec — much cheaper than disagreeing about a pull request.
+OpenSpec hält fest, *was* EasyPilot können muss, und wie weit das umgesetzt ist.
+Die fachliche Grundlage ist das Pflichtenheft [`spec/fsd.md`](../spec/fsd.md). Specs und
+Changes verweisen darauf mit `§N.M`.
 
-This folder is the source of truth. If something here disagrees with the
-code, fix one of them; do not let the drift sit.
-
-## Layout
+## Aufbau
 
 ```
 openspec/
-├── README.md              ← you are here
-├── specs/                 ← the always-current contract
-│   ├── core/              ← whole-project architecture
-│   ├── hardware/          ← ESP32-C3, FC, ESCs, battery
-│   ├── firmware/          ← ESP32 flight modes & watchdogs
-│   ├── communication/     ← UDP discovery, WebSocket, MSP
-│   ├── dashboard/         ← iOS Dashboard tab
-│   ├── simulator-controller/  ← iOS Simulator tab + joysticks
-│   ├── drone-telemetry/   ← attitude + battery contract
-│   └── guidelines.md      ← team workflow rules
-├── changes/
-│   ├── <YYYY-MM-DD-sprint-NN-name>/   ← active sprint
-│   │   ├── proposal.md
-│   │   ├── tasks.md
-│   │   └── specs/         ← delta specs only — ADD/MODIFY/REMOVE blocks
-│   └── archive/           ← completed sprints, kept for history
-└── templates/
-    ├── sprint-proposal.md
-    └── sprint-tasks.md
+├── config.yaml          Projektkontext und Regeln für alle Artefakte
+├── specs/               aktueller Stand, eine Capability pro Ordner
+│   └── <capability>/spec.md
+└── changes/
+    ├── <datum>-<thema>/     offene Arbeit: proposal, design, tasks, Delta-Specs
+    └── archive/             abgeschlossene Changes (Sprints, Coaching, Baseline)
 ```
 
-## Workflow for a Normal Sprint
+Jede Requirement in `specs/` hat einen Status:
+- `status: implemented`: im Code vorhanden, geprüft
+- `status: partial`: teilweise vorhanden, der Grund steht im Szenario
+- `status: not-implemented`: noch offen
 
-1. **Pick the scope.** Decide which subsystem(s) the sprint touches. Read
-   the relevant spec(s) under `specs/` first. If you cannot find your
-   feature there, it is either a new capability or a missing spec — both
-   are fine, both go in the proposal.
+Alles Offene auf einen Blick:
 
-2. **Open a sprint folder.** Copy `templates/sprint-proposal.md` into
-   `changes/<YYYY-MM-DD-sprint-NN-name>/proposal.md` and fill in the
-   goal + acceptance criteria. Copy `templates/sprint-tasks.md` into
-   `tasks.md` and break the work into checkbox phases.
+```bash
+grep -rn "status: \(partial\|not-implemented\)" openspec/specs
+```
 
-3. **Write the delta specs.** Under
-   `changes/<sprint>/specs/<capability>/spec.md`, only describe what
-   *changes* relative to the live spec. Use the headings:
-   - `## ADDED Requirements` — brand-new requirements
-   - `## MODIFIED Requirements` — existing ones whose behaviour changes
-   - `## REMOVED Requirements` — things being deleted (rare; explain why)
+## Capabilities
 
-4. **Implement.** Code against the proposal. Tick boxes in `tasks.md` as
-   you go. If you have to deviate, update the proposal/spec *before*
-   merging — the spec is a promise, not a wish.
+| Bereich | Specs |
+|---|---|
+| Drohne (Phase 1) | `hardware-platform`, `drone-discovery`, `command-protocol`, `telemetry-stream`, `fc-msp-bridge`, `flight-modes`, `safety-failsafe`, `standalone-web-firmware` |
+| iOS-App | `ios-dashboard`, `ios-algorithms`, `ios-flight-simulator`, `ios-live-control` |
+| Web und Python | `web-viewer`, `telemetry-relay`, `backend-api` |
+| Phase 2 | `web-simulator`, `liftoff-hover` |
+| Plattform und Prozess | `cloud-deployment`, `ci-testing`, `project-documentation`, `openspec-project-config` |
 
-5. **Archive.** When the sprint is done:
-   - Fold the delta specs into the live ones under `specs/`
-   - `git mv changes/<sprint> changes/archive/<sprint>`
-   - Commit with a message that names the sprint
+## Ablauf für eine Änderung
 
-## Authoring Rules of Thumb
+1. **Change anlegen:** `openspec new change <datum>-<thema>` oder den Ordner von Hand anlegen.
+   In `proposal.md` stehen das Warum und das Was, mit Verweisen auf `§N.M`.
+2. **Delta-Specs schreiben:** Unter `changes/<name>/specs/<capability>/spec.md` stehen nur die
+   Unterschiede, als `## ADDED`, `## MODIFIED` oder `## REMOVED Requirements`. Eine geänderte
+   Requirement wird komplett wiederholt, mit dem neuen Status.
+3. **Tasks:** `tasks.md` mit Checkboxen. `[GAP]` heißt: setzt eine noch fehlende FSD-Anforderung
+   um. `[SPEC]` heißt: nur Spec-Arbeit.
+4. **Prüfen:** `openspec validate --all` muss grün sein.
+5. **Archivieren:** Wenn alles umgesetzt ist, `openspec archive <name>`. Die Deltas wandern dann
+   in `specs/`, und der Ordner kommt nach `changes/archive/`.
 
-- **Requirement format.** Each `### Requirement: …` is a single SHALL
-  statement. Long descriptions go after the heading. Every requirement
-  has at least one `#### Scenario:` block with `Given / When / Then`.
-- **Be testable.** If the scenario cannot be reduced to a manual or
-  automated check, rewrite it until it can.
-- **Be terse.** Specs decay if they are tedious to read. Aim for the
-  shortest text that still answers "what does the system promise to do?"
-- **One source of truth.** When the spec moves, the README and `CLAUDE.md`
-  references should move with it. Do not duplicate behavioural rules
-  across multiple docs.
+## Offene Changes
 
-## When *Not* to Open an OpenSpec Change
-
-- Pure bugfixes that restore documented behaviour. Just file the bug,
-  fix the code, link them in the commit.
-- Refactors that do not change the external contract.
-- Doc-only typo fixes.
-
-If in doubt, write the proposal anyway — it takes 10 minutes and saves
-the reviewer 30.
-
-## Cross-References
-
-- Team workflow rules: [`specs/guidelines.md`](specs/guidelines.md)
-- Build & deploy instructions: `CLAUDE.md` at the repo root
-- Active sprint: `changes/2026-06-23-sprint-05-landscape-ui/`
+- `2026-10-13-phase2-web-simulator`: Web-Simulator mit Physik, Steuerung, Flugmodi, HUD und Deployment
+- `2026-10-13-fix-ios-rc-mode`: RC-Modus in der App richtig anzeigen, STOP-Button, typisierte RC-Befehle
