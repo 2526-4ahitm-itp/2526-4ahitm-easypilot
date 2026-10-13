@@ -32,6 +32,7 @@ Hardware zu entwickeln, zu testen und vorzuführen. Dazu gibt es zwei Wege:
 | Datum | Änderung | Grund |
 |---|---|---|
 | 14.09.2026 | Phase 1 „Drohnensteuerung“ → Phase 2 „Drohnensimulation mit Physik-Engine“ | Die DJI O4 Air Unit ist defekt: kein Videobild, keine Steuerung über Brille und Fernbedienung, keine Tests mit der echten Drohne. |
+| *geplant, mit Betreuer:in abzustimmen* | Phase 2 wird konkret: autonomes Rennen durch Torbögen in Liftoff und Zielflug mit Kollisionsvermeidung, vorgeführt am Tag der offenen Tür als Rennen „Schüler:innen gegen Programm“ (§20) | Ein klares, vorführbares Ziel statt eines allgemeinen Simulators; der Liftoff-Hover-Prototyp zeigt, dass die Regelung in Liftoff funktioniert. |
 
 ## 2. Rollen
 
@@ -281,6 +282,22 @@ Akzeptanz: `GET /api/status` antwortet mit 200.
 Meilensteine und Architektur an einer Stelle finden. Akzeptanz: Hugo-Seite mit Präsentation,
 C4-Diagrammen, Sprint-Reviews und Sitzungsprotokollen, verlinkt im README.
 
+**US-11 Autonome Runde.** Als Zuschauer:in will ich sehen, wie das Programm die Drohne in Liftoff
+ohne Mensch durch alle Torbögen fliegt. Akzeptanz: 10 Runden hintereinander ohne verpasstes Tor
+und ohne Absturz, bei voller Geschwindigkeit (§20.2, §20.3).
+
+**US-12 Rennen gegen das Programm.** Als Schüler:in am Tag der offenen Tür will ich mit dem
+Controller gegen das Programm fliegen und meine Zeit in einer Bestenliste sehen. Akzeptanz:
+Zeitmessung automatisch über die Tore, Bestenliste auf dem Bildschirm, Umbau zwischen zwei
+Läufen unter 30 s (§20.5).
+
+**US-13 Zielflug mit Kollisionsvermeidung.** Als Pilot:in will ich eine GPS-Koordinate eingeben,
+und die Drohne fliegt tief über dem Boden ohne Kollision dorthin. Akzeptanz: 10 zufällige Ziele,
+0 Kollisionen, Flughöhe 1–3 m, bei voller Geschwindigkeit (§20.4).
+
+**US-14 Tore sehen.** Als Zuschauer:in will ich am Bildschirm sehen, welche Tore das Programm
+gerade erkennt. Akzeptanz: Live-Overlay mit Rahmen um erkannte Tore (§20.2).
+
 ## 17. Abnahme Phase 2
 
 - Web-Simulator in der LeoCloud erreichbar, Drohne per Tastatur/Gamepad flugfähig (US-08)
@@ -306,3 +323,54 @@ Drohne an den Web-Simulator
 - Termine und Meilensteine für den Rest von Phase 2.
 - Reparatur oder Ersatz der DJI O4 Air Unit.
 - Ob das Backend für den Web-Simulator Daten speichert (z. B. Bestzeiten, Flugaufzeichnungen).
+- Datum des Tags der offenen Tür (bestimmt den Zeitplan in §20.6).
+- Ob der Zielflug mit Kollisionsvermeidung in Liftoff oder im eigenen Web-Simulator läuft (§20.4).
+- Ob in Liftoff eigene Strecken die Tor- und Hindernispositionen lesbar speichern (Spike, §20.2).
+
+## 20. Autonomes Rennen zum Tag der offenen Tür (geplant)
+
+Plan und Tasks: `openspec/changes/2026-10-14-tdot-autonomes-rennen/`.
+
+### 20.1 Ziel
+
+Am Tag der offenen Tür fliegen Schüler:innen in Liftoff mit dem Funk-Controller eine Strecke mit
+Torbögen. Danach fliegt das Programm dieselbe Strecke autonom und so schnell wie möglich.
+Eine Bestenliste zeigt beide Zeiten. Zusätzlich fliegt die Drohne auf Knopfdruck zu einer
+eingegebenen GPS-Koordinate, tief über dem Boden und ohne Kollision.
+
+### 20.2 Torbögen erkennen
+
+- **Streckendatei:** Auf einer eigenen Liftoff-Strecke sind Position, Ausrichtung und Größe jedes
+  Tors bekannt. Das ist der verlässliche Grundweg.
+- **Kamera:** Ein Bilderkennungsmodell findet die Tore im FPV-Bild von Liftoff. Aus Bildposition
+  und bekannter Torgröße wird die Lage relativ zur Drohne geschätzt. Das korrigiert Abweichungen
+  und funktioniert auch auf Strecken ohne Datei.
+- Live-Overlay der erkannten Tore für die Zuschauer:innen.
+
+### 20.3 Schnell durchfliegen
+
+- Ideallinie durch alle Tore in Reihenfolge, mit Geschwindigkeitsprofil an der Schub- und
+  Neigungsgrenze der Liftoff-Drohne.
+- Regler, der der Linie bei voller Geschwindigkeit folgt (volle Lageregelung, nicht nur 25°
+  Neigung wie der Hover-Prototyp).
+- Zeitmessung über das Durchqueren der Torebenen.
+
+### 20.4 Zielflug mit Kollisionsvermeidung
+
+- Eingabe einer GPS-Koordinate. Sie wird über einen festen Referenzpunkt in Simulator-Meter
+  umgerechnet.
+- Flughöhe 1–3 m über Boden, Hindernisse aus einer Hinderniskarte (Streckendatei bzw.
+  Szenengeometrie im eigenen Web-Simulator).
+- Globale Wegplanung auf der Karte, lokale Ausweichreaktion, Neuplanung während des Flugs.
+
+### 20.5 Rennmodus am Tag der offenen Tür
+
+- Ablauf: Schüler:in fliegt → Zeit landet in der Bestenliste → Programm fliegt dieselbe Strecke.
+- Ein Knopf setzt die Drohne zurück (vJoy-Taste auf „Reset“ in Liftoff).
+- Bestenliste und Overlay laufen lokal im Browser auf dem Vorführ-PC.
+- Optional: echtes Kopf-an-Kopf-Rennen über den Liftoff-Mehrspieler mit einem zweiten PC.
+
+### 20.6 Zeitplan
+
+Rückwärts vom Tag der offenen Tür geplant, in Wochen W1–W10 (siehe `tasks.md` im Change).
+Datum vom Team zu ergänzen.

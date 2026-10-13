@@ -39,6 +39,20 @@ Der Web-Simulator soll im Browser aus der LeoCloud laufen, ohne Installation:
 Grundlage ist der bestehende 3D-Viewer in `webinterface/frontend`. Plan und Tasks:
 [Change `2026-10-13-phase2-web-simulator`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-13-phase2-web-simulator).
 
+## Neues Ziel: Rennen am Tag der offenen Tür (geplant)
+
+Phase 2 bekommt ein vorführbares Ziel, das noch mit Betreuer:in abzustimmen ist:
+- **Torbögen-Rennen in Liftoff:** Das Programm erkennt die Tore selbst und fliegt so schnell wie
+  möglich durch.
+- **Gegen Schüler:innen:** Am Tag der offenen Tür fliegen Schüler:innen dieselbe Strecke mit dem
+  Controller, eine Bestenliste zeigt die Zeiten.
+- **Zielflug:** Eine GPS-Koordinate eingeben, die Drohne fliegt 1–3 m über dem Boden ohne
+  Kollision dorthin.
+
+Der Plan steht in Phasen mit Go/No-Go-Punkten in
+[`openspec/changes/2026-10-14-tdot-autonomes-rennen`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-14-tdot-autonomes-rennen),
+das Pflichtenheft in §20.
+
 ## Was aus Phase 1 bleibt
 
 Firmware, iOS-App (inklusive ihres eigenen Simulators) und Relay sind fertig und bleiben Teil des
