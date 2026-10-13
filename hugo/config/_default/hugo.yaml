@@ -1,0 +1,30 @@
+baseURL: ''
+locale: de
+title: EasyPilot
+
+languages:
+  de:
+    label: Deutsch
+    weight: 1
+    contentDir: content/de
+
+enableGitInfo: true
+
+defaultContentLanguage: de
+defaultContentLanguageInSubdir: false
+
+outputs:
+  home: [html, llms]
+  page: [html, markdown]
+  section: [html, markdown]
+
+module:
+  imports:
+    - path: github.com/imfing/hextra
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    noClasses: false

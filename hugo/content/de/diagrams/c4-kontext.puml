@@ -1,0 +1,22 @@
+@startuml c4-kontext
+!include <C4/C4_Context>
+LAYOUT_WITH_LEGEND()
+title EasyPilot – Systemkontext (Stand 13.10.2026)
+
+Person(nutzer, "Nutzer:in", "fliegt die simulierte Drohne im Browser")
+Person(pilot, "Pilot:in", "fliegt mit Funk-Controller oder iPhone")
+
+System(easypilot, "EasyPilot", "Web-Simulator (Phase 2, in Arbeit), Liftoff-Hover-Prototyp, iOS-App, Firmware, Backend")
+
+System_Ext(drohne, "FPV-Drohne", "Nazgul ECO, Betaflight-FC, ESP32-C3; DJI O4 Air Unit defekt")
+System_Ext(liftoff, "Liftoff", "kommerzieller FPV-Simulator mit Physik-Engine")
+System_Ext(leocloud, "LeoCloud", "Kubernetes der HTL Leonding")
+System_Ext(github, "GitHub", "Code, CI, ghcr.io, Pages")
+
+Rel(nutzer, easypilot, "fliegt simuliert", "HTTPS")
+Rel(pilot, easypilot, "steuert, beobachtet")
+Rel(easypilot, drohne, "Befehle, Telemetrie", "WebSocket/UDP im WLAN")
+Rel(easypilot, liftoff, "Sticks über vJoy, Telemetrie", "UDP")
+Rel(easypilot, leocloud, "läuft auf")
+Rel(github, leocloud, "liefert Images", "ghcr.io")
+@enduml

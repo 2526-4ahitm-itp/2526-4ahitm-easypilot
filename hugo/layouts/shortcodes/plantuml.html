@@ -1,0 +1,18 @@
+{{ $content := "" }}
+{{ if .Get "src" }}
+    {{ $src := .Get "src" }}
+    {{ if hasPrefix $src "/" }}
+        {{ $content = readFile (substr $src 1) }}
+    {{ else }}
+        {{ $resource := .Page.Resources.Get (path.Base $src) }}
+        {{ if $resource }}
+            {{ $content = $resource.Content }}
+        {{ end }}
+    {{ end }}
+{{ end }}
+{{ if eq $content "" }}
+    {{ $content = .Inner }}
+{{ end }}
+
+{{ $codeblock := printf "```plantuml\n%s\n```" $content }}
+{{ $codeblock | .Page.RenderString }}

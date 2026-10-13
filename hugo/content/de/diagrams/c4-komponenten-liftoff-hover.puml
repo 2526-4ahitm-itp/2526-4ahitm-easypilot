@@ -1,0 +1,26 @@
+@startuml c4-komponenten-liftoff-hover
+!include <C4/C4_Component>
+LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+title Liftoff-Hover – Komponenten (simulator/liftoff-hover/hover.py)
+
+Person(pilot, "Pilot:in", "Funk-Controller per USB")
+System_Ext(liftoff, "Liftoff", "FPV-Simulator")
+
+Container_Boundary(hover, "hover.py") {
+  Component(input, "Eingabe", "pygame", "liest Achsen und Knöpfe, auch ohne Fokus")
+  Component(cal, "Kalibrierung", "calibrate()", "lernt Achsen, Richtung, Hover-Knopf → config.json")
+  Component(tel, "Telemetry", "Thread, UDP :9001", "Position, Quaternion → Geschwindigkeit, Pitch/Roll/Yaw")
+  Component(ctl, "HoverController", "250 Hz", "Position → Neigung → Rate; Höhe → Steigrate → Gas")
+  Component(mix, "Umschalter", "run()", "manuell / Hover / 0,5 s Überblendung")
+  Component(vjoy, "VJoy", "ctypes → vJoyInterface.dll", "schreibt X/Y/Z/RX")
+}
+
+Rel(pilot, input, "Sticks, Hover-Knopf")
+Rel(input, mix, "normierte Sticks")
+Rel(liftoff, tel, "Telemetrie", "UDP")
+Rel(tel, ctl, "Zustand")
+Rel(ctl, mix, "Autopilot-Sticks")
+Rel(mix, vjoy, "Sticks")
+Rel(vjoy, liftoff, "virtueller Joystick")
+@enduml
