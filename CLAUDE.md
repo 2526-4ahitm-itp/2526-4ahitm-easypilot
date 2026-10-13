@@ -92,7 +92,7 @@ Or use the wrapper: `./deploy.sh [DEVICE_UDID]`
 | `ContentView.swift` | TabView root, owns `WebSocketManager` + `MotionManager`, calls `start()`/`stop()` |
 | `WebSocketManager.swift` | UDP beacon listener → WebSocket client; publishes `telemetry`, `isConnected`, `esp32IP`; `send(_ DroneCommand)` |
 | `DroneCommand.swift` | Every command the app sends, with its exact wire payload |
-| `FlightMode.swift` | Firmware flight modes (`IDLE`/`BALANCE`/`MANUAL`/`SOUND`); unknown strings fall back to `.idle` |
+| `FlightMode.swift` | Firmware flight modes (`IDLE`/`BALANCE`/`MANUAL`/`SOUND`); unknown strings fall back to `.idle` — `RC` is missing and shows as IDLE (change `2026-10-13-fix-ios-rc-mode`) |
 | `SoundMode.swift` | Tilt → PWM math and emergency threshold for Sound Mode |
 | `SimulatorView.swift` | Simulator tab: joysticks, SIM/LIVE toggle; in LIVE sends `START_RC` + `RC` packets at 10 Hz |
 | `DroneSimulator.swift` | On-device flight physics (RATE / BALANCE / POS) |
@@ -135,4 +135,4 @@ One branch per topic (`<type>/<topic>`), Conventional Commits with a German subj
 
 ## OpenSpec
 
-Specs live in `openspec/specs/`, active changes in `openspec/changes/` (currently `2026-10-12-coaching-r1`). Do not commit changes unless the user explicitly asks.
+Requirements document: `spec/fsd.md` (German, sections referenced as `§N.M`). Capability specs live in `openspec/specs/<capability>/spec.md`, one capability per folder, every requirement with `status: implemented | partial | not-implemented` (rules in `openspec/config.yaml`). Active changes: `openspec/changes/2026-10-13-phase2-web-simulator` and `openspec/changes/2026-10-13-fix-ios-rc-mode`. `openspec validate --all` must pass; it runs in the OpenSpec workflow. When a change is done, update the status markers it touches and `openspec archive` it. Do not commit changes unless the user explicitly asks.

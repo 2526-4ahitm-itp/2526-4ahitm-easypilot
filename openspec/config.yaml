@@ -1,20 +1,26 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: C++/Arduino on ESP32-C3 (firmware), Swift/SwiftUI (iOS app), Java 21/Quarkus 3.28 (backend),
+  Python 3.11 (relay, MSP sender, Liftoff hover), React 19 + Vite + three.js (web viewer / web simulator),
+  Kubernetes on the LeoCloud (deployment), GitHub Actions (CI), Hugo + Hextra (docs)
+  Domain: EasyPilot — FPV drone control (phase 1) and drone simulation with a physics engine (phase 2, since 2026-09-14,
+  because the DJI O4 Air Unit is broken)
+  Key domain terms: Drone, Flight Controller (FC, Betaflight), Companion (ESP32-C3), MSP (MultiWii Serial Protocol),
+  Telemetry, Beacon (UDP discovery), Flight mode (IDLE, BALANCE, MANUAL, SOUND, RC), Armed, Hover/POSHOLD,
+  Web simulator, Liftoff hover (prototype autopilot on the Liftoff simulator)
+  Roles: Pilot:in, Nutzer:in (web simulator), Entwickler:in, Betreuer:in
+  Requirements source: spec/fsd.md (Pflichtenheft); reference sections as §N.M
+  Language: docs and commit subjects in German; code identifiers, comments, logs and spec language in English
+  Conventions: Conventional Commits `<type>(<scope>): <German subject>`; one branch + PR per topic;
+  specs use WHEN/THEN scenarios
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Each proposal section must reference the relevant FSD section (§N.M) where applicable
+  specs:
+    - Every requirement must include an implementation status marker: implemented | partial | not-implemented
+    - Each spec file must be scoped to a single capability
+  tasks:
+    - Label tasks with [GAP] when the task implements an FSD requirement not yet in the codebase
+    - Label tasks with [SPEC] when the task is spec-writing only (no code changes)
