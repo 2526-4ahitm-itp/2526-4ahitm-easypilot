@@ -138,10 +138,13 @@ fill in your own values (the real files are gitignored):
 
 == Dokumentation
 
-* Projektseite (GitHub Pages): https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/
-* Projektdokumentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/projektdoku.html (Quelle: `docs/projektdoku.adoc`)
-* Projektpräsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation/slides.html
-* iOS-App-Präsentation: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/presentation-ios/slides.html
+* Doku-Seite (Hugo, GitHub Pages): https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/ – Quelle `hugo/`, lokal mit `cd hugo && hugo server`
+** Dokumentation nach Diátaxis: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/docs/
+** Projekt (Sitzungsprotokolle, Sprint-Reviews, Berichte): https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/project/
+** C4- und weitere Diagramme: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/diagrams/
+** Präsentation „Projektstand“: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/slides/projektstand/
+** Meilensteine: https://2526-4ahitm-itp.github.io/2526-4ahitm-easypilot/releases/
+* Pflichtenheft: `spec/fsd.md`
 * Deployment (LeoCloud, vorbereitet): `k8s/README.md`, Ziel-URL https://it220234.cloud.htl-leonding.ac.at/
 * Specs & Sprint-Workflow: `openspec/`
 
