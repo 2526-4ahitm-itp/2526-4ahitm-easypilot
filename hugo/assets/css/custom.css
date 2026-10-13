@@ -1,0 +1,90 @@
+/* EasyPilot accent: #2266d6 (same blue as the earlier Pages design) */
+:root {
+  --primary-hue: 216deg;
+  --primary-saturation: 73%;
+  --primary-lightness: 49%;
+}
+
+/* Status markers in spec tables */
+.status-implemented { color: #1f9d55; font-weight: 600; }
+.status-partial { color: #c27c0e; font-weight: 600; }
+.status-not-implemented { color: #d64545; font-weight: 600; }
+.content table {
+  display: table;
+  width: 100% !important;
+  min-width: 100%;
+  max-width: none;
+  table-layout: auto;
+  border-collapse: collapse;
+  background: transparent;
+  /* border: 1px solid color-mix(in srgb, currentColor 2%, transparent); */
+  border: none;
+}
+
+.content table th,
+.content table td {
+  border: 1px solid color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.content table thead th {
+  background: color-mix(in srgb, currentColor 2%, transparent);
+}
+
+.content table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+/* Status Page Styles */
+
+/* Footer link */
+.hextra-custom-footer {
+  margin-inline: auto;
+}
+
+.site-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  padding: 2.5rem 0 2rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.site-footer-heading {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.site-footer ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.site-footer a {
+  display: inline-block;
+  padding-block: 0.25rem;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.site-footer a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+@media (max-width: 639px) {
+  .hextra-custom-footer + div {
+    text-align: center;
+  }
+}
+
+@media (min-width: 640px) {
+  .site-footer {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 2rem;
+    padding: 3rem 0 2.5rem;
+    text-align: start;
+  }
+}

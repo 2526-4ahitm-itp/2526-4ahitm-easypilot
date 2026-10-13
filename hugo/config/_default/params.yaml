@@ -1,0 +1,49 @@
+navbar:
+  displayTitle: true
+  displayLogo: true
+  logo:
+    path: favicon.svg
+    dark: favicon.svg
+    width: 28
+    height: 28
+
+imageZoom:
+  enable: true
+
+page:
+  tabs:
+    sync: true
+
+displayUpdatedDate: true
+dateFormat: "02.01.2006"
+displayUpdatedAuthor: true
+
+externalLinkDecoration: true
+
+customCSS:
+  - css/custom.css
+
+footer:
+  enable: true
+  displayCopyright: true
+  displayPoweredBy: false
+  width: normal
+
+archives:
+  section: releases
+  dateFormat: "02.01."
+
+toc:
+  displayTags: true
+
+editURL:
+  enable: true
+  base: "https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/edit/main/hugo/content/"
+
+meta:
+  favicon: true
+  author: "Simon Eder, David Windischbauer"
+  svg: true
+  faviconVersion: 1
+  msColor: "#2266d6"
+  iOSColor: "#2266d6"

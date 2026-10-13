@@ -1,0 +1,77 @@
+main:
+  - identifier: resources
+    name: Entwicklung
+    weight: 10
+  - name: Dokumentation
+    pageRef: /docs
+    parent: resources
+    weight: 11
+  - name: Projekt
+    pageRef: /project
+    parent: resources
+    weight: 12
+  - name: Diagramme
+    pageRef: /diagrams
+    parent: resources
+    weight: 13
+  - name: Präsentationen
+    pageRef: /slides
+    parent: resources
+    weight: 14
+  - name: Meilensteine
+    pageRef: /releases
+    weight: 25
+  - name: Anleitung
+    pageRef: /guide
+    weight: 30
+  - name: Suche
+    weight: 50
+    params:
+      type: search
+  - name: GitHub
+    weight: 60
+    url: "https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot"
+    params:
+      icon: github
+
+footer:
+  - identifier: footerProduct
+    name: Projekt
+    weight: 10
+  - name: Projektstand
+    pageRef: /slides/projektstand
+    parent: footerProduct
+    weight: 11
+  - name: Meilensteine
+    pageRef: /releases
+    parent: footerProduct
+    weight: 12
+  - name: Phase 2
+    pageRef: /docs/explanation/phase-2
+    parent: footerProduct
+    weight: 13
+
+  - identifier: footerGuides
+    name: Anleitungen
+    weight: 20
+  - pageRef: /guide/ios-app
+    parent: footerGuides
+    weight: 21
+  - pageRef: /guide/liftoff-hover
+    parent: footerGuides
+    weight: 22
+  - pageRef: /docs/how-to-guides
+    parent: footerGuides
+    weight: 23
+
+  - identifier: footerMisc
+    name: Sonstiges
+    weight: 30
+  - name: GitHub
+    url: "https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot"
+    parent: footerMisc
+    weight: 31
+  - name: OpenSpec
+    url: "https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec"
+    parent: footerMisc
+    weight: 32
