@@ -1,0 +1,3 @@
+# per-machine calibration, created by `hover.py calibrate`
+config.json
+__pycache__/

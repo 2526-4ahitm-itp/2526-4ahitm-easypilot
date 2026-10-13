@@ -9,6 +9,7 @@ image:https://img.shields.io/badge/three.js-3D-049EF4?style=for-the-badge[three.
 image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/backend.yml/badge.svg[Backend CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/backend.yml]
 image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/ios.yml/badge.svg[iOS CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/ios.yml]
 image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/frontend.yml/badge.svg[Frontend CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/frontend.yml]
+image:https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/simulator.yml/badge.svg[Simulator CI,link=https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/actions/workflows/simulator.yml]
 
 EasyPilot is a drone telemetry and control system built as a school project at
 HTL Leonding (4AHITM). A custom ESP32-C3 board talks to a flight controller over
@@ -46,6 +47,11 @@ React + three.js web viewer round out the stack.
 | Web viewer
 | `webinterface/frontend/`
 | React 19 + three.js 3D model viewer; subscribes to the relay over WebSocket.
+
+| Liftoff hover (phase 2 prototype)
+| `simulator/liftoff-hover/`
+| Python autopilot on top of the Liftoff FPV simulator (vJoy + UDP telemetry):
+  one button brakes the drone and holds position, height and heading.
 |===
 
 == Communication
@@ -124,9 +130,12 @@ cd webinterface/backend && ./mvnw test
 
 # Frontend (Lint + Build)
 cd webinterface/frontend && npm ci && npm run lint && npm run build
+
+# Liftoff-Hover (Regler im geschlossenen Kreis)
+cd simulator/liftoff-hover && python -m unittest -v test_hover.py
 ----
 
-Alle drei laufen automatisch in GitHub Actions (`.github/workflows/`).
+Alle vier laufen automatisch in GitHub Actions (`.github/workflows/`).
 
 == Secrets
 

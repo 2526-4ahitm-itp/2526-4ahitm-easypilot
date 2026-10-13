@@ -1,0 +1,55 @@
+{
+  "controller_name": "",
+  "vjoy_device": 1,
+  "vjoy_dll": "C:\\Program Files\\vJoy\\x64\\vJoyInterface.dll",
+  "telemetry_port": 9001,
+  "loop_hz": 250,
+  "axes": {
+    "throttle": {
+      "index": 2,
+      "low": -1.0,
+      "high": 0.999969482421875
+    },
+    "yaw": {
+      "index": 3,
+      "center": -0.048492431640625,
+      "full": 0.999969482421875
+    },
+    "pitch": {
+      "index": 1,
+      "center": 0.04705810546875,
+      "full": 0.999969482421875
+    },
+    "roll": {
+      "index": 0,
+      "center": -0.048492431640625,
+      "full": 0.999969482421875
+    }
+  },
+  "toggle": {
+    "type": "button",
+    "index": 3,
+    "threshold": 0.5
+  },
+  "flight_mode": "acro",
+  "angle_mode_max_deg": 55.0,
+  "center_rate_dps": 200.0,
+  "attitude_sign": {
+    "pitch": 1,
+    "roll": 1,
+    "yaw": 1
+  },
+  "gains": {
+    "att_p": 6.0,
+    "yaw_p": 3.0,
+    "pos_p": 1.2,
+    "pos_d": 2.2,
+    "alt_p": 1.5,
+    "alt_d": 3.0,
+    "alt_i": 0.1,
+    "max_tilt_deg": 25.0,
+    "max_stick": 0.6
+  },
+  "hover_throttle": 0.28,
+  "blend_out_s": 0.5
+}
