@@ -1,0 +1,18 @@
+name: OpenSpec
+
+on:
+  push:
+    branches: [main]
+    paths: ['openspec/**', 'spec/**', '.github/workflows/openspec.yml']
+  pull_request:
+    paths: ['openspec/**', 'spec/**', '.github/workflows/openspec.yml']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npx --yes @fission-ai/openspec@1.14.1 validate --all --no-interactive
