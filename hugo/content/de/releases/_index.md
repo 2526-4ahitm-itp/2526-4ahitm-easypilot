@@ -13,3 +13,13 @@ weight: 4
 | [M5](./m5-landscape-und-poshold) | Landscape-UI, touch-aware Stabilisierung, POSHOLD – Ende Phase 1 | 23.06.2026 | ✓ |
 | [M6](./m6-hover-prototyp) | Hover-Prototyp in Liftoff (Phase 2) | 28.09.2026 | ✓ |
 | [M7](./m7-web-simulator) | Web-Simulator mit Physik in der LeoCloud | *vom Team festzulegen* | offen |
+| M8 | Autonome Runde durch die Torbögen in Liftoff (50 %) | W3 | geplant |
+| M9 | 10 Runden bei voller Geschwindigkeit, schneller als das Team | W5 | geplant |
+| M10 | Rennmodus mit Bestenliste (Mensch gegen Programm) | W6 | geplant |
+| M11 | Tor-Erkennung per Kamera mit Live-Overlay | W8 | geplant |
+| M12 | GPS-Zielflug, 0 Kollisionen in 1–3 m Höhe | W9 | geplant |
+| TdoT | Rennen gegen Schüler:innen am Tag der offenen Tür | Ende W10, *Datum vom Team zu ergänzen* | geplant |
+
+M8–M12 stammen aus dem Plan
+[`2026-10-14-tdot-autonomes-rennen`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-14-tdot-autonomes-rennen).
+W1 ist die erste Woche nach der Freigabe des Plans.
