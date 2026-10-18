@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Race xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <gameVersion>1.4.0</gameVersion>
+  <localID>
+    <str>58e6df20-7715-47ca-814d-05c57406a454</str>
+    <version>1</version>
+    <type>RACE</type>
+  </localID>
+  <name>01 - Forest For The Trees</name>
+  <description />
+  <dependencies>
+    <dependency>
+      <str>5f303597-2e00-401c-a656-ed44a590e95f</str>
+      <version>1</version>
+      <type>TRACK</type>
+    </dependency>
+  </dependencies>
+  <requiredLaps>3</requiredLaps>
+  <validity>Valid</validity>
+  <spawnPointID>-1</spawnPointID>
+  <checkPointPassages>
+    <RaceCheckpointPassage>
+      <uniqueId>6f083857-17d1-477d-89f7-b71c59849589</uniqueId>
+      <checkPointID>145</checkPointID>
+      <checkPointSubID />
+      <passageType>Start</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>253eca20-6137-424a-bda7-a4af58f4f0e3</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>253eca20-6137-424a-bda7-a4af58f4f0e3</uniqueId>
+      <checkPointID>1</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>d71f24e6-acba-4c6f-b3d5-cc16cf591d46</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>d71f24e6-acba-4c6f-b3d5-cc16cf591d46</uniqueId>
+      <checkPointID>6</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>7d3d4f02-3604-4e8c-a539-8c200b23659d</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>7d3d4f02-3604-4e8c-a539-8c200b23659d</uniqueId>
+      <checkPointID>13</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>63af4d4c-1779-4e07-a081-bd73ef7b0fc1</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>1c3401e7-e19b-4097-b394-af4ff60d6913</uniqueId>
+      <checkPointID>79</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>47d762d2-890c-457e-b41a-6ab28fb12ffa</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>47d762d2-890c-457e-b41a-6ab28fb12ffa</uniqueId>
+      <checkPointID>81</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>2fd623b7-9bcb-4ac3-b71c-544a8e722e42</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>b847b3cb-4556-41d4-9772-098e699eae8e</uniqueId>
+      <checkPointID>106</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>4fb75ed4-80c0-45c8-9ac3-ec5e0f8a7e40</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>4fb75ed4-80c0-45c8-9ac3-ec5e0f8a7e40</uniqueId>
+      <checkPointID>145</checkPointID>
+      <checkPointSubID />
+      <passageType>Finish</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs />
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>63af4d4c-1779-4e07-a081-bd73ef7b0fc1</uniqueId>
+      <checkPointID>147</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>1a311479-8388-4488-8783-38996de29b54</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>1a311479-8388-4488-8783-38996de29b54</uniqueId>
+      <checkPointID>146</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>06a9b99f-8bfb-497a-8279-d21a755c549b</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>06a9b99f-8bfb-497a-8279-d21a755c549b</uniqueId>
+      <checkPointID>149</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>32ae9c51-eaff-4eb6-ac5f-970af78419ef</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>32ae9c51-eaff-4eb6-ac5f-970af78419ef</uniqueId>
+      <checkPointID>150</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>1709054c-1391-4436-a8b6-a3b7e063c903</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>1709054c-1391-4436-a8b6-a3b7e063c903</uniqueId>
+      <checkPointID>151</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>53221293-22b6-4c5d-8d5f-05ff4e1a070f</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>53221293-22b6-4c5d-8d5f-05ff4e1a070f</uniqueId>
+      <checkPointID>153</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>20669005-e0b9-455a-98f4-b7b9bbfeb2d2</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>20669005-e0b9-455a-98f4-b7b9bbfeb2d2</uniqueId>
+      <checkPointID>154</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>b7380564-89a3-4732-83a9-dfd6fbe061bb</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>b7380564-89a3-4732-83a9-dfd6fbe061bb</uniqueId>
+      <checkPointID>160</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>a8444409-49dd-43f9-b9b9-b9871b50afd6</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>a8444409-49dd-43f9-b9b9-b9871b50afd6</uniqueId>
+      <checkPointID>163</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>a985134a-ca09-41fc-9250-29aeee71c99b</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>a985134a-ca09-41fc-9250-29aeee71c99b</uniqueId>
+      <checkPointID>164</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>fba19a7b-2cbc-4457-b5b7-154e863dd24f</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>fba19a7b-2cbc-4457-b5b7-154e863dd24f</uniqueId>
+      <checkPointID>166</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>7570a56f-101b-407d-ab5b-35fee7b8ab6e</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>7570a56f-101b-407d-ab5b-35fee7b8ab6e</uniqueId>
+      <checkPointID>167</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>246cda2f-1a46-482f-9d0a-98e7752a8bc9</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>2fd623b7-9bcb-4ac3-b71c-544a8e722e42</uniqueId>
+      <checkPointID>204</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>fd5fac1f-3ca5-4403-8a6f-9af3cae307f4</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>246cda2f-1a46-482f-9d0a-98e7752a8bc9</uniqueId>
+      <checkPointID>286</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>7f8addd7-a542-40a5-b705-f2d999f0fcd1</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>7f8addd7-a542-40a5-b705-f2d999f0fcd1</uniqueId>
+      <checkPointID>287</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>7b840761-0d31-440c-9c43-4787484fec73</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>7b840761-0d31-440c-9c43-4787484fec73</uniqueId>
+      <checkPointID>288</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>31f8042b-f92e-42f1-ab9d-3a0441edd7eb</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>31f8042b-f92e-42f1-ab9d-3a0441edd7eb</uniqueId>
+      <checkPointID>289</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>1c3401e7-e19b-4097-b394-af4ff60d6913</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>fd5fac1f-3ca5-4403-8a6f-9af3cae307f4</uniqueId>
+      <checkPointID>94</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>58957ca6-f496-40d3-9fdc-018979f51a40</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>58957ca6-f496-40d3-9fdc-018979f51a40</uniqueId>
+      <checkPointID>290</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>8840feab-8091-4db0-b551-65f525d49651</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>8840feab-8091-4db0-b551-65f525d49651</uniqueId>
+      <checkPointID>291</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>009d7dcc-0e14-4b69-9cf0-eaa9476b87ba</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>009d7dcc-0e14-4b69-9cf0-eaa9476b87ba</uniqueId>
+      <checkPointID>292</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>3606303d-f144-41f7-aa69-530342ff0ec8</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>3606303d-f144-41f7-aa69-530342ff0ec8</uniqueId>
+      <checkPointID>293</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>a2005c36-d084-4786-8127-eb39db958476</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>a2005c36-d084-4786-8127-eb39db958476</uniqueId>
+      <checkPointID>294</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>b847b3cb-4556-41d4-9772-098e699eae8e</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+  </checkPointPassages>
+</Race>

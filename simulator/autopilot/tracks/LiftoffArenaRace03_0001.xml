@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Race xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <gameVersion>1.4.0</gameVersion>
+  <localID>
+    <str>ea7c70d7-210c-404c-a500-669e67ba5594</str>
+    <version>1</version>
+    <type>RACE</type>
+  </localID>
+  <name>03 - Grandstand</name>
+  <description />
+  <dependencies>
+    <dependency>
+      <str>e373dd4e-e066-4ec8-962e-86c33c8a0236</str>
+      <version>1</version>
+      <type>TRACK</type>
+    </dependency>
+  </dependencies>
+  <requiredLaps>3</requiredLaps>
+  <validity>Valid</validity>
+  <spawnPointID>163</spawnPointID>
+  <checkPointPassages>
+    <RaceCheckpointPassage>
+      <uniqueId>8eef7a6e-9748-4ea5-b0d8-be7a4f797877</uniqueId>
+      <checkPointID>8</checkPointID>
+      <checkPointSubID />
+      <passageType>Start</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>9bbef909-9757-4669-a3b9-a8eca95d8240</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>5d8d0caf-6fec-44af-835f-54319c19f36b</uniqueId>
+      <checkPointID>8</checkPointID>
+      <checkPointSubID />
+      <passageType>Finish</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs />
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>9bbef909-9757-4669-a3b9-a8eca95d8240</uniqueId>
+      <checkPointID>1</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>3089e871-3ccc-47cb-91e3-cfba193b3696</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>3089e871-3ccc-47cb-91e3-cfba193b3696</uniqueId>
+      <checkPointID>12</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>1a794d2f-a723-4e8a-bd28-7ab4fb93fbea</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>1a794d2f-a723-4e8a-bd28-7ab4fb93fbea</uniqueId>
+      <checkPointID>13</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>1d784a0c-aeaa-4ff4-9df2-8dce9bf75b37</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>abe8f560-4d3b-4721-95f9-2e44a8fcac42</uniqueId>
+      <checkPointID>55</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>fef94fbf-58a3-419c-81c4-9566ba09592c</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>fef94fbf-58a3-419c-81c4-9566ba09592c</uniqueId>
+      <checkPointID>56</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>e0a33d1e-ea2b-4fe9-a710-7256ae0173a5</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>e0a33d1e-ea2b-4fe9-a710-7256ae0173a5</uniqueId>
+      <checkPointID>2</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>RightToLeft</directionality>
+      <nextPassageIDs>
+        <string>5d8d0caf-6fec-44af-835f-54319c19f36b</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+    <RaceCheckpointPassage>
+      <uniqueId>1d784a0c-aeaa-4ff4-9df2-8dce9bf75b37</uniqueId>
+      <checkPointID>376</checkPointID>
+      <checkPointSubID />
+      <passageType>Pass</passageType>
+      <directionality>LeftToRight</directionality>
+      <nextPassageIDs>
+        <string>abe8f560-4d3b-4721-95f9-2e44a8fcac42</string>
+      </nextPassageIDs>
+      <assistForceFlags>None</assistForceFlags>
+    </RaceCheckpointPassage>
+  </checkPointPassages>
+</Race>

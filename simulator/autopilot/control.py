@@ -53,7 +53,8 @@ class Gains:
     pos: float = 4.0            # 1/s^2
     vel: float = 4.5            # 1/s
     disturbance_tau: float = 0.12   # s, low-pass of the disturbance estimate
-    disturbance_max: float = 25.0   # m/s^2
+    disturbance_max: float = 45.0   # m/s^2
+    drag: float = 0.0               # 1/m, quadratic drag a = -drag*|v|*v, measured in Liftoff
     min_vertical_accel: float = 2.0  # never command less than this along +y net of gravity (avoid inversion)
 
 
@@ -113,7 +114,8 @@ class FlightController:
     def accel_command(self, state, a_des, yaw_dir):
         """a_des: desired world acceleration (without gravity). yaw_dir: world direction to face."""
         g = self.gains
-        a_des = sub(a_des, self.disturbance)
+        drag = mul(state.vel, -g.drag * norm(state.vel))
+        a_des = sub(sub(a_des, self.disturbance), drag)
         thrust_vec = add(a_des, (0.0, G, 0.0))
         if thrust_vec[1] < g.min_vertical_accel:
             thrust_vec = (thrust_vec[0], g.min_vertical_accel, thrust_vec[2])
@@ -134,7 +136,7 @@ class FlightController:
         collective = max(0.0, dot(thrust_vec, up))
         throttle = self.thrust.throttle(collective)
         # nominal model acceleration; observe() attributes the rest to the disturbance
-        self._last_cmd_accel = sub(mul(up, self.thrust.accel(throttle)), (0.0, G, 0.0))
+        self._last_cmd_accel = add(sub(mul(up, self.thrust.accel(throttle)), (0.0, G, 0.0)), drag)
 
         # tilt: rotate current up onto desired up
         axis_w = cross(up, b3_des)

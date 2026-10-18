@@ -40,16 +40,17 @@ class Limits:
     lat_accel: float = 30.0     # m/s^2, centripetal
     accel: float = 18.0         # m/s^2 along the path
     brake: float = 22.0         # m/s^2 along the path
+    drag: float = 0.0           # 1/m, quadratic drag: eats acceleration, helps braking
 
     def scaled(self, k):
-        return Limits(self.max_speed * k, self.lat_accel * k, self.accel * k, self.brake * k)
+        return Limits(self.max_speed * k, self.lat_accel * k, self.accel * k, self.brake * k, self.drag)
 
     @staticmethod
-    def from_thrust(max_accel, max_speed=45.0, lateral_share=0.6, longitudinal_share=0.55):
+    def from_thrust(max_accel, max_speed=45.0, lateral_share=0.6, longitudinal_share=0.55, drag=0.0):
         """Limits that leave the controller a reserve: shares of the horizontal thrust at level height."""
         horizontal = (max(0.0, max_accel ** 2 - 9.81 ** 2)) ** 0.5
         return Limits(max_speed, horizontal * lateral_share, horizontal * longitudinal_share,
-                      horizontal * longitudinal_share)
+                      horizontal * longitudinal_share, drag)
 
 
 def hermite(p0, m0, p1, m1, t):
@@ -122,10 +123,13 @@ class RacingLine:
         v[-1] = min(v[-1], lim.max_speed)
         for i in range(1, len(v)):
             ds = self.s[i] - self.s[i - 1]
-            v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * lim.accel * ds))
+            # thrust left for accelerating after drag and climbing
+            climb = 9.81 * max(0.0, self.tangent[i][1])
+            a = max(0.5, lim.accel - lim.drag * v[i - 1] ** 2 - climb)
+            v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * a * ds))
         for i in range(len(v) - 2, -1, -1):
             ds = self.s[i + 1] - self.s[i]
-            v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * lim.brake * ds))
+            v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * (lim.brake + 0.5 * lim.drag * v[i + 1] ** 2) * ds))
         self.speed = v
         self.lap_time_estimate = sum((self.s[i + 1] - self.s[i]) / max(0.5, 0.5 * (v[i] + v[i + 1]))
                                      for i in range(len(v) - 1))
