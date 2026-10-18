@@ -31,6 +31,7 @@ ACTIONS = {
 def main(argv):
     window.focus_liftoff(hard=False)
     joy = VJoy()
+    time.sleep(0.5)  # Liftoff misses input right after the device is acquired
     try:
         for word in argv:
             if word.startswith("click:"):

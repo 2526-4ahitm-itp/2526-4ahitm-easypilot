@@ -46,7 +46,22 @@ class Blueprint:
         return euler_quat(*self.rot)
 
 
-def gate_size(item):
+PIVOT_AT_CENTER = ("CheckpointBox", "CheckpointSphere", "CheckpointCylinder")
+
+
+def gate_size(item, scale=None):
+    """(width, height) of the opening in metres, or None for non-gate items."""
+    if item.startswith("CheckpointBoxFlexible") and scale:
+        return scale[0], scale[1]
+    m = re.match(r"CheckpointBox(\d+)mX(\d+)m", item)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    if item.startswith("MultiGPFloatSquare10x10") or item.startswith("MultiGPChampTrack8x10"):
+        return 3.05, 3.05
+    if item.startswith("MultiGPStandard7x6"):
+        return 2.1, 1.8
+    if item.startswith("InflatableArch"):
+        return 3.0, 2.5
     m = re.search(r"(\d{3})H(\d{3})B", item)
     if m:
         return int(m.group(2)) / 100.0, int(m.group(1)) / 100.0   # width, height
@@ -68,8 +83,9 @@ def load_track(path):
     root = ET.parse(path).getroot()
     bps = []
     for bp in root.iter("TrackBlueprint"):
+        extra = {"scale": _vec(bp, "scale")} if bp.find("scale") is not None else {}
         bps.append(Blueprint(bp.findtext("itemID"), int(bp.findtext("instanceID") or -1), bp.get(XSI, ""),
-                             _vec(bp, "position"), _vec(bp, "rotation")))
+                             _vec(bp, "position"), _vec(bp, "rotation"), extra))
     return {"name": root.findtext("name"), "id": root.findtext("localID/str"),
             "environment": root.findtext("environment"), "blueprints": bps}
 
@@ -97,13 +113,14 @@ def race_gates(race, track):
     gates = []
     for p in race["passages"]:
         b = by_id[p["checkpoint"]]
-        size = gate_size(b.item) or (2.0, 2.0)
+        size = gate_size(b.item, b.extra.get("scale")) or (2.0, 2.0)
         w, h = size
         q = b.quat
         # the passage plane is the gate's local XY plane; local +z is the "left" side
         n = qrot(q, (0.0, 0.0, 1.0 if p["direction"] == "RightToLeft" else -1.0))
         up = qrot(q, (0.0, 1.0, 0.0))
-        c = tuple(b.pos[i] + up[i] * h / 2 for i in range(3))
+        lift = 0.0 if b.item.startswith(PIVOT_AT_CENTER) else h / 2
+        c = tuple(b.pos[i] + up[i] * lift for i in range(3))
         gates.append(Gate(c, n, w, h, f"CP{p['checkpoint']} {b.item}"))
     # `directionality` is not consistent between gates; the passage order is, so orient each
     # gate normal along the course (previous -> next gate)

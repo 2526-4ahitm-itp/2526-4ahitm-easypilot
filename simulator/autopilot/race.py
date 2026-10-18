@@ -29,7 +29,7 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0):
     seq = lap
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
     return RacingLine(seq, start=start, start_dir=start_dir, laps=laps, limits=limits,
-                      aggressiveness=aggressiveness, finish_extra=10.0)
+                      aggressiveness=aggressiveness, finish_extra=4.0)
 
 
 def main(argv):
@@ -41,7 +41,7 @@ def main(argv):
     rates, thrust = load_model()
     gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
     sess = Session(f"race-{name}-{k}")
-    sess.reset_drone(settle=2.0)
+    sess.reset_drone(settle=4.5)   # race mode: wait for the 3-2-1 countdown
     s0 = sess.tel.wait()
     _, _, fwd = body_axes(s0.quat)
     start = (s0.pos[0], s0.pos[1] + 0.3, s0.pos[2])
