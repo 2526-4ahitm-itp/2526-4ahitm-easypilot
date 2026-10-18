@@ -22,7 +22,7 @@ FPV-Bild ── capture.py ──► detector.py (YOLO, 4 Eckpunkte) ──┘  
 | Eine Runde Field Day bei 100 % | 18,7 s, Spitze 35 m/s (126 km/h), alle 17 Tore |
 | Rennen „02 – After Hours“ | eigene Wertung 23/24 Tore; Liftoff wertet noch nicht (MultiGP-Rahmen, Höhe inzwischen vermessen, Nachweis offen) |
 | KI-Torerkennung | YOLOv8n-Pose, 3209 automatisch beschriftete Bilder, Box-mAP50 0,79, Eckpunkte 0,85, 1,1 ms pro Bild; Live-Korrektur gebaut, im Flug noch nicht getestet |
-| GPS-Zielflug | im eigenen Modell: 10 Hinderniskarten, 0 Kollisionen, Höhe 1,3–1,6 m; 3 Ziele lagen in Hindernissen → Ersatzziel daneben ergänzt; in Liftoff noch nicht getestet |
+| GPS-Zielflug | im eigenen Modell: 10 von 10 Zielen erreicht, 0 Kollisionen, Höhe 1,2–1,6 m (Ziele in Hindernissen → nächster erreichbarer Punkt); in Liftoff noch nicht getestet |
 
 ## Einrichten (einmalig)
 

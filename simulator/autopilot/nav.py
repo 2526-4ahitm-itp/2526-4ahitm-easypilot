@@ -110,10 +110,14 @@ class OccupancyGrid:
         return max_range
 
 
-def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=200000):
-    """A* (8-connected) at height fly_y; returns world (x, z) waypoints or None."""
+def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=40000, margin=25.0, closest_within=None):
+    """A* (8-connected) at height fly_y; returns world (x, z) waypoints or None.
+
+    With `closest_within` (m) an unreachable goal is replaced by the reachable cell closest to it,
+    if that cell is not farther away than this.
+    """
     s, g = grid.key(*start), grid.key(*goal)
-    if grid.blocked(g, fly_y, clearance):
+    if closest_within is None and grid.blocked(g, fly_y, clearance):
         return None
     openq = [(0.0, s)]
     came = {s: None}
@@ -130,6 +134,10 @@ def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=200000):
             b = blocked_cache[k] = grid.blocked(k, fly_y, clearance)
         return b
 
+    # search only a corridor around start and goal, the grid itself is unbounded
+    m = int(margin / grid.cell)
+    lo_i, hi_i = min(s[0], g[0]) - m, max(s[0], g[0]) + m
+    lo_j, hi_j = min(s[1], g[1]) - m, max(s[1], g[1]) + m
     n = 0
     while openq and n < max_nodes:
         _, cur = heapq.heappop(openq)
@@ -138,7 +146,7 @@ def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=200000):
             break
         for di, dj, c in moves:
             nxt = (cur[0] + di, cur[1] + dj)
-            if blocked(nxt):
+            if not (lo_i <= nxt[0] <= hi_i and lo_j <= nxt[1] <= hi_j) or blocked(nxt):
                 continue
             if di and dj and (blocked((cur[0] + di, cur[1])) or blocked((cur[0], cur[1] + dj))):
                 continue
@@ -148,10 +156,16 @@ def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=200000):
                 came[nxt] = cur
                 h = math.hypot(g[0] - nxt[0], g[1] - nxt[1])
                 heapq.heappush(openq, (nc + h, nxt))
+    end = g
     if g not in came:
-        return None
+        if closest_within is None or len(came) < 2:
+            return None
+        end = min(came, key=lambda k: (k[0] - g[0]) ** 2 + (k[1] - g[1]) ** 2)
+        if math.hypot(end[0] - g[0], end[1] - g[1]) * grid.cell > closest_within:
+            return None
+        goal = grid.center(end)
     cells = []
-    k = g
+    k = end
     while k is not None:
         cells.append(k)
         k = came[k]
@@ -208,6 +222,7 @@ class Navigator:
         self.seg = 0
         self.status = "PLAN"
         self.debug = {}
+        self.calls_without_path = 0
 
     def fly_y(self, x, z):
         return self.grid.ground_at(self.grid.key(x, z)) + self.limits.altitude
@@ -230,12 +245,23 @@ class Navigator:
 
     def replan(self, pos):
         y = self.fly_y(pos[0], pos[2])
+        self.grid_version = self.grid.version
         target = self.nearest_free(self.requested_goal, y)
         if target is None:
             self.path, self.status = None, "NO_PATH"
             return
         self.goal_xz = target
-        self.path = plan_path(self.grid, (pos[0], pos[2]), self.goal_xz, y, self.limits.clearance)
+        start = (pos[0], pos[2])
+        self.path = plan_path(self.grid, start, self.goal_xz, y, self.limits.clearance)
+        if self.path is None:
+            # e.g. the drone already stands closer to an obstacle than the margin: squeeze out slowly
+            self.path = plan_path(self.grid, start, self.goal_xz, y, self.limits.clearance * 0.7)
+        if self.path is None:
+            # goal enclosed (inside an obstacle whose walls we have seen): closest reachable point
+            self.path = plan_path(self.grid, start, self.requested_goal, y, self.limits.clearance,
+                                  closest_within=15.0)
+            if self.path:
+                self.goal_xz = self.path[-1]
         self.grid_version = self.grid.version
         self.seg = 0
         self.status = "FLY" if self.path else "NO_PATH"
@@ -243,7 +269,12 @@ class Navigator:
     def reference(self, pos, vel):
         """Desired position/velocity/acceleration and look direction for the FlightController."""
         lim = self.limits
-        if self.path is None or self.grid.version != self.grid_version:
+        # plan only when the map changed: without a path, retrying on the same map is useless
+        # (and an exhaustive A* every control step would stall the loop)
+        if self.path is None:
+            self.calls_without_path += 1
+        retry = self.path is None and self.calls_without_path % 125 == 0     # ~every 0.5 s at 250 Hz
+        if self.grid.version != self.grid_version or retry:
             if self.path is None or not self._path_still_free(pos):
                 self.replan(pos)
             else:

@@ -74,7 +74,7 @@ Aufteilung (Vorschlag, vom Team zu bestätigen): **A** = Regelung, Planung, Lift
 - [~] 5.2 [GAP] Hinderniskarte aus Streckendatei (bzw. Web-Simulator-Szene) → 3D-Belegungsgitter mit Sicherheitsrand. → Belegungsgitter aus Sensorpunkten; Hindernisse aus der Strecken-XML noch nicht eingelesen
 - [x] 5.3 [GAP] A*-Planung mit Höhenband 1–3 m, Glättung zu fliegbarer Bahn. → A* + Glättung (2,5D, Höhenband über Boden)
 - [x] 5.4 [GAP] Lokales Ausweichen: Abstandsstrahlen gegen die Karte, Bremsweg-Regel, Neuplanung. → Bremsweg-Regel, Neuplanung bei neuen Hindernissen
-- [~] 5.5 [GAP] Testreihe: 10 zufällige Ziele bei steigender Geschwindigkeit; Kollisionen, minimaler Abstand, Flugzeit. → im eigenen Modell 10 Karten ohne Kollision; in Liftoff offen
+- [~] 5.5 [GAP] Testreihe: 10 zufällige Ziele bei steigender Geschwindigkeit; Kollisionen, minimaler Abstand, Flugzeit. → im eigenen Modell 10/10 Ziele, 0 Kollisionen, 1,2–1,6 m; in Liftoff offen
 - **M12:** 10 Ziele, 0 Kollisionen, Höhe immer 1–3 m.
 
 ## 6. Generalprobe und Doku (W10)
