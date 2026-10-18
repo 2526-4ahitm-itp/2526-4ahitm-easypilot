@@ -1,9 +1,9 @@
-"""Drive Liftoff's menus through vJoy buttons or mouse clicks.
+﻿"""Drive Liftoff's menus through vJoy buttons or mouse clicks.
 
   python -m autopilot.menu down down right ok back reset pause exit wait
   python -m autopilot.menu click:491,64      (coordinates in a 1456x819 screenshot frame)
 
-Liftoff ignores all input until Unity got a real window activation, see window.focus_liftoff().
+Liftoff ignores all input until Unity got a real window activation, see window.focus_liftoff(hard=False).
 """
 import sys
 import time
@@ -29,7 +29,7 @@ ACTIONS = {
 
 
 def main(argv):
-    window.focus_liftoff()
+    window.focus_liftoff(hard=False)
     joy = VJoy()
     try:
         for word in argv:
@@ -41,7 +41,7 @@ def main(argv):
             name, _, count = word.partition("*")
             for _ in range(int(count or 1)):
                 ACTIONS[name](joy)
-                time.sleep(0.35)
+                time.sleep(0.7)
     finally:
         joy.close()
 

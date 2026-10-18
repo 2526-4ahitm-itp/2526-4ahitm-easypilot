@@ -49,7 +49,7 @@ class ThrustModel:
 class Gains:
     tilt: float = 14.0          # 1/s, tilt error -> body rate
     yaw: float = 4.0            # 1/s
-    max_rate_dps: float = 900.0
+    max_rate_dps: float = 560.0
     pos: float = 4.0            # 1/s^2
     vel: float = 4.5            # 1/s
     disturbance_tau: float = 0.12   # s, low-pass of the disturbance estimate

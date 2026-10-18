@@ -1,0 +1,8 @@
+{
+  "drone": "Armattan Mongoose (official blueprint), Liftoff 1.7.6",
+  "measured": "2026-10-18 sysid + calib_cam",
+  "hover_throttle": 0.281,
+  "thrust_exponent": 2.0,
+  "rates": {"rc_rate": 0.87, "expo": 0.0, "super_rate": 0.71},
+  "camera": {"hfov_deg": 125.0, "tilt_deg": 42.0}
+}

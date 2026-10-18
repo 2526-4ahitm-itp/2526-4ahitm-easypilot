@@ -5,7 +5,7 @@
 1. take off and hover with the hover estimate -> hover throttle
 2. throttle steps while level -> thrust curve accel = k * throttle^p
 3. rate steps on roll/pitch/yaw -> check the Betaflight curve against the gyro
-Results go to autopilot/drone.local.json and are used by every other mode.
+Results go to autopilot/drone.json and are used by every other mode.
 """
 import json
 import math
@@ -15,19 +15,33 @@ from pathlib import Path
 from .control import FlightController, Gains, ThrustModel
 from .geometry import body_axes, sub
 from .liftoff import Session, state_row
-from .rates import load_drone
+from .rates import AxisRate, Rates, load_drone
 
-OUT = Path(__file__).resolve().parent / "drone.local.json"
+OUT = Path(__file__).resolve().parent / "drone.json"
 G = 9.81
 
 
 def load_model():
+    """Rates and thrust model of the flown drone: measured values win over the .drone file."""
     rates = load_drone()
     thrust = ThrustModel()
     if OUT.exists():
         d = json.loads(OUT.read_text())
         thrust = ThrustModel(d["hover_throttle"], d.get("thrust_exponent", 1.0))
+        if "rates" in d:
+            r = d["rates"]
+            axis = AxisRate(r["rc_rate"], r["expo"], r["super_rate"])
+            rates = Rates(axis, axis, axis, d.get("camera", {}).get("tilt_deg", rates.camera_angle_deg), d["drone"])
     return rates, thrust
+
+
+def load_camera(width=960):
+    from .camera import Camera
+    cam = Camera()
+    if OUT.exists():
+        c = json.loads(OUT.read_text()).get("camera", {})
+        cam = Camera(960, 531, c.get("hfov_deg", 125.0), c.get("tilt_deg", 30.0))
+    return cam.scaled(width)
 
 
 def main():
@@ -114,7 +128,7 @@ def main():
                                  for ax in ("pitch", "roll", "yaw") for v in (0.3, 0.6, -0.3)}
     print(json.dumps(results, indent=2))
     if "hover_throttle" in results:
-        OUT.write_text(json.dumps(results, indent=2))
+        OUT.with_name("sysid-result.local.json").write_text(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":

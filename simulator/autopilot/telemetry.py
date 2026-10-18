@@ -4,6 +4,7 @@ Liftoff sends one little-endian float32 packet per physics step (~500 Hz) with t
 fields listed in TelemetryConfiguration.json, in that order. World frame is Unity:
 x right, y up, z forward (left-handed), attitude is a quaternion (x, y, z, w).
 """
+import collections
 import json
 import math
 import socket
@@ -61,6 +62,7 @@ class Telemetry(threading.Thread):
         self.resets = 0
         self._prev = None
         self._fd_vel = (0.0, 0.0, 0.0)
+        self.history = collections.deque(maxlen=400)  # (received, State) for matching camera frames
         self.running = True
 
     def decode(self, data, now):
@@ -105,6 +107,7 @@ class Telemetry(threading.Thread):
                     self.resets += 1  # respawn / reset in Liftoff
                 self.state = s
                 self.packets += 1
+                self.history.append(s)
             if self.on_state:
                 self.on_state(s)
 
@@ -114,6 +117,14 @@ class Telemetry(threading.Thread):
         if s is None or time.perf_counter() - s.received > max_age:
             return None
         return s
+
+    def at(self, stamp):
+        """State received closest to perf_counter time `stamp` (pose of a camera frame)."""
+        with self.lock:
+            hist = list(self.history)
+        if not hist:
+            return None
+        return min(hist, key=lambda s: abs(s.received - stamp))
 
     def wait(self, timeout=10.0):
         end = time.perf_counter() + timeout
