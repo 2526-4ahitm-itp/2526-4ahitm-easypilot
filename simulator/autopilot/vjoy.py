@@ -54,6 +54,11 @@ class VJoy:
         self.axis(PITCH, pitch)
         self.axis(THROTTLE, throttle01 * 2.0 - 1.0)
         self.axis(YAW, yaw)
+        self.flush()
+
+    def flush(self):
+        """The last SetAxis only reaches Windows with the next report, so write an unused axis."""
+        self.axis(7, 0.0)
 
     def idle(self):
         """Throttle off, sticks and menu axes centred, no buttons."""
@@ -65,13 +70,17 @@ class VJoy:
 
     def tap(self, b, hold=0.12):
         self.button(b, True)
+        self.flush()
         time.sleep(hold)
         self.button(b, False)
+        self.flush()
 
     def nudge(self, axis_index, direction, hold=0.15):
         self.axis(axis_index, direction)
+        self.flush()
         time.sleep(hold)
         self.axis(axis_index, 0.0)
+        self.flush()
 
     def close(self):
         self.idle()
