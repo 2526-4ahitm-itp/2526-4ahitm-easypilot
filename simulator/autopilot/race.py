@@ -45,7 +45,7 @@ def main(argv):
     s0 = sess.tel.wait()
     _, _, fwd = body_axes(s0.quat)
     start = (s0.pos[0], s0.pos[1] + 0.3, s0.pos[2])
-    line = build_line(gates, start, unit((fwd[0], 0.25, fwd[2])), laps, k)
+    line = build_line(gates, start, unit((fwd[0], 0.03, fwd[2])), laps, k)
     racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
     print(f"{race['name']}: {len(gates)} gates x {laps} laps, line {line.length:.0f} m, "
           f"planned {line.lap_time_estimate:.2f} s, v_max {max(line.speed):.1f} m/s")

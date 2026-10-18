@@ -33,14 +33,19 @@ ESP32 → alle verbundenen WebSocket-Clients, alle 100 ms (10 Hz).
 
 ## Liftoff-Telemetrie (Phase 2)
 
-Liftoff sendet per UDP an `127.0.0.1:9001` 15 Little-Endian-Floats:
+Liftoff sendet per UDP an `127.0.0.1:9001` Little-Endian-Floats in der Reihenfolge von
+`TelemetryConfiguration.json`. Unsere Konfiguration (seit 18.10.2026) hat 18 Floats:
 
 | Index | Inhalt |
 |---|---|
 | 0 | Timestamp (s) |
 | 1–3 | Position x, y (Höhe), z in m, Unity-Koordinaten |
 | 4–7 | Lage als Quaternion x, y, z, w |
-| 8–10 | Gyro (Pitch, Roll, Yaw) |
+| 8–10 | Gyro (Pitch, Roll, Yaw) in °/s |
 | 11–14 | Input (Gas, Yaw, Pitch, Roll) |
+| 15–17 | Geschwindigkeit x, y, z in m/s |
 
-Spec: `telemetry-stream`, `liftoff-hover`.
+`liftoff-hover` liest nur die ersten 15 Floats, der Autopilot liest das Format aus der
+Konfigurationsdatei. Mit VSync aus kommen die Pakete gleichmäßig mit 100 Hz.
+
+Spec: `telemetry-stream`, `liftoff-hover`, `gate-racing`.

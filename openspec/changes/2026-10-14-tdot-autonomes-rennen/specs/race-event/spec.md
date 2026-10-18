@@ -24,7 +24,7 @@ The race mode SHALL show a leaderboard on a second screen with nickname, lap tim
 
 The race mode SHALL reset the drone through a vJoy button mapped to Liftoff's reset, so that one run can follow the next within 30 s (§20.5).
 
-`status: not-implemented`
+`status: implemented`
 
 #### Scenario: Crash during a run
 - **WHEN** a visitor crashes

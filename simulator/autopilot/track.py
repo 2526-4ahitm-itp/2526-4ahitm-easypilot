@@ -1,4 +1,4 @@
-"""Liftoff track and race definitions (XML inside the game's Addressables bundles).
+﻿"""Liftoff track and race definitions (XML inside the game's Addressables bundles).
 
   python -m autopilot.track extract          # dump all official race/track XMLs to tracks/
   python -m autopilot.track show StrawBaleRace01
@@ -47,6 +47,16 @@ class Blueprint:
 
 
 PIVOT_AT_CENTER = ("CheckpointBox", "CheckpointSphere", "CheckpointCylinder")
+# opening centre above the item pivot where it is not simply half the height, measured by
+# projecting candidate heights into recorded FPV frames (calib in dataset/raw/*/fit*.jpg)
+CENTER_LIFT = {"MultiGPFloatSquare10x10Frame01": 4.05, "MultiGPFloatSquare10x10Frame02": 6.45}
+
+
+def center_lift(item, h):
+    for prefix, lift in CENTER_LIFT.items():
+        if item.startswith(prefix):
+            return lift
+    return 0.0 if item.startswith(PIVOT_AT_CENTER) else h / 2
 
 
 def gate_size(item, scale=None):
@@ -56,7 +66,9 @@ def gate_size(item, scale=None):
     m = re.match(r"CheckpointBox(\d+)mX(\d+)m", item)
     if m:
         return float(m.group(1)), float(m.group(2))
-    if item.startswith("MultiGPFloatSquare10x10") or item.startswith("MultiGPChampTrack8x10"):
+    if item.startswith("MultiGPFloatSquare10x10"):
+        return 2.6, 2.3
+    if item.startswith("MultiGPChampTrack8x10"):
         return 3.05, 3.05
     if item.startswith("MultiGPStandard7x6"):
         return 2.1, 1.8
@@ -119,7 +131,7 @@ def race_gates(race, track):
         # the passage plane is the gate's local XY plane; local +z is the "left" side
         n = qrot(q, (0.0, 0.0, 1.0 if p["direction"] == "RightToLeft" else -1.0))
         up = qrot(q, (0.0, 1.0, 0.0))
-        lift = 0.0 if b.item.startswith(PIVOT_AT_CENTER) else h / 2
+        lift = center_lift(b.item, h)
         c = tuple(b.pos[i] + up[i] * lift for i in range(3))
         gates.append(Gate(c, n, w, h, f"CP{p['checkpoint']} {b.item}"))
     # `directionality` is not consistent between gates; the passage order is, so orient each

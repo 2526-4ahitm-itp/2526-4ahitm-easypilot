@@ -12,6 +12,7 @@ Hintergrund und Entscheidungen: warum EasyPilot so aufgebaut ist, wie es ist.
   {{< card link="flugmodi-und-sicherheit" title="Flugmodi & Sicherheit" subtitle="IDLE bis RC, Watchdogs" >}}
   {{< card link="ios-app" title="iOS-App" subtitle="Dashboard, Algorithms, Simulator, LIVE" >}}
   {{< card link="hover-regler" title="Hover-Regler" subtitle="Wie der Liftoff-Autopilot schwebt" >}}
+  {{< card link="autonomes-rennen" title="Autonomes Rennen" subtitle="Torposen, Rennlinie, Renn-Regler, KI-Torerkennung" >}}
   {{< card link="standalone-firmware" title="Standalone-Firmware" subtitle="Web-Dashboard direkt auf dem ESP32" >}}
   {{< card link="ci-cd" title="CI/CD" subtitle="Tests und Builds in GitHub Actions" >}}
   {{< card link="deployment" title="Deployment" subtitle="LeoCloud, ghcr.io, GitHub Pages" >}}

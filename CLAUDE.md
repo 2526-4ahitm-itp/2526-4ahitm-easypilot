@@ -24,6 +24,12 @@ ESP32 (WiFi)
   └── WebSocket server on port 81  ←→  iOS sends commands / receives telemetry JSON at 10Hz
 ```
 
+**Liftoff autopilot** (`simulator/autopilot/`, Python 3.11, Windows): flies official Liftoff races autonomously
+(gate poses from the game's track XMLs, racing line, full-speed controller, YOLO gate detection) and plans
+low-altitude GPS waypoint flights. Change `2026-10-14-tdot-autonomes-rennen`, FSD §20, README in the folder.
+Tests: `cd simulator && python -m unittest discover -s autopilot/tests -t .` (pure Python, run in CI).
+Never commit extracted game data (`autopilot/tracks/`) or `runs/`/`models/`.
+
 `webinterface/` holds the Quarkus backend (`GET /api/status`), the Python relay (WebSocket → UDP broadcast, LAN only) and the React + three.js frontend that Phase 2 builds on.
 
 ## Deploy iOS App
@@ -135,4 +141,4 @@ One branch per topic (`<type>/<topic>`), Conventional Commits with a German subj
 
 ## OpenSpec
 
-Requirements document: `spec/fsd.md` (German, sections referenced as `§N.M`). Capability specs live in `openspec/specs/<capability>/spec.md`, one capability per folder, every requirement with `status: implemented | partial | not-implemented` (rules in `openspec/config.yaml`). Active changes: `openspec/changes/2026-10-13-phase2-web-simulator` and `openspec/changes/2026-10-13-fix-ios-rc-mode`. `openspec validate --all` must pass; it runs in the OpenSpec workflow. When a change is done, update the status markers it touches and `openspec archive` it. Do not commit changes unless the user explicitly asks.
+Requirements document: `spec/fsd.md` (German, sections referenced as `§N.M`). Capability specs live in `openspec/specs/<capability>/spec.md`, one capability per folder, every requirement with `status: implemented | partial | not-implemented` (rules in `openspec/config.yaml`). Active changes: `openspec/changes/2026-10-13-phase2-web-simulator`, `openspec/changes/2026-10-13-fix-ios-rc-mode` and `openspec/changes/2026-10-14-tdot-autonomes-rennen`. `openspec validate --all` must pass; it runs in the OpenSpec workflow. When a change is done, update the status markers it touches and `openspec archive` it. Do not commit changes unless the user explicitly asks.
