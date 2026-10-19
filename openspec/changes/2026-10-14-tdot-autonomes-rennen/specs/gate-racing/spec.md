@@ -18,7 +18,7 @@ The autopilot SHALL read gate centre, normal, width and height for every gate of
 
 The autopilot SHALL detect gates in the captured Liftoff FPV image, estimate each gate's pose from its four inner corners and the known gate size, and fuse it with the track file (§20.2, US-14).
 
-`status: partial`
+`status: implemented`
 
 #### Scenario: Gate moved
 - **WHEN** a gate is placed 1 m away from its position in the track file

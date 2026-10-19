@@ -54,6 +54,15 @@ Die Werte in `autopilot/drone.json` eintragen (für die Mongoose sind sie schon 
 
 Ergebnis: Ausgabe im Terminal, Log unter `autopilot/runs/`, offizielle Zeit im Liftoff-Zielbildschirm.
 
+Mit Kamera-Korrektur und Overlay für Zuschauer:innen (Overlay-Fenster erscheint rechts neben
+Liftoff, auf einem zweiten Bildschirm ideal):
+
+```bash
+python -m autopilot.race StrawBaleRace02 0.8 3 --vision
+python -m autopilot.verify StrawBaleRace02 3 autopilot/runs/<log>.csv   # gegen echte Tore prüfen
+python -m autopilot.ui restart                                           # nächster Lauf
+```
+
 ## 4. Torerkennung trainieren (optional)
 
 ```bash

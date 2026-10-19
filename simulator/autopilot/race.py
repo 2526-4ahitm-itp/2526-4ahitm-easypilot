@@ -64,7 +64,7 @@ class VisionAssist(threading.Thread):
     def __init__(self, sess, gates, laps, k, start, start_dir, racer, overlay=True):
         super().__init__(daemon=True)
         from .capture import FrameStream
-        self.sess, self.laps, self.k, self.start, self.start_dir = sess, laps, k, start, start_dir
+        self.sess, self.laps, self.k, self.line_start, self.start_dir = sess, laps, k, start, start_dir
         self.racer, self.overlay = racer, overlay
         self.frames = FrameStream(640, fps=60)
         self.gates = gates
@@ -94,7 +94,8 @@ class VisionAssist(threading.Thread):
         h, w = self.frames.latest()[1].shape[:2]
         c = load_camera()
         cam = Camera(w, h, c.hfov_deg, c.tilt_deg)
-        self.gate_map = GateMap(self.gates)
+        # start/finish gate: the drone launches through it before the camera sees it properly
+        self.gate_map = GateMap(self.gates, fixed={0, len(self.gates) - 1})
         if self.overlay:
             cv2.namedWindow(self.TITLE, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(self.TITLE, 960, 540)
@@ -102,6 +103,9 @@ class VisionAssist(threading.Thread):
             cv2.waitKey(1)
         self.window_ready.set()
         last_stamp, planned_version, last_plan, n, t0 = 0.0, 0, 0.0, 0, time.perf_counter()
+        last_saved = 0.0
+        self.overlay_dir = RUNS / f"overlay-{time.strftime('%Y%m%d-%H%M%S')}"
+        self.overlay_dir.mkdir(parents=True, exist_ok=True)
         while self.running:
             stamp, img = self.frames.latest()
             if stamp == last_stamp:
@@ -113,9 +117,9 @@ class VisionAssist(threading.Thread):
             if s is not None and max(abs(v) for v in s.pos) > 1e-3:
                 self.gate_map.update(cam, s.quat, s.pos, dets)
             now = time.perf_counter()
-            if self.gate_map.version != planned_version and now - last_plan > 0.5:
+            if self.gate_map.version != planned_version and now - last_plan > 0.15:
                 planned_version, last_plan = self.gate_map.version, now
-                line = build_line(self.gate_map.all_corrected(), self.start, self.start_dir, self.laps, self.k)
+                line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k)
                 self.racer.swap_line(line)
                 self.replans += 1
             n += 1
@@ -123,8 +127,12 @@ class VisionAssist(threading.Thread):
                 self.fps, n, t0 = n / (now - t0), 0, now
             if self.overlay:
                 info = f"Tore erkannt: {len(dets)}  |  {self.fps:4.1f} fps  |  Neuplanungen: {self.replans}"
-                cv2.imshow(self.TITLE, draw_overlay(img, dets, s, cam, self.gate_map, info))
+                shown = draw_overlay(img, dets, s, cam, self.gate_map, info)
+                cv2.imshow(self.TITLE, shown)
                 cv2.waitKey(1)
+                if dets and now - last_saved > 1.0:       # a few frames for the report
+                    last_saved = now
+                    cv2.imwrite(str(self.overlay_dir / f"{len(list(self.overlay_dir.glob('*.jpg'))):03d}.jpg"), shown)
         self.frames.close()
         if self.overlay:
             cv2.destroyAllWindows()
@@ -199,7 +207,8 @@ def main(argv):
     if assist:
         gm = assist.gate_map
         result["vision"] = {"error": assist.error, "replans": assist.replans, "fps": round(assist.fps, 1),
-                            "gates_corrected": len(gm.offsets) if gm else 0}
+                            "gates_corrected": {g.name.split()[0]: [round(v, 2) for v in gm.offsets[i]]
+                                                for i, g in enumerate(gm.gates) if i in gm.offsets} if gm else {}}
         if gm and perturb:
             res = {}
             for i, g in enumerate(gm.gates):

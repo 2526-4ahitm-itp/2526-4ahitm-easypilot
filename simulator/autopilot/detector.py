@@ -1,4 +1,4 @@
-"""Live gate detection (YOLO pose, 4 opening corners) and camera-based correction of the gate map.
+﻿"""Live gate detection (YOLO pose, 4 opening corners) and camera-based correction of the gate map.
 
 The track file gives every gate approximately; for some item types the opening is not
 where the pivot suggests (MultiGP frames on poles, inflatables). Each detection is
@@ -88,11 +88,23 @@ def solve_gate_center(cam: Camera, quat, pos, det: Detection, gate: Gate):
 
 @dataclass
 class GateMap:
-    """Map gates plus camera-based corrections (one offset per gate)."""
+    """Map gates plus camera-based corrections (one offset per gate).
+
+    Single PnP solutions are noisy (a few dm at 10 m), so a gate is only corrected when the
+    evidence is consistent: median of the last measurements, enough of them, small spread, and
+    larger than a dead band. Correctly mapped gates therefore stay untouched.
+    """
     gates: list
-    max_correction: float = 6.0
-    alpha: float = 0.25
+    max_correction: float = 2.5     # m, larger differences are a wrong association, not a map error
+    min_hits: int = 8
+    dead_band: float = 0.6          # m, smaller offsets are noise (arch corners are only virtual) and passable
+    max_spread: float = 0.6         # m, median absolute deviation allowed
+    min_dist: float = 4.0           # m, closer the gate is cut off by the image border
+    max_dist: float = 25.0          # m, farther the corners are too small
+    commit_dist: float = 12.0       # m, closer than this the line is frozen (no sideways jump at speed)
+    fixed: set = field(default_factory=set)     # indices never corrected (e.g. the start gate)
     offsets: dict = field(default_factory=dict)
+    samples: dict = field(default_factory=dict)
     hits: dict = field(default_factory=dict)
     version: int = 0
 
@@ -120,26 +132,71 @@ class GateMap:
                 best, best_d = i, d
         return best
 
-    def update(self, cam, quat, pos, detections):
-        changed = []
-        for det in detections:
-            i = self.associate(cam, quat, pos, det)
-            if i is None:
+    def _estimate(self, i):
+        xs = self.samples[i]
+        if len(xs) < self.min_hits:
+            return None
+        med = tuple(sorted(x[k] for x in xs)[len(xs) // 2] for k in range(3))
+        mad = sorted(math.dist(x, med) for x in xs)[len(xs) // 2]
+        if mad > self.max_spread:
+            return None
+        return med
+
+    def candidates(self, cam, quat, pos, det, max_px=None):
+        """Map gates whose projected (corrected) centre lies near the detection in the image."""
+        u, v = det.center
+        limit = max_px or 0.25 * cam.width
+        out = []
+        for i in range(len(self.gates)):
+            g = self.corrected(i)
+            if math.dist(pos, g.center) > 60:
                 continue
+            uv = cam.project(quat, pos, g.center)
+            if uv is not None and math.hypot(uv[0] - u, uv[1] - v) < limit:
+                out.append(i)
+        return out
+
+    def match(self, cam, quat, pos, det):
+        """(index, solved centre) of the gate that fits the detection best in 3-D.
+
+        Gates standing in a row look alike and overlap in the image; the depth from PnP tells
+        them apart, a 2-D nearest-projection rule does not.
+        """
+        best, best_err, best_c = None, self.max_correction, None
+        for i in self.candidates(cam, quat, pos, det):
             c = solve_gate_center(cam, quat, pos, det, self.gates[i])
             if c is None:
                 continue
+            err = math.dist(c, self.corrected(i).center)
+            if err < best_err:
+                best, best_err, best_c = i, err, c
+        return best, best_c
+
+    def update(self, cam, quat, pos, detections):
+        changed = []
+        for det in detections:
+            i, c = self.match(cam, quat, pos, det)
+            if i is None or i in self.fixed:
+                continue
+            if not self.min_dist < math.dist(pos, self.gates[i].center) < self.max_dist:
+                continue
             raw = tuple(c[k] - self.gates[i].center[k] for k in range(3))
-            if math.sqrt(sum(x * x for x in raw)) > self.max_correction:
+            # keep only the offset within the gate plane: that decides whether the drone passes.
+            # Along the normal (= roughly the flight direction) the frame-to-telemetry latency
+            # dominates (30 ms at 27 m/s = 0.8 m), and there the map error does not matter.
+            n = self.gates[i].normal
+            along = sum(raw[k] * n[k] for k in range(3))
+            raw = tuple(raw[k] - along * n[k] for k in range(3))
+            self.samples.setdefault(i, []).append(raw)
+            self.samples[i] = self.samples[i][-40:]
+            self.hits[i] = self.hits.get(i, 0) + 1
+            est = self._estimate(i)
+            if est is None or math.dist(pos, self.gates[i].center) < self.commit_dist:
                 continue
             old = self.offsets.get(i, (0.0, 0.0, 0.0))
-            # far detections are less precise: weight by distance
-            dist = math.dist(pos, c)
-            a = self.alpha * min(1.0, 12.0 / max(dist, 1.0))
-            new = tuple(o + a * (r - o) for o, r in zip(old, raw))
-            self.offsets[i] = new
-            self.hits[i] = self.hits.get(i, 0) + 1
-            if math.dist(new, old) > 0.05:
+            new = est if math.sqrt(sum(x * x for x in est)) > self.dead_band else (0.0, 0.0, 0.0)
+            if math.dist(new, old) > 0.25:
+                self.offsets[i] = new
                 changed.append(i)
         if changed:
             self.version += 1

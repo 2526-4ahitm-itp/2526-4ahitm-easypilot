@@ -71,9 +71,21 @@ Das Drohnenmodell (Schwebegas, Schubkurve, Raten, Kamera) wird automatisch verme
   Weiß-Anteil-Test aussortiert.
 - **Modell:** YOLOv8n im Pose-Modus erkennt Tor und vier Eckpunkte, auf der RTX 5060 Ti in
   wenigen Millisekunden.
-- **Korrektur der Karte:** Jede Erkennung wird dem nächstgelegenen Kartentor zugeordnet. Aus den
-  vier Ecken und der Torgröße liefert `solvePnP` die echte Torposition. Ein gefilterter Versatz
-  korrigiert das Kartentor, die Rennlinie wird neu geplant (dauert ~20 ms).
+- **Korrektur der Karte:** Aus den vier Ecken und der Torgröße liefert `solvePnP` die Torposition.
+  Daraus wird nur dann ein Versatz übernommen, wenn er sicher ist – sonst würde die Kamera mehr
+  schaden als nützen (alle Regeln aus Tests in Liftoff, siehe Testbericht):
+  - **Zuordnung in 3D:** Die Erkennung gehört zu dem Tor, dessen Kartenposition der PnP-Lösung
+    räumlich am nächsten liegt (höchstens 2,5 m). Gleiche Tore in einer Reihe überdecken sich im
+    Bild, die Tiefe trennt sie.
+  - **Nur in der Torebene:** Entlang der Flugrichtung verfälscht die Verzögerung zwischen Bild und
+    Telemetrie die Messung (30 ms bei 27 m/s ≈ 0,8 m), für den Durchflug zählt aber nur, wo das Tor
+    seitlich und in der Höhe liegt.
+  - **Robust:** Median aus mindestens 8 Messungen aus 4–25 m Abstand, kleine Streuung, Totzone
+    0,6 m (Torbögen sind oben rund, ihre „Ecken“ nur gedacht). Starttor wird nie korrigiert.
+  - **Linie einfrieren:** Ab 12 m vor einem Tor wird nichts mehr geändert – ein seitlicher Sprung
+    bei Vollgas führt zum Crash. Spätere Messungen wirken in der nächsten Runde.
+  - Die Rennlinie wird in einem eigenen Thread neu geplant (~60 ms für 3 Runden) und im Flug
+    getauscht; der Regeltakt (100 Hz) bleibt davon unberührt.
 - **Live-Overlay** für die Zuschauer:innen: erkannte Tore grün, Kartentore rot, korrigierte gelb.
 
 ## 5. Was Liftoff schwierig macht

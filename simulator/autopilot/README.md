@@ -21,7 +21,8 @@ FPV-Bild ── capture.py ──► detector.py (YOLO, 4 Eckpunkte) ──┘  
 | Rennen „01 – Field Day“ (Straw Bale), Race-Modus, 3 Runden, 80 % | **59,154 s, Platz 1** – von Liftoff gewertet; beste Liftoff-Bots 1:33,7 |
 | Eine Runde Field Day bei 100 % | 18,7 s, Spitze 35 m/s (126 km/h), alle 17 Tore |
 | Rennen „02 – After Hours“, Race-Modus, 3 Runden, 80 % | **1:17,035, Platz 1** – von Liftoff gewertet; bester Bot 1:22,5 |
-| KI-Torerkennung | YOLOv8n-Pose, 3209 automatisch beschriftete Bilder, Box-mAP50 0,79, Eckpunkte 0,85, 1,1 ms pro Bild; Live-Korrektur gebaut, im Flug noch nicht getestet |
+| KI-Torerkennung | YOLOv8n-Pose, 8882 automatisch beschriftete Bilder (2 Strecken), Box-mAP50 0,77, Eckpunkte 0,82, 1,4 ms pro Bild |
+| Kamera korrigiert die Karte | Tor absichtlich 1,61 m falsch eingetragen → auf 0,10 m korrigiert, bei 80 % alle 70 Durchflüge durch die echten Tore, Liftoff 1:17,213 Platz 1 |
 | GPS-Zielflug | im eigenen Modell: 10 von 10 Zielen erreicht, 0 Kollisionen, Höhe 1,2–1,6 m (Ziele in Hindernissen → nächster erreichbarer Punkt); in Liftoff noch nicht getestet |
 
 ## Einrichten (einmalig)
@@ -48,6 +49,10 @@ während des Flugs (nimmt Unity den Fokus).
 | Befehl | Zweck |
 |---|---|
 | `python -m autopilot.race StrawBaleRace01 0.8 3` | Rennen fliegen: Name, Tempo 0–1, Runden |
+| `... race StrawBaleRace02 0.8 3 --vision` | dazu Kamera-Korrektur und Overlay-Fenster rechts neben Liftoff |
+| `... --vision --perturb CP77:1.33,0,-0.9` | Test: ein Kartentor absichtlich verschieben |
+| `python -m autopilot.verify StrawBaleRace02 3 runs/race-....csv` | Flug gegen die echten Torpositionen prüfen |
+| `python -m autopilot.ui restart` | Rennen neu starten (vom Zielbildschirm oder aus dem Flug) |
 | `python -m autopilot.track show StrawBaleRace02` | Tore eines Rennens anzeigen |
 | `python -m autopilot.menu pause` / `ok` / `down` | Liftoff-Menüs per vJoy |
 | `python -m autopilot.ui out.jpg 646,463` | Mausklick in Liftoff + eigenes Bildschirmfoto |

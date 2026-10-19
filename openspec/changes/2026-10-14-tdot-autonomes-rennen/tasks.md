@@ -1,6 +1,6 @@
 # Tasks: Autonomes Rennen zum Tag der offenen Tür
 
-Legende: `[x]` erledigt, `[~]` teilweise, `[ ]` offen. Stand 18.10.2026.
+Legende: `[x]` erledigt, `[~]` teilweise, `[ ]` offen. Stand 19.10.2026.
 
 Zeitplan in Wochen **W1–W10**, rückwärts vom Tag der offenen Tür (TdoT = Ende W10). Datum vom Team
 zu ergänzen. Liegt der TdoT früher, fallen zuerst Phase 4 (Kamera-Erkennung) und Phase 5 (Zielflug)
@@ -61,12 +61,12 @@ Aufteilung (Vorschlag, vom Team zu bestätigen): **A** = Regelung, Planung, Lift
 ## 4. Kamera-Erkennung (W5–W8) – B, mit A für die Projektion
 
 - [x] 4.1 [GAP] Kameramodell: FOV 125°, Auflösung, Kamera-Uptilt der Drohne; Projektion Welt → Bild prüfen (Torecken auf Screenshot einzeichnen). → FOV 125°, Uptilt 42°, Projektion auf Screenshots geprüft
-- [~] 4.2 [GAP] Datensammlung: Testflüge aufnehmen, Bilder automatisch mit projizierten Torecken beschriften (Ziel ≥ 5 000 Bilder, mehrere Level/Lichtverhältnisse). → 3209 Bilder automatisch beschriftet (`dataset.py`), bisher nur Straw Bale
+- [x] 4.2 [GAP] Datensammlung: Testflüge aufnehmen, Bilder automatisch mit projizierten Torecken beschriften (Ziel ≥ 5 000 Bilder, mehrere Level/Lichtverhältnisse). → 8882 Bilder, 2 Strecken (`dataset.py`); weitere Level offen
 - [x] 4.3 [GAP] YOLO-Pose-Modell (Nano) trainieren; Validierung: Ecken-Fehler in Pixel, Erkennungsrate. → YOLOv8n-Pose, Box-mAP50 0,79, Eckpunkte 0,85, 1,1 ms/Bild
-- [~] 4.4 [GAP] PnP mit bekannter Torgröße → Torpose; Filter pro Tor, Fusion mit Streckendatei. → `detector.py`: PnP + Korrektur der Karte, im Flug noch nicht getestet
-- [~] 4.5 [GAP] Live-Overlay für Zuschauer:innen (Rahmen, Abstand, nächstes Tor). → `draw_overlay` gebaut, Fenster im Rennen offen
-- [ ] 4.6 [GAP] Test: Tore in der Strecke um 1 m verschieben → Programm fliegt trotzdem durch.
-- **M11:** Runde mit verschobenen Toren; Overlay läuft live mit ≥ 30 fps.
+- [x] 4.4 [GAP] PnP mit bekannter Torgröße → Torpose; Filter pro Tor, Fusion mit Streckendatei. → `detector.py`: PnP, Zuordnung in 3D, Median/Totzone, nur Versatz in der Torebene, Linie ab 12 m eingefroren
+- [x] 4.5 [GAP] Live-Overlay für Zuschauer:innen (Rahmen, Abstand, nächstes Tor). → Overlay-Fenster neben Liftoff, 40–46 fps (`race.py --vision`)
+- [x] 4.6 [GAP] Test: Tore in der Strecke um 1 m verschieben → Programm fliegt trotzdem durch. → 1,61 m verschoben, auf 0,10 m korrigiert, 80 %, 70/70 echte Tore, Liftoff 1:17,213
+- **M11:** Runde mit verschobenen Toren; Overlay läuft live mit ≥ 30 fps. ✓ 19.10.2026
 
 ## 5. Zielflug mit Kollisionsvermeidung (W6–W9) – A
 

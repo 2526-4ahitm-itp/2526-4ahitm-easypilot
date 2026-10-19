@@ -16,7 +16,7 @@ weight: 4
 | [M8](./m8-autonome-runde) | Autonome Runde durch die Torbögen in Liftoff (50 %) – erreicht mit 80 %, Rennsiege auf 2 Strecken gegen die Liftoff-Bots | 18.10.2026 | ✓ |
 | M9 | 10 Runden bei voller Geschwindigkeit, schneller als das Team | W5 | teilweise: 1 Runde bei 100 % (18,7 s), 3 Runden bei 80 % |
 | M10 | Rennmodus mit Bestenliste (Mensch gegen Programm) | W6 | geplant |
-| M11 | Tor-Erkennung per Kamera mit Live-Overlay | W8 | in Arbeit: Modell trainiert, Kartenkorrektur gebaut |
+| M11 | Tor-Erkennung per Kamera mit Live-Overlay | 19.10.2026 | ✓ verschobenes Tor bei 80 % korrigiert, Overlay 40–46 fps |
 | M12 | GPS-Zielflug, 0 Kollisionen in 1–3 m Höhe | W9 | in Arbeit: im eigenen Modell erfüllt, Liftoff offen |
 | TdoT | Rennen gegen Schüler:innen am Tag der offenen Tür | Ende W10, *Datum vom Team zu ergänzen* | geplant |
 

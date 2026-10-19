@@ -333,7 +333,8 @@ Plan und Tasks: `openspec/changes/2026-10-14-tdot-autonomes-rennen/`, Code `simu
 
 **Stand 18.10.2026:** autonomer Rennsieg in Liftoff auf „01 – Field Day“ (3 Runden 59,154 s, von
 Liftoff gewertet, bester Bot 1:33,7) und auf „02 – After Hours“ (1:17,035, bester Bot 1:22,5);
-eine Runde bei voller Geschwindigkeit 18,7 s. Torerkennung
+eine Runde bei voller Geschwindigkeit 18,7 s. Die Kamera-Erkennung korrigiert ein absichtlich
+1,6 m falsch eingetragenes Tor im Flug auf 0,1 m (80 %, Liftoff wertet alle Runden). Torerkennung
 per Kamera trainiert, Zielflug im eigenen Modell getestet.
 
 ### 20.1 Ziel
