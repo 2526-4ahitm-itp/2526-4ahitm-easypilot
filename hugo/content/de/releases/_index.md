@@ -13,7 +13,7 @@ weight: 4
 | [M5](./m5-landscape-und-poshold) | Landscape-UI, touch-aware Stabilisierung, POSHOLD – Ende Phase 1 | 23.06.2026 | ✓ |
 | [M6](./m6-hover-prototyp) | Hover-Prototyp in Liftoff (Phase 2) | 28.09.2026 | ✓ |
 | [M7](./m7-web-simulator) | Web-Simulator mit Physik in der LeoCloud | *vom Team festzulegen* | offen |
-| [M8](./m8-autonome-runde) | Autonome Runde durch die Torbögen in Liftoff (50 %) – erreicht mit 80 %, Rennsieg gegen die Liftoff-Bots | 18.10.2026 | ✓ |
+| [M8](./m8-autonome-runde) | Autonome Runde durch die Torbögen in Liftoff (50 %) – erreicht mit 80 %, Rennsiege auf 2 Strecken gegen die Liftoff-Bots | 18.10.2026 | ✓ |
 | M9 | 10 Runden bei voller Geschwindigkeit, schneller als das Team | W5 | teilweise: 1 Runde bei 100 % (18,7 s), 3 Runden bei 80 % |
 | M10 | Rennmodus mit Bestenliste (Mensch gegen Programm) | W6 | geplant |
 | M11 | Tor-Erkennung per Kamera mit Live-Overlay | W8 | in Arbeit: Modell trainiert, Kartenkorrektur gebaut |

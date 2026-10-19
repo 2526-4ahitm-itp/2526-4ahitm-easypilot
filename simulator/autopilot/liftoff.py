@@ -54,6 +54,9 @@ class Session:
         if s is None:
             self.reason = "no telemetry - is a level loaded and TelemetryConfiguration.json set?"
             return False
+        if max(abs(v) for v in s.pos) < 1e-3:
+            self.reason = "position (0, 0, 0): Liftoff shows a menu or the finish screen, no drone in flight"
+            return False
         resets0 = self.tel.resets
         t0 = last = time.perf_counter()
         last_t = s.t

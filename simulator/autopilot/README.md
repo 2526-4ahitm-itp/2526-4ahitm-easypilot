@@ -14,13 +14,13 @@ vjoy.py ◄── control.py (Schubvektor → Drehraten → Sticks) ◄── ra
 FPV-Bild ── capture.py ──► detector.py (YOLO, 4 Eckpunkte) ──┘   track.py (Tore aus Liftoff-XML)
 ```
 
-## Stand (18.10.2026)
+## Stand (19.10.2026)
 
 | Was | Ergebnis |
 |---|---|
 | Rennen „01 – Field Day“ (Straw Bale), Race-Modus, 3 Runden, 80 % | **59,154 s, Platz 1** – von Liftoff gewertet; beste Liftoff-Bots 1:33,7 |
 | Eine Runde Field Day bei 100 % | 18,7 s, Spitze 35 m/s (126 km/h), alle 17 Tore |
-| Rennen „02 – After Hours“ | eigene Wertung 23/24 Tore; Liftoff wertet noch nicht (MultiGP-Rahmen, Höhe inzwischen vermessen, Nachweis offen) |
+| Rennen „02 – After Hours“, Race-Modus, 3 Runden, 80 % | **1:17,035, Platz 1** – von Liftoff gewertet; bester Bot 1:22,5 |
 | KI-Torerkennung | YOLOv8n-Pose, 3209 automatisch beschriftete Bilder, Box-mAP50 0,79, Eckpunkte 0,85, 1,1 ms pro Bild; Live-Korrektur gebaut, im Flug noch nicht getestet |
 | GPS-Zielflug | im eigenen Modell: 10 von 10 Zielen erreicht, 0 Kollisionen, Höhe 1,2–1,6 m (Ziele in Hindernissen → nächster erreichbarer Punkt); in Liftoff noch nicht getestet |
 

@@ -71,6 +71,12 @@ class Racer:
                     prog.finished = True
         self.prev_pos = state.pos
 
+    def swap_line(self, new_line):
+        """Replace the racing line in flight (corrected gates); progress and gate count are kept."""
+        s_now = self.line.s[self.idx]
+        self.idx = new_line.index_at(s_now)
+        self.line = new_line
+
     @property
     def done(self):
         return self.crashed or self.progress.finished or self.idx >= len(self.line.points) - 2
