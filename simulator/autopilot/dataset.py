@@ -120,7 +120,7 @@ def collect(race_name, ks, laps=1):
     from .capture import FrameStream
     from .geometry import body_axes
     from .liftoff import Session
-    from .race import DRAG, build_line
+    from .race import DRAG, build_line, launch
     from .racer import Racer
     from .sysid import load_model
     race, track = load_race_with_track(race_name)
@@ -130,7 +130,7 @@ def collect(race_name, ks, laps=1):
         out = DATA / "raw" / f"{race_name}-{k}-{time.strftime('%Y%m%d-%H%M%S')}"
         out.mkdir(parents=True)
         sess = Session(f"collect-{k}", log=False)
-        sess.reset_drone(settle=2.0)
+        sess.reset_drone(settle=4.5)   # race mode countdown
         frames = FrameStream(IMG_W, fps=40)
         frames.start()
         s0 = sess.tel.wait()
@@ -139,7 +139,7 @@ def collect(race_name, ks, laps=1):
         dy = random.uniform(-0.3, 0.6)
         shifted = [type(g)((g.center[0], g.center[1] + dy * 0.5, g.center[2]), g.normal, g.width, g.height, g.name)
                    for g in gates]
-        line = build_line(shifted, (s0.pos[0], s0.pos[1] + 0.3, s0.pos[2]), unit((fwd[0], 0.03, fwd[2])), laps, k)
+        line = build_line(shifted, *launch(shifted[0], s0.pos), laps, k)
         racer = Racer(line, FlightController(rates, thrust, Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)))
         meta, st = [], {"last": 0.0}
 
