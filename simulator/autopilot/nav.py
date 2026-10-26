@@ -9,6 +9,7 @@ Pieces:
 """
 import heapq
 import math
+import threading
 from dataclasses import dataclass, field
 
 from .geometry import add, mul, norm, sub, unit
@@ -126,12 +127,20 @@ def plan_path(grid, start, goal, fly_y, clearance=0.8, max_nodes=40000, margin=2
              (1, 1, 1.4142), (1, -1, 1.4142), (-1, 1, 1.4142), (-1, -1, 1.4142)]
     blocked_cache = {}
 
+    escape = (clearance / grid.cell + 1.0) ** 2
+
     def blocked(k):
         if k == s:
             return False
         b = blocked_cache.get(k)
         if b is None:
-            b = blocked_cache[k] = grid.blocked(k, fly_y, clearance)
+            if (k[0] - s[0]) ** 2 + (k[1] - s[1]) ** 2 <= escape:
+                # escape zone: the drone may already be closer to an obstacle than the margin
+                # (pushed there, or the camera found it late) - only the occupied cells count
+                b = grid.top.get(k, -1e9) > fly_y - clearance
+            else:
+                b = grid.blocked(k, fly_y, clearance)
+            blocked_cache[k] = b
         return b
 
     # search only a corridor around start and goal, the grid itself is unbounded
@@ -214,6 +223,8 @@ class Navigator:
     grid: OccupancyGrid
     goal_xz: tuple
     limits: NavLimits = field(default_factory=NavLimits)
+    background: bool = False      # plan in a thread (Liftoff: A* must not stall the control loop)
+    lead: bool = True             # position reference ahead of the drone (False: closest path point)
 
     def __post_init__(self):
         self.requested_goal = self.goal_xz
@@ -223,6 +234,9 @@ class Navigator:
         self.status = "PLAN"
         self.debug = {}
         self.calls_without_path = 0
+        self.replans = 0
+        self._worker = None
+        self._pending = None
 
     def fly_y(self, x, z):
         return self.grid.ground_at(self.grid.key(x, z)) + self.limits.altitude
@@ -243,40 +257,65 @@ class Navigator:
                     return g.center(k)
         return None
 
-    def replan(self, pos):
+    def _compute(self, pos):
+        """(path, goal) for the current map; path None if the goal cannot be reached."""
         y = self.fly_y(pos[0], pos[2])
-        self.grid_version = self.grid.version
         target = self.nearest_free(self.requested_goal, y)
         if target is None:
-            self.path, self.status = None, "NO_PATH"
-            return
-        self.goal_xz = target
+            return None, self.goal_xz
         start = (pos[0], pos[2])
-        self.path = plan_path(self.grid, start, self.goal_xz, y, self.limits.clearance)
-        if self.path is None:
+        path = plan_path(self.grid, start, target, y, self.limits.clearance)
+        if path is None and self.background:
+            # long detour (e.g. around a fenced area): search a wider corridor, in the background
+            path = plan_path(self.grid, start, target, y, self.limits.clearance, max_nodes=200000, margin=70.0)
+        if path is None:
             # e.g. the drone already stands closer to an obstacle than the margin: squeeze out slowly
-            self.path = plan_path(self.grid, start, self.goal_xz, y, self.limits.clearance * 0.7)
-        if self.path is None:
+            path = plan_path(self.grid, start, target, y, self.limits.clearance * 0.7)
+        if path is None:
             # goal enclosed (inside an obstacle whose walls we have seen): closest reachable point
-            self.path = plan_path(self.grid, start, self.requested_goal, y, self.limits.clearance,
-                                  closest_within=15.0)
-            if self.path:
-                self.goal_xz = self.path[-1]
-        self.grid_version = self.grid.version
+            path = plan_path(self.grid, start, self.requested_goal, y, self.limits.clearance, closest_within=15.0)
+            if path:
+                target = path[-1]
+        return path, target
+
+    def _apply(self, path, target, version):
+        self.path, self.goal_xz = path, target
+        self.grid_version = version
         self.seg = 0
-        self.status = "FLY" if self.path else "NO_PATH"
+        self.replans += 1
+        self.status = "FLY" if path else "NO_PATH"
+
+    def replan(self, pos):
+        version = self.grid.version
+        self._apply(*self._compute(pos), version)
+
+    def _replan_async(self, pos):
+        if self._worker is not None and self._worker.is_alive():
+            return
+        version = self.grid.version
+        self.grid_version = version          # do not start again for the same map
+
+        def work():
+            self._pending = (*self._compute(pos), version)
+        self._worker = threading.Thread(target=work, daemon=True)
+        self._worker.start()
 
     def reference(self, pos, vel):
         """Desired position/velocity/acceleration and look direction for the FlightController."""
         lim = self.limits
         # plan only when the map changed: without a path, retrying on the same map is useless
         # (and an exhaustive A* every control step would stall the loop)
+        if self._pending is not None:
+            pending, self._pending = self._pending, None
+            self._apply(*pending)
         if self.path is None:
             self.calls_without_path += 1
         retry = self.path is None and self.calls_without_path % 125 == 0     # ~every 0.5 s at 250 Hz
         if self.grid.version != self.grid_version or retry:
             if self.path is None or not self._path_still_free(pos):
-                self.replan(pos)
+                # in the background: keep the old path meanwhile, the free-space speed limit brakes
+                # in front of the new obstacle until the new path is there
+                self._replan_async(pos) if self.background else self.replan(pos)
             else:
                 self.grid_version = self.grid.version
         if not self.path:
@@ -315,7 +354,9 @@ class Navigator:
         free = self.grid.free_distance(pos, (u[0], 0.0, u[1]), y, lim.clearance * 0.8, lim.sensor_range)
         v_free = max(0.0, -lim.brake * lim.reaction + math.sqrt((lim.brake * lim.reaction) ** 2 + 2 * lim.brake * max(0.0, free - 0.5)))
         v = min(lim.max_speed, v_goal, v_corner, v_free)
-        lead = min(2.0, max(0.5, 0.3 * v))
+        # reference = closest point on the path, speed comes from v_ref (a point ahead of the drone
+        # would add pos_gain * lead to the speed: ~1.3 m/s too fast in Liftoff)
+        lead = min(2.0, max(0.5, 0.3 * v)) if self.lead else 0.0
         tgt = (closest[0] + u[0] * lead, closest[1] + u[1] * lead) if remaining > lead else self.goal_xz
         p_ref = (tgt[0], y, tgt[1])
         v_ref = (u[0] * v, 0.0, u[1] * v)

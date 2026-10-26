@@ -16,6 +16,7 @@ gdi32 = ctypes.windll.gdi32
 user32 = ctypes.windll.user32
 SRCCOPY = 0x00CC0020
 HALFTONE = 4
+COLORONCOLOR = 3      # no filtering: half the time of HALFTONE (17 vs 33 ms at 1080p), fine for tracking
 
 _H = ctypes.c_void_p
 user32.GetDC.restype = _H
@@ -43,7 +44,7 @@ class BITMAPINFOHEADER(ctypes.Structure):
 
 
 class Grabber:
-    def __init__(self, width=640, rect=None):
+    def __init__(self, width=640, rect=None, mode=HALFTONE):
         self.rect = rect or window.client_rect()
         left, top, w, h = self.rect
         self.width = width
@@ -52,7 +53,7 @@ class Grabber:
         self.mem = gdi32.CreateCompatibleDC(self.src)
         self.bmp = gdi32.CreateCompatibleBitmap(self.src, self.width, self.height)
         gdi32.SelectObject(self.mem, self.bmp)
-        gdi32.SetStretchBltMode(self.mem, HALFTONE)
+        gdi32.SetStretchBltMode(self.mem, mode)
         self.info = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), self.width, -self.height, 1, 32, 0, 0, 0, 0, 0, 0)
         self.buf = np.empty((self.height, self.width, 4), dtype=np.uint8)
 
@@ -72,9 +73,9 @@ class Grabber:
 class FrameStream(threading.Thread):
     """Grabs continuously in the background; `latest()` returns (perf_counter time, frame)."""
 
-    def __init__(self, width=640, fps=60):
+    def __init__(self, width=640, fps=60, mode=HALFTONE):
         super().__init__(daemon=True)
-        self.width, self.period = width, 1.0 / fps
+        self.width, self.period, self.mode = width, 1.0 / fps, mode
         self.lock = threading.Lock()
         self.frame = None
         self.stamp = 0.0
@@ -82,7 +83,7 @@ class FrameStream(threading.Thread):
         self.running = True
 
     def run(self):
-        grabber = Grabber(self.width)
+        grabber = Grabber(self.width, mode=self.mode)
         try:
             while self.running:
                 t0 = time.perf_counter()
