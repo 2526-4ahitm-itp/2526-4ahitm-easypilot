@@ -82,5 +82,18 @@ class RacingTest(unittest.TestCase):
         self.assertEqual(len(racer.progress.gate_times), 8)
 
 
+class CourseTest(unittest.TestCase):
+    def test_shared_start_finish_gate_passed_once_per_lap(self):
+        from autopilot.race import course
+        a, b, c = (Gate((0, 1, 0), (0, 0, 1)), Gate((0, 1, 20), (0, 0, 1)), Gate((10, 1, 10), (1, 0, 0)))
+        finish = Gate((0, 1, 0), (0, 0, 1))
+        self.assertEqual(len(course([a, b, c, finish], 3)), 3 * 3 + 1)
+
+    def test_separate_finish_gate(self):
+        from autopilot.race import course
+        a, b, finish = (Gate((0, 1, 0), (0, 0, 1)), Gate((0, 1, 20), (0, 0, 1)), Gate((0, 1, -5), (0, 0, 1)))
+        self.assertEqual(len(course([a, b, finish], 3)), 9)
+
+
 if __name__ == "__main__":
     unittest.main()

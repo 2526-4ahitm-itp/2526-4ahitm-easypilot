@@ -127,3 +127,22 @@
 - Zielflug in Liftoff oder im Web-Simulator (Task 0.5).
 - Darf ein zweiter PC mit eigener Liftoff-Lizenz für ein echtes Kopf-an-Kopf-Rennen genutzt werden?
 - Referenzpunkt für GPS (z. B. Schulhof der HTL Leonding), vom Team festzulegen.
+
+## Stand der Umsetzung (18.10.2026)
+
+Abweichungen vom ursprünglichen Plan, mit Grund:
+
+- **Streckendatei:** Statt einer eigenen Strecke liegen alle offiziellen Liftoff-Rennen als XML
+  in den Addressables-Bundles des Spiels. Checkpoint-ID = Instanz-ID des Tors. Die Angabe der
+  Durchflugrichtung ist nicht einheitlich, sie wird aus der Torfolge bestimmt. Bezugspunkte
+  unterscheiden sich je Tortyp und werden per Projektion ins Kamerabild gemessen.
+- **Renn-Regler:** Statt Kaskade mit Neigungsgrenze ein Beschleunigungs-Regler mit
+  Schubvektor, quadratischer Schubkurve, vorgesteuertem Luftwiderstand (0,033 1/m) und
+  Störgrößenschätzung (INDI-ähnlich). Ohne Widerstandsmodell sackte die Drohne bei 27 m/s ~1 m ab.
+- **Bildaufnahme:** GDI statt dxcam (kein zusätzlicher Treiber), Liftoff im 1080p-Fenster.
+- **Erkennung:** Labels werden aus XML-Torposen + Telemetrie projiziert, keine Handarbeit.
+  YOLOv8n-Pose mit 4 Eckpunkten; Kartenkorrektur über PnP und gefilterten Versatz pro Tor.
+- **Liftoff-Eigenheiten:** Eingaben nur nach echter Fenster-Aktivierung, vJoy-Flush, VSync aus
+  (siehe Hugo-Erklärung „Autonomes Rennen“).
+
+Ergebnisse: Hugo-Testbericht „autonomes Rennen“.

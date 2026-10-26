@@ -27,6 +27,11 @@ cd webinterface/frontend && npm ci && npm run lint && npm run build
 cd simulator/liftoff-hover && python -m unittest -v test_hover.py
 ```
   {{< /tab >}}
+  {{< tab name="Autopilot" >}}
+```bash
+cd simulator && python -m unittest discover -s autopilot/tests -t . -v
+```
+  {{< /tab >}}
   {{< tab name="OpenSpec" >}}
 ```bash
 npx @fission-ai/openspec validate --all

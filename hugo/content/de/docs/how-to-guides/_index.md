@@ -11,6 +11,7 @@ Schritt für Schritt zu einem Ziel.
   {{< card link="web-und-backend-lokal" title="Web und Backend lokal" subtitle="Vite, Quarkus Dev-Mode" >}}
   {{< card link="relay-starten" title="Relay starten" subtitle="WebSocket → UDP, Ngrok" >}}
   {{< card link="liftoff-hover-einrichten" title="Liftoff-Hover einrichten" subtitle="vJoy, Telemetrie, Kalibrierung" >}}
+  {{< card link="autonomes-rennen-einrichten" title="Autonomes Rennen einrichten" subtitle="Liftoff, Strecken, Drohne vermessen, starten" >}}
   {{< card link="leocloud-deployen" title="In die LeoCloud deployen" subtitle="kubectl, Ingress" >}}
   {{< card link="tests-ausfuehren" title="Tests ausführen" subtitle="iOS, Backend, Frontend, Simulator" >}}
   {{< card link="doku-lokal-bauen" title="Doku lokal bauen" subtitle="Hugo + Hextra" >}}

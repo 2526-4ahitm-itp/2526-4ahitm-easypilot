@@ -39,17 +39,22 @@ Der Web-Simulator soll im Browser aus der LeoCloud laufen, ohne Installation:
 Grundlage ist der bestehende 3D-Viewer in `webinterface/frontend`. Plan und Tasks:
 [Change `2026-10-13-phase2-web-simulator`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-13-phase2-web-simulator).
 
-## Neues Ziel: Rennen am Tag der offenen Tür (geplant)
+## Neues Ziel: Rennen am Tag der offenen Tür (in Arbeit)
 
-Phase 2 bekommt ein vorführbares Ziel, das noch mit Betreuer:in abzustimmen ist:
-- **Torbögen-Rennen in Liftoff:** Das Programm erkennt die Tore selbst und fliegt so schnell wie
-  möglich durch.
+Phase 2 hat ein vorführbares Ziel, das noch mit Betreuer:in abzustimmen ist:
+- **Torbögen-Rennen in Liftoff:** Das Programm fliegt die Strecke allein und so schnell wie möglich.
 - **Gegen Schüler:innen:** Am Tag der offenen Tür fliegen Schüler:innen dieselbe Strecke mit dem
   Controller, eine Bestenliste zeigt die Zeiten.
 - **Zielflug:** Eine GPS-Koordinate eingeben, die Drohne fliegt 1–3 m über dem Boden ohne
   Kollision dorthin.
 
-Der Plan steht in Phasen mit Go/No-Go-Punkten in
+**Stand 18.10.2026:** Das Programm gewinnt das Liftoff-Rennen „01 – Field Day“ gegen alle
+Liftoff-Bots (3 Runden 59,2 s, bester Bot 1:33,7). Die Torposen stammen aus Liftoffs
+Streckendateien; ein selbst trainiertes KI-Modell erkennt die Tore im Kamerabild und korrigiert sie.
+Der Zielflug ist im eigenen Modell getestet, in Liftoff noch offen. Details:
+[Autonomes Rennen](../autonomes-rennen), [Testbericht](../../../project/reports/autonomes-rennen-test).
+
+Plan in Phasen mit Go/No-Go-Punkten:
 [`openspec/changes/2026-10-14-tdot-autonomes-rennen`](https://github.com/2526-4ahitm-itp/2526-4ahitm-easypilot/tree/main/openspec/changes/2026-10-14-tdot-autonomes-rennen),
 das Pflichtenheft in §20.
 

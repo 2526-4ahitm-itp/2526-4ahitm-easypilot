@@ -27,6 +27,9 @@ class Racer:
         self.prev_pos = None
         self.progress = Progress()
         self.max_cross_track = 0.0
+        self.stuck_time = 0.0
+        self.last_t = None
+        self.crashed = False
 
     def step(self, state):
         line, prog = self.line, self.progress
@@ -34,6 +37,14 @@ class Racer:
             prog.start_t = state.t
         self.ctl.observe(state)
         self.idx = line.closest(state.pos, self.idx)
+        # crash: the line wants speed but the drone stands still (caught in a gate, on the ground)
+        dt = state.t - self.last_t if self.last_t is not None else 0.0
+        self.last_t = state.t
+        if state.t - prog.start_t > 1.5 and line.speed[self.idx] > 5.0 and state.speed < 1.0:
+            self.stuck_time += dt
+            self.crashed = self.crashed or self.stuck_time > 0.6
+        else:
+            self.stuck_time = 0.0
         speed_here = line.speed[self.idx]
         p_ref, v_ref, a_ref, tangent = line.reference(self.idx, self.lookahead * max(2.0, speed_here) * 0.3)
         cross_track = norm(sub(state.pos, line.points[self.idx]))
@@ -60,6 +71,12 @@ class Racer:
                     prog.finished = True
         self.prev_pos = state.pos
 
+    def swap_line(self, new_line):
+        """Replace the racing line in flight (corrected gates); progress and gate count are kept."""
+        s_now = self.line.s[self.idx]
+        self.idx = new_line.index_at(s_now)
+        self.line = new_line
+
     @property
     def done(self):
-        return self.progress.finished or self.idx >= len(self.line.points) - 2
+        return self.crashed or self.progress.finished or self.idx >= len(self.line.points) - 2

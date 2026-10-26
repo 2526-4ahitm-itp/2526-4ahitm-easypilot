@@ -61,7 +61,7 @@ def hermite(p0, m0, p1, m1, t):
 
 class RacingLine:
     def __init__(self, gates, start=None, start_dir=None, laps=1, limits=Limits(), aggressiveness=0.6,
-                 step=0.25, tangent_scale=0.9, finish_extra=8.0):
+                 step=0.25, tangent_scale=0.9, finish_extra=8.0, launch_speed=None):
         self.gates = list(gates)
         self.laps = laps
         self.limits = limits.scaled(aggressiveness)
@@ -73,6 +73,11 @@ class RacingLine:
             knots += [(g.center, unit(g.normal)) for g in self.gates]
         last_c, last_n = knots[-1]
         knots.append((add(last_c, mul(last_n, finish_extra)), last_n))
+        self.launch_speed = launch_speed
+        self.down_accel = 0.6 * 9.81
+        # distance from the start to just behind the first gate: lift-off from the ground must not
+        # overshoot, the first gate is often only a few metres away
+        self.launch_dist = (norm(sub(self.gates[0].center, start)) + 2.0) if start is not None else 0.0
         self.points = self._sample(knots, step, tangent_scale)
         self._arc_length()
         self._curvature()
@@ -120,7 +125,13 @@ class RacingLine:
     def _speed_profile(self):
         lim = self.limits
         v = [min(lim.max_speed, math.sqrt(lim.lat_accel / k) if k > 1e-6 else lim.max_speed) for k in self.kappa]
+        # curving downwards needs less thrust than gravity; a drone cannot pull down harder than ~g
+        for i, kv in enumerate(self.kappa_vec):
+            if kv[1] < -1e-6:
+                v[i] = min(v[i], math.sqrt(self.down_accel / -kv[1]))
         v[-1] = min(v[-1], lim.max_speed)
+        if self.launch_speed:
+            v = [min(x, self.launch_speed) if self.s[i] < self.launch_dist else x for i, x in enumerate(v)]
         for i in range(1, len(v)):
             ds = self.s[i] - self.s[i - 1]
             # thrust left for accelerating after drag and climbing

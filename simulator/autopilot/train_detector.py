@@ -1,7 +1,7 @@
 """Train the YOLO pose model (gate box + 4 opening corners) on the self-labelled dataset.
 
   python -m autopilot.train_detector [epochs]
-Result: autopilot/models/gates.pt
+Result: autopilot/models/gates.pt. If a model exists, training continues from it (fine-tuning).
 """
 import shutil
 import sys
@@ -15,7 +15,10 @@ MODELS = Path(__file__).resolve().parent / "models"
 def main(argv):
     from ultralytics import YOLO
     epochs = int(argv[0]) if argv else 60
-    model = YOLO("yolov8n-pose.pt")
+    start = MODELS / "gates.pt"
+    model = YOLO(str(start) if start.exists() else "yolov8n-pose.pt")
+    if start.exists():
+        shutil.copy2(start, MODELS / "gates-previous.pt")
     res = model.train(data=str(DATA / "gates.yaml"), epochs=epochs, imgsz=640, batch=32, device=0,
                       project=str(DATA / "train"), name="gates", exist_ok=True, fliplr=0.5,
                       mosaic=1.0, hsv_v=0.3, degrees=10.0, workers=4, verbose=False)

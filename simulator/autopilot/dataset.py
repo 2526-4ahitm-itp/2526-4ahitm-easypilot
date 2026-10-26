@@ -1,4 +1,4 @@
-"""Self-labelling gate dataset for the YOLO detector.
+﻿"""Self-labelling gate dataset for the YOLO detector.
 
   python -m autopilot.dataset collect StrawBaleRace01 0.5 0.8 1.0   # fly laps, record frames + poses
   python -m autopilot.dataset label                               # project XML gates -> YOLO pose labels
@@ -22,7 +22,7 @@ import numpy as np
 from .camera import Camera
 from .geometry import cross, unit
 from .sysid import load_camera
-from .track import gate_size, load_race_with_track, load_track, race_gates
+from .track import PIVOT_AT_CENTER, center_lift, gate_size, load_race_with_track, load_track, race_gates
 
 DATA = Path(__file__).resolve().parent / "runs" / "dataset"
 IMG_W = 640
@@ -103,14 +103,14 @@ def all_gates(track):
     from .geometry import qrot
     out = []
     for b in track["blueprints"]:
-        size = gate_size(b.item)
-        if not size:
+        size = gate_size(b.item, b.extra.get("scale"))
+        if not size or b.item.startswith(PIVOT_AT_CENTER):   # invisible trigger volumes are no gates to see
             continue
         w, h = size
         q = b.quat
         up = qrot(q, (0.0, 1.0, 0.0))
         n = qrot(q, (0.0, 0.0, 1.0))
-        c = tuple(b.pos[i] + up[i] * h / 2 for i in range(3))
+        c = tuple(b.pos[i] + up[i] * center_lift(b.item, h) for i in range(3))
         out.append(Gate(c, n, w, h, b.item))
     return out
 
@@ -120,7 +120,7 @@ def collect(race_name, ks, laps=1):
     from .capture import FrameStream
     from .geometry import body_axes
     from .liftoff import Session
-    from .race import DRAG, build_line
+    from .race import DRAG, build_line, launch
     from .racer import Racer
     from .sysid import load_model
     race, track = load_race_with_track(race_name)
@@ -130,7 +130,7 @@ def collect(race_name, ks, laps=1):
         out = DATA / "raw" / f"{race_name}-{k}-{time.strftime('%Y%m%d-%H%M%S')}"
         out.mkdir(parents=True)
         sess = Session(f"collect-{k}", log=False)
-        sess.reset_drone(settle=2.0)
+        sess.reset_drone(settle=4.5)   # race mode countdown
         frames = FrameStream(IMG_W, fps=40)
         frames.start()
         s0 = sess.tel.wait()
@@ -139,7 +139,7 @@ def collect(race_name, ks, laps=1):
         dy = random.uniform(-0.3, 0.6)
         shifted = [type(g)((g.center[0], g.center[1] + dy * 0.5, g.center[2]), g.normal, g.width, g.height, g.name)
                    for g in gates]
-        line = build_line(shifted, (s0.pos[0], s0.pos[1] + 0.3, s0.pos[2]), unit((fwd[0], 0.25, fwd[2])), laps, k)
+        line = build_line(shifted, *launch(shifted[0], s0.pos), laps, k)
         racer = Racer(line, FlightController(rates, thrust, Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)))
         meta, st = [], {"last": 0.0}
 

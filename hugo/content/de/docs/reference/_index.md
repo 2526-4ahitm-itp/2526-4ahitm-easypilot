@@ -13,4 +13,5 @@ Zum Nachschlagen.
   {{< card link="hardware" title="Hardware" subtitle="Drohne, Verdrahtung, PWM, Akku" >}}
   {{< card link="ports-und-urls" title="Ports und URLs" subtitle="Alle Endpunkte auf einen Blick" >}}
   {{< card link="liftoff-hover-konfiguration" title="Liftoff-Hover-Konfiguration" subtitle="config.json und Regler-Parameter" >}}
+  {{< card link="liftoff-autopilot" title="Liftoff-Autopilot" subtitle="Drohnenmodell, vJoy-Belegung, Tortypen" >}}
 {{< /cards >}}

@@ -327,9 +327,15 @@ Drohne an den Web-Simulator
 - Ob der Zielflug mit Kollisionsvermeidung in Liftoff oder im eigenen Web-Simulator läuft (§20.4).
 - Ob in Liftoff eigene Strecken die Tor- und Hindernispositionen lesbar speichern (Spike, §20.2).
 
-## 20. Autonomes Rennen zum Tag der offenen Tür (geplant)
+## 20. Autonomes Rennen zum Tag der offenen Tür (in Arbeit)
 
-Plan und Tasks: `openspec/changes/2026-10-14-tdot-autonomes-rennen/`.
+Plan und Tasks: `openspec/changes/2026-10-14-tdot-autonomes-rennen/`, Code `simulator/autopilot`.
+
+**Stand 18.10.2026:** autonomer Rennsieg in Liftoff auf „01 – Field Day“ (3 Runden 59,154 s, von
+Liftoff gewertet, bester Bot 1:33,7) und auf „02 – After Hours“ (1:17,035, bester Bot 1:22,5);
+eine Runde bei voller Geschwindigkeit 18,7 s. Die Kamera-Erkennung korrigiert ein absichtlich
+1,6 m falsch eingetragenes Tor im Flug auf 0,1 m (80 %, Liftoff wertet alle Runden). Torerkennung
+per Kamera trainiert, Zielflug im eigenen Modell getestet.
 
 ### 20.1 Ziel
 
@@ -340,8 +346,9 @@ eingegebenen GPS-Koordinate, tief über dem Boden und ohne Kollision.
 
 ### 20.2 Torbögen erkennen
 
-- **Streckendatei:** Auf einer eigenen Liftoff-Strecke sind Position, Ausrichtung und Größe jedes
-  Tors bekannt. Das ist der verlässliche Grundweg.
+- **Streckendatei:** Liftoff speichert alle offiziellen und eigenen Strecken als XML mit Position,
+  Ausrichtung und Typ jedes Tors. Das ist der verlässliche Grundweg (umgesetzt für Torbögen und
+  MultiGP-Rahmen; Bezugspunkte je Tortyp gemessen).
 - **Kamera:** Ein Bilderkennungsmodell findet die Tore im FPV-Bild von Liftoff. Aus Bildposition
   und bekannter Torgröße wird die Lage relativ zur Drohne geschätzt. Das korrigiert Abweichungen
   und funktioniert auch auf Strecken ohne Datei.

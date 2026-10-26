@@ -29,6 +29,9 @@ Datei `%USERPROFILE%\AppData\LocalLow\LuGus Studios\Liftoff\TelemetryConfigurati
 
 Liftoff lädt sie bei jedem Drohnen-Reset neu.
 
+Wird auch der [autonome Rennmodus](../autonomes-rennen-einrichten) genutzt, `"Velocity"` hinten
+anhängen. Der Hover liest nur die ersten 15 Werte und funktioniert weiter.
+
 ### Controller kalibrieren
 
 ```bat
