@@ -60,6 +60,15 @@ def click(x, y, frame=None):
     user32.mouse_event(0x0004, 0, 0, 0, 0)
 
 
+def refocus_quick():
+    """Take the foreground back without waiting (inside the control loop)."""
+    hwnd = find_window()
+    if hwnd is not None:
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+
+
 def is_focused():
     hwnd = find_window()
     return hwnd is not None and user32.GetForegroundWindow() == hwnd

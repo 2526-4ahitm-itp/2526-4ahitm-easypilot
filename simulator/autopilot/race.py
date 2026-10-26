@@ -141,6 +141,98 @@ class VisionAssist(threading.Thread):
         self.running = False
 
 
+def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max_time=None):
+    """Fly the race from where the drone stands now (after reset/countdown). Returns the result dict.
+
+    `on_step(state, racer)` is called every control step (live dashboard), `sess` may share its
+    telemetry receiver with a lap timer.
+    """
+    rates, thrust = load_model()
+    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
+    s0 = sess.tel.wait()
+    start, start_dir = launch(gates[0], s0.pos)
+    line = build_line(gates, start, start_dir, laps, k)
+    racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
+    assist = None
+    if vision:
+        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer)
+        assist.start()
+        assist.window_ready.wait(30)
+        window.focus_liftoff(hard=False)
+    print(f"{len(line.gate_sequence)} gate passages ({laps} laps), line {line.length:.0f} m, "
+          f"planned {line.lap_time_estimate:.2f} s, v_max {max(line.speed):.1f} m/s")
+
+    stop = {"phase": None}
+
+    def finish_command(s, dt):
+        """After the finish: brake while climbing 2 m, then land slowly. Cutting the throttle at
+        30 m/s and 1 m height slammed the drone into the ground."""
+        if stop["phase"] is None:
+            v = s.vel
+            sp = math.hypot(v[0], v[2]) or 1e-6
+            dist = sp * sp / (2 * 14.0)
+            stop.update(phase="brake", p=(s.pos[0] + v[0] / sp * dist, max(s.pos[1], 1.5) + 2.0,
+                                          s.pos[2] + v[2] / sp * dist), look=(v[0] / sp, 0.0, v[2] / sp))
+        if stop["phase"] == "brake" and s.speed < 1.0:
+            stop["phase"] = "land"
+        v_ref = (0.0, 0.0, 0.0)
+        if stop["phase"] == "land":
+            p = stop["p"]
+            stop["p"] = (p[0], p[1] - 0.8 * dt, p[2])
+            v_ref = (0.0, -0.8, 0.0)
+            if stop["p"][1] < s.pos[1] - 0.6:          # reference sinks, drone does not: on the ground
+                return None
+        return racer.ctl.track(s, stop["p"], v_ref, (0.0, 0.0, 0.0), stop["look"])
+
+    def step(s, dt):
+        if stop["phase"] or (racer.done and not racer.crashed):
+            c = finish_command(s, dt)
+            return None if c is None else c.as_tuple()
+        c = racer.step(s)
+        line = racer.line
+        d = racer.ctl.debug
+        e = sub(s.pos, line.points[racer.idx])
+        dist = racer.ctl.disturbance
+        sess.log(idx=racer.idx, gate=racer.progress.gate_index, v_ref=line.speed[racer.idx],
+                 xt=math.dist(s.pos, line.points[racer.idx]), e_vert=e[1], e_horiz=math.hypot(e[0], e[2]),
+                 d_x=dist[0], d_y=dist[1], d_z=dist[2], tilt_err=d.get("tilt_err_deg", 0),
+                 cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll, **state_row(s))
+        if on_step:
+            on_step(s, racer)
+        if racer.crashed:
+            return None
+        if racer.done:
+            c = finish_command(s, dt)
+            return None if c is None else c.as_tuple()
+        return c.as_tuple()
+
+    ok = sess.loop(step, max_time=max_time or line.lap_time_estimate * 2.5 + 20)
+    if assist:
+        assist.close()
+    log = sess.close()
+    p = racer.progress
+    result = {"aggressiveness": k, "laps": laps, "ok": ok and not racer.crashed,
+              "reason": "crash (drone stopped)" if racer.crashed else sess.reason,
+              "gates_passed": len(p.gate_times), "gates_total": len(line.gate_sequence), "missed": p.missed,
+              "time_s": round(p.gate_times[-1], 3) if p.gate_times else None, "splits": p.gate_times,
+              "planned_s": round(line.lap_time_estimate, 2), "max_cross_track_m": round(racer.max_cross_track, 2),
+              "log": str(log)}
+    if assist:
+        gm = assist.gate_map
+        result["vision"] = {"error": assist.error, "replans": assist.replans, "fps": round(assist.fps, 1),
+                            "gates_corrected": {g.name.split()[0]: [round(v, 2) for v in gm.offsets[i]]
+                                                for i, g in enumerate(gm.gates) if i in gm.offsets} if gm else {}}
+        if gm and true_centers:
+            res = {}
+            for i, g in enumerate(gm.gates):
+                if g.name in true_centers and math.dist(g.center, true_centers[g.name]) > 1e-6:
+                    res[g.name] = {"map_error_before_m": round(math.dist(g.center, true_centers[g.name]), 2),
+                                   "after_camera_m": round(math.dist(gm.corrected(i).center, true_centers[g.name]), 2),
+                                   "detections": gm.hits.get(i, 0)}
+            result["vision"]["perturbed"] = res
+    return result
+
+
 def main(argv):
     vision = "--vision" in argv
     perturb = {}
@@ -159,64 +251,10 @@ def main(argv):
         if g.name.split()[0] in perturb:
             g.center = tuple(a + b for a, b in zip(g.center, perturb[g.name.split()[0]]))
             print(f"perturbed {g.name} by {perturb[g.name.split()[0]]} m")
-    rates, thrust = load_model()
-    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
     sess = Session(f"race-{name}-{k}")
     sess.reset_drone(settle=4.5)   # race mode: wait for the 3-2-1 countdown
-    s0 = sess.tel.wait()
-    _, _, fwd = body_axes(s0.quat)
-    start, start_dir = launch(gates[0], s0.pos)
-    line = build_line(gates, start, start_dir, laps, k)
-    racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
-    assist = None
-    if vision:
-        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer)
-        assist.start()
-        assist.window_ready.wait(30)
-        window.focus_liftoff(hard=False)
-    print(f"{race['name']}: {len(line.gate_sequence)} gate passages ({laps} laps), line {line.length:.0f} m, "
-          f"planned {line.lap_time_estimate:.2f} s, v_max {max(line.speed):.1f} m/s")
-    t0 = time.perf_counter()
-
-    def step(s, dt):
-        c = racer.step(s)
-        line = racer.line
-        d = racer.ctl.debug
-        e = sub(s.pos, line.points[racer.idx])
-        dist = racer.ctl.disturbance
-        sess.log(idx=racer.idx, gate=racer.progress.gate_index, v_ref=line.speed[racer.idx],
-                 xt=math.dist(s.pos, line.points[racer.idx]), e_vert=e[1], e_horiz=math.hypot(e[0], e[2]),
-                 d_x=dist[0], d_y=dist[1], d_z=dist[2], tilt_err=d.get("tilt_err_deg", 0),
-                 cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll, **state_row(s))
-        if racer.done:
-            return None
-        return c.as_tuple()
-
-    ok = sess.loop(step, max_time=line.lap_time_estimate * 2.5 + 10)
-    el = time.perf_counter() - t0
-    if assist:
-        assist.close()
-    log = sess.close()
-    p = racer.progress
-    result = {"race": race["name"], "aggressiveness": k, "laps": laps, "ok": ok and not racer.crashed,
-              "reason": "crash (drone stopped)" if racer.crashed else sess.reason,
-              "gates_passed": len(p.gate_times), "gates_total": len(line.gate_sequence), "missed": p.missed,
-              "time_s": round(p.gate_times[-1], 3) if p.gate_times else None,
-              "planned_s": round(line.lap_time_estimate, 2), "max_cross_track_m": round(racer.max_cross_track, 2),
-              "log": str(log)}
-    if assist:
-        gm = assist.gate_map
-        result["vision"] = {"error": assist.error, "replans": assist.replans, "fps": round(assist.fps, 1),
-                            "gates_corrected": {g.name.split()[0]: [round(v, 2) for v in gm.offsets[i]]
-                                                for i, g in enumerate(gm.gates) if i in gm.offsets} if gm else {}}
-        if gm and perturb:
-            res = {}
-            for i, g in enumerate(gm.gates):
-                if g.name.split()[0] in perturb:
-                    res[g.name] = {"map_error_before_m": round(math.dist(g.center, true_centers[g.name]), 2),
-                                   "after_camera_m": round(math.dist(gm.corrected(i).center, true_centers[g.name]), 2),
-                                   "detections": gm.hits.get(i, 0)}
-            result["vision"]["perturbed"] = res
+    result = fly(sess, gates, laps, k, vision=vision, true_centers=true_centers if perturb else None)
+    result["race"] = race["name"]
     print(json.dumps(result, indent=1))
     RUNS.mkdir(exist_ok=True)
     with (RUNS / "race_results.jsonl").open("a") as f:
