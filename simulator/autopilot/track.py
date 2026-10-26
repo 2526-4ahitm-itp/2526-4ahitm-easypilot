@@ -91,8 +91,25 @@ def _vec(el, name):
     return tuple(float(v.find(k).text) for k in ("x", "y", "z")) if v is not None else (0.0, 0.0, 0.0)
 
 
+def _root(path):
+    """Parse a Liftoff XML; some files declare utf-16 but are stored as utf-8 (or the other way round)."""
+    raw = Path(path).read_bytes()
+    for enc in ("utf-8-sig", "utf-16"):
+        try:
+            text = raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+        if text.lstrip().startswith("<?xml"):
+            text = text[text.index("?>") + 2:]
+        try:
+            return ET.fromstring(text)
+        except ET.ParseError:
+            continue
+    return ET.parse(path).getroot()
+
+
 def load_track(path):
-    root = ET.parse(path).getroot()
+    root = _root(path)
     bps = []
     for bp in root.iter("TrackBlueprint"):
         extra = {"scale": _vec(bp, "scale")} if bp.find("scale") is not None else {}
@@ -103,7 +120,7 @@ def load_track(path):
 
 
 def load_race(path):
-    root = ET.parse(path).getroot()
+    root = _root(path)
     passages = {}
     for p in root.iter("RaceCheckpointPassage"):
         passages[p.findtext("uniqueId")] = {
@@ -119,12 +136,58 @@ def load_race(path):
             "laps": int(root.findtext("requiredLaps") or 1), "passages": [p for _, p in order]}
 
 
+def gate_from_db(bp, name):
+    """Gate from the prefab database (gatedb.py): the checkpoint trigger volume gives size and
+    passage direction, the frame colliders the middle of the opening the drone can really use."""
+    from . import gatedb
+    rec = gatedb.item(bp.item)
+    if not rec or not rec.get("checkpoint"):
+        return None
+    # the blueprint's scale replaces the prefab root's own scale (flexible checkpoints)
+    scale = bp.extra.get("scale") or tuple(rec.get("root_scale", (1.0, 1.0, 1.0)))
+    o, a, b, c = gatedb.transform_pp(rec["checkpoint"][0], bp.pos, bp.quat, scale)
+    center = tuple(o[k] + (a[k] + b[k] + c[k]) / 2 for k in range(3))
+    edges = sorted((a, b, c), key=lambda e: math.sqrt(sum(x * x for x in e)))
+    length = lambda e: math.sqrt(sum(x * x for x in e))
+    unit = lambda e: tuple(x / (length(e) or 1e-9) for x in e)
+    normal = unit(edges[0])
+    up_e, side_e = (edges[1], edges[2]) if abs(unit(edges[1])[1]) >= abs(unit(edges[2])[1]) else (edges[2], edges[1])
+    up, side = unit(up_e), unit(side_e)
+    if up[1] < 0:
+        up = tuple(-x for x in up)
+    hw, hh = length(side_e) / 2, length(up_e) / 2
+    if not bp.item.startswith("Checkpoint"):          # invisible checkpoints have nothing to hit
+        cols = [gatedb.transform_pp(pp, bp.pos, bp.quat, scale) for pp in rec["colliders"]]
+        cols = [pp for pp in cols if math.dist(gatedb.pp_corners(pp)[0], center) < 3 * (hw + hh) + 5]
+        hit = lambda q: any(gatedb.pp_contains(pp, q, 0.05) for pp in cols)
+        at = lambda u, v: tuple(center[k] + side[k] * u + up[k] * v for k in range(3))
+
+        def free(du, dv, limit):
+            s = 0.0
+            while s < limit and not hit(at(du * (s + 0.05), dv * (s + 0.05))):
+                s += 0.05
+            return s
+        # aim at the middle of the free opening (frames are not symmetric around the trigger),
+        # size = the trigger volume: that is what Liftoff counts
+        l, r = free(-1, 0, hw), free(1, 0, hw)
+        d, u = free(0, -1, hh), free(0, 1, hh)
+        center = at((r - l) / 2, (u - d) / 2)
+    g = Gate(center, normal, 2 * hw, 2 * hh, name)
+    # spheres / thick boxes have no passage plane: use the course direction (set in race_gates)
+    g.omni = length(edges[0]) > 0.5 * length(edges[1])
+    return g
+
+
 def race_gates(race, track):
     """Ordered planner Gates (centre of the opening, travel direction) for one lap."""
     by_id = {b.instance: b for b in track["blueprints"]}
     gates = []
     for p in race["passages"]:
         b = by_id[p["checkpoint"]]
+        g = gate_from_db(b, f"CP{p['checkpoint']} {b.item}")
+        if g is not None:
+            gates.append(g)
+            continue
         size = gate_size(b.item, b.extra.get("scale")) or (2.0, 2.0)
         w, h = size
         q = b.quat
@@ -140,6 +203,10 @@ def race_gates(race, track):
     for i, g in enumerate(gates):
         a, b = gates[i - 1].center, gates[(i + 1) % k].center
         course = tuple(b[j] - a[j] for j in range(3))
+        if getattr(g, "omni", False):
+            n = math.sqrt(sum(v * v for v in course)) or 1.0
+            g.normal = tuple(v / n for v in course)
+            continue
         if sum(g.normal[j] * course[j] for j in range(3)) < 0:
             g.normal = tuple(-v for v in g.normal)
     return gates
