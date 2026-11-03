@@ -71,10 +71,10 @@ Aufteilung (Vorschlag, vom Team zu bestätigen): **A** = Regelung, Planung, Lift
 ## 5. Zielflug mit Kollisionsvermeidung (W6–W9) – A
 
 - [~] 5.1 [GAP] GPS ↔ Simulator-Meter über Referenzpunkt (ENU), Eingabe im Rennmodus-UI. → `nav.py` GeoReference; Eingabe-UI offen
-- [~] 5.2 [GAP] Hinderniskarte aus Streckendatei (bzw. Web-Simulator-Szene) → 3D-Belegungsgitter mit Sicherheitsrand. → Belegungsgitter aus Sensorpunkten; Hindernisse aus der Strecken-XML noch nicht eingelesen
+- [~] 5.2 [GAP] Hinderniskarte aus Streckendatei (bzw. Web-Simulator-Szene) → 3D-Belegungsgitter mit Sicherheitsrand. → Belegungsgitter aus Sensorpunkten; Streckenobjekte als Boxen aus der Strecken-XML (`obstacles.py`), Hindernisse aus dem Kamerabild per Bewegungs-Stereo (`depth.py`)
 - [x] 5.3 [GAP] A*-Planung mit Höhenband 1–3 m, Glättung zu fliegbarer Bahn. → A* + Glättung (2,5D, Höhenband über Boden)
 - [x] 5.4 [GAP] Lokales Ausweichen: Abstandsstrahlen gegen die Karte, Bremsweg-Regel, Neuplanung. → Bremsweg-Regel, Neuplanung bei neuen Hindernissen
-- [~] 5.5 [GAP] Testreihe: 10 zufällige Ziele bei steigender Geschwindigkeit; Kollisionen, minimaler Abstand, Flugzeit. → im eigenen Modell 10/10 Ziele, 0 Kollisionen, 1,2–1,6 m; in Liftoff offen
+- [~] 5.5 [GAP] Testreihe: 10 zufällige Ziele bei steigender Geschwindigkeit; Kollisionen, minimaler Abstand, Flugzeit. → im eigenen Modell 10/10 Ziele, 0 Kollisionen, 1,2–1,6 m; in Liftoff umgesetzt (`goto.py`), Testreihe offen
 - **M12:** 10 Ziele, 0 Kollisionen, Höhe immer 1–3 m.
 
 ## 6. Generalprobe und Doku (W10)
