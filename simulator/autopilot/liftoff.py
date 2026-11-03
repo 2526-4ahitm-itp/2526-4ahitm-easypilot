@@ -7,6 +7,7 @@ Every autonomous mode (sysid, racing, waypoint flight) runs through `Session.loo
 import csv
 import ctypes
 import math
+import sys
 import time
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from .telemetry import Telemetry
 from .vjoy import BTN_RESET, VJoy
 
 RUNS = Path(__file__).resolve().parent / "runs"
-user32 = ctypes.windll.user32
+user32 = ctypes.windll.user32 if sys.platform == "win32" else None  # Windows only, see window.py
 VK_F9 = 0x78
 
 
