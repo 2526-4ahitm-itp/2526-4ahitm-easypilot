@@ -5,7 +5,7 @@ date: 2026-11-03
 
 {{< report-card commits="28" prs="10" newlines="19686" remlines="5837" modfiles="330" >}}
 
-Zeitraum: 13.10. – 03.11.2026 · Stand 03.11.2026
+Zeitraum: 13.10. – 03.11.2026 · Stand 03.11.2026 (Zahlen bis 26.10.2026, ohne die PRs vom 03.11.)
 
 Die Zahlen enthalten die Branches vom 13.10.2026, die in
 [Iteration 1](../2026-10-13_phase_2_iteration_1) nicht mitgezählt wurden. Nicht mitgezählt sind
