@@ -33,14 +33,13 @@ ein GPS-Zielflug ohne Kollision (Change `2026-10-14-tdot-autonomes-rennen`, FSD 
 | Zweite Strecke After Hours gewonnen (1:17,035) | erledigt (19.10.2026) | PR #68 |
 | M11: Kamera korrigiert falsch eingetragene Tore | erledigt (19.10.2026) | PR #68 |
 | GPS-Zielflug in Liftoff mit Hindernissen aus Strecke und Kamera | umgesetzt (26.10.2026) | PR #68 |
+| Simulator-CI wieder grün (war seit 26.10. rot: `ctypes.windll` auf Linux, `cv2` fehlte) | erledigt (03.11.2026) | PR #70 |
 
 ## Offen
 
-- **Simulator-CI auf `main` ist rot** (Lauf vom 26.10.2026): 3 Tests in `simulator/autopilot/tests`
-  importieren `autopilot.window`, das `ctypes.windll` braucht und auf dem Linux-Runner fehlschlägt
-  (`AttributeError: module 'ctypes' has no attribute 'windll'`).
 - Zwei Commits auf `feat/tdot-autopilot` sind noch nicht in `main`: TDOT-Challenge mit 5 Bot-Stufen
   und Live-Dashboard, exakte Torgeometrie aus den Liftoff-Prefabs.
+- Testreihe GPS-Zielflug in Liftoff (M12: 10 Ziele, 0 Kollisionen).
 - M9 (10 Runden bei voller Geschwindigkeit), M10 (Rennmodus mit Bestenliste), Generalprobe und
   Checkliste für den Tag der offenen Tür (Tasks 3.x und 6.x im Change).
 - Web-Simulator mit Physik (Change `2026-10-13-phase2-web-simulator`, 1/15 Tasks).
@@ -52,4 +51,4 @@ ein GPS-Zielflug ohne Kollision (Change `2026-10-14-tdot-autonomes-rennen`, FSD 
 - [Testbericht autonomes Rennen](../../reports/autonomes-rennen-test)
 - [Meilensteine](../../../releases)
 - OpenSpec-Change: `openspec/changes/2026-10-14-tdot-autonomes-rennen`
-- Pull Requests: #59 – #68
+- Pull Requests: #59 – #68, #70, #71
