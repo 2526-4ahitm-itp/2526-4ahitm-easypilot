@@ -45,8 +45,11 @@ Geometrie direkt aus Liftoffs Dateien:
   mit dem Skript `RaceCheckpoint` und einem Trigger-Volumen – genau dort zählt Liftoff den Durchflug.
   Feste Teile, an denen die Drohne hängen bleibt, tragen das Skript `DroneObjectCollider` (andere
   Collider sind Auswahlboxen für den Editor und spannen oft über die ganze Öffnung).
-- **Das Level selbst** (`envdb.py`): Gebäude, Wände, Bäume und das Gelände (Höhenkarte) stehen in den
+- **Das Level selbst** (`envdb.py`): Gebäude, Wände und das Gelände (Höhenkarte) stehen in den
   Szenen-Dateien der Umgebungen, nicht in den Streckendateien.
+- **Bäume** sind keine eigenen Objekte der Szene, sondern auf das Gelände „gemalt“ (Tree-Instanzen
+  weniger Baum-Vorlagen). Fest sind nur Stamm und Äste (Kapsel-Collider), durch das Laub fliegt die
+  Drohne durch. 15 der 20 Umgebungen haben Bäume, Permafrost allein 84 000 Stamm- und Astteile.
 - Ein Checkpoint gilt wie in Liftoff als passiert, sobald die Drohne in sein Volumen eintritt.
 
 Weil eigene Strecken aus denselben Objekten in denselben Umgebungen gebaut werden, gilt das auch für
@@ -83,11 +86,21 @@ mit 60–75° Neigung, deshalb ein eigener Regler:
 1. **Soll-Beschleunigung** = Vorsteuerung aus der Rennlinie + PD auf Position und Geschwindigkeit.
 2. **Luftwiderstand** wird vorgesteuert (a = –0,033 · |v| · v, gemessen). Bei 27 m/s sind das
    ~25 m/s², also mehr als die Erdbeschleunigung.
-3. **Störgrößenschätzung:** gemessene minus erwartete Beschleunigung, gefiltert. Sie gleicht
-   Schubverlust bei hoher Geschwindigkeit und Modellfehler aus.
-4. Daraus folgen **Schubrichtung und Schubbetrag**. Gas = √(a / k), weil der Schub quadratisch mit
-   dem Gas wächst.
-5. **Lage → Drehraten:** zuerst die Neigung, danach das Heading. Die Drehraten werden über die
+3. **Anströmung der Propeller:** Kommt die Luft von oben (Nase unten im Geradeausflug), sinkt der
+   Schub; kommt sie von unten (Bremsen mit dem Bauch voraus), steigt er stark. Aus 40 Läufen gefittet:
+   a = k·Gas² − 1,37·Gas·v_axial (Restfehler 0,6 m/s²).
+4. **Störgrößenschätzung** (gemessene minus erwartete Beschleunigung, gefiltert), getrennt in
+   - einen **Schubfehler entlang der Drohnenachse** – er ändert nur das Gas, nie die Lage,
+   - eine langsame **seitliche Störung** in Weltkoordinaten.
+
+   Vorher war das ein einziger Vektor. Beim Bremsen sprang er von −11 auf +20 m/s², der Regler wollte
+   „nach unten“, kippte die Soll-Lage um, die Schätzung folgte der Lage – die Drohne taumelte mit
+   vollem Stickausschlag 3 m über das Tor.
+5. Daraus folgen **Schubrichtung und Schubbetrag**. Gas aus dem Schubmodell (mit Anströmung).
+   Soll die Drohne schneller sinken als die Schwerkraft erlaubt, wird nur das Gas weggenommen; die
+   Schubrichtung wird dabei nicht flacher. Im Leerlauf sind die Drehraten halbiert: Liftoffs
+   Airmode dreht sonst für jede Drehung die Motoren hoch (gemessen bis 13 m/s² bei Gas 0).
+6. **Lage → Drehraten:** zuerst die Neigung, danach das Heading. Die Drehraten werden über die
    **umgekehrte Betaflight-Rate-Kurve** der Drohne zu Stickwerten.
 
 Das Drohnenmodell (Schwebegas, Schubkurve, Raten, Kamera) wird automatisch vermessen:
@@ -130,7 +143,9 @@ Das Drohnenmodell (Schwebegas, Schubkurve, Raten, Kamera) wird automatisch verme
 
 ## Grenzen
 
-- Gelände zwischen den Toren steht nicht in der Streckendatei. Abkürzungen über Hügel sind nicht
-  gegen den Boden geprüft.
-- Für jeden neuen Tortyp muss der Bezugspunkt einmal geprüft werden (oder die Kamera korrigiert ihn).
+- Level-Geometrie aus Mesh-Collidern ist nur als umschließender Quader bekannt; eine Halle mit
+  Durchgang wirkt wie ein Block. Blöcke, in denen ein Tor oder sein Führungspunkt liegt, werden
+  deshalb ignoriert.
+- Der eigene Simulator kennt Liftoffs Aerodynamik nur genähert (Luftwiderstand, Anströmung,
+  Airmode). Die Abnahme ist immer ein Lauf in Liftoff.
 - Jede neue Drohne braucht einmal `sysid` und `calib_cam`.
