@@ -59,7 +59,7 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     around solid track items: where it touches one, a via point is put beside the item and the
     line is planned again."""
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
-    seq = course(gates, laps)
+    seq = align_vias(course(gates, laps))
 
     def plan(sq):
         return RacingLine(sq, start=start, start_dir=start_dir, laps=1, limits=limits,
@@ -72,9 +72,12 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     for _ in range(iterations):
         if not vias:
             break
-        trial = list(seq)
-        for pos, via in sorted(vias, key=lambda v: -v[0]):
-            trial.insert(pos, via)
+        # insert in order along the line: several vias can fall into the same stretch
+        trial = []
+        for k, g in enumerate(seq + [None]):
+            trial += [v for _, _, v in sorted((x for x in vias if x[0] == k), key=lambda x: x[1])]
+            if g is not None:
+                trial.append(g)
         cand = plan(trial)
         new_vias, new_hits = _avoid(cand, trial, colliders)
         if new_hits >= best[0]:
@@ -84,6 +87,36 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     line.vias = sum(1 for g in line.gates if getattr(g, "via", False))
     line.touching = best[0]
     return line
+
+
+def _via(center, direction):
+    g = Gate(tuple(center), tuple(direction), 6.0, 6.0, "via")
+    g.via = True
+    return g
+
+
+def align_vias(seq, max_angle=50.0):
+    """Approach / exit points for gates that are entered at a steep angle or from behind (turn-around
+    gates, stacked tower windows): the turn then happens in front of / behind the gate, not inside it."""
+    from .geometry import dot, norm, sub, unit
+    out = []
+    cos_max = math.cos(math.radians(max_angle))
+    for i, g in enumerate(seq):
+        n = unit(g.normal)
+        if i > 0:
+            chord = sub(g.center, seq[i - 1].center)
+            dist = norm(chord)
+            if dist > 1e-3 and dot(unit(chord), n) < cos_max:
+                ra = min(8.0, max(3.0, 0.3 * dist))
+                out.append(_via(sub(g.center, mul(n, ra)), n))
+        out.append(g)
+        if i + 1 < len(seq):
+            chord = sub(seq[i + 1].center, g.center)
+            dist = norm(chord)
+            if dist > 1e-3 and dot(unit(chord), n) < cos_max:
+                re = min(8.0, max(3.0, 0.3 * dist))
+                out.append(_via(add(g.center, mul(n, re)), n))
+    return out
 
 
 def _avoid(line, seq, colliders, step=0.5):
@@ -104,6 +137,8 @@ def _avoid(line, seq, colliders, step=0.5):
         if line.s[i] - last < step:
             continue
         last = line.s[i]
+        if math.dist(p, line.points[0]) < 3.0:
+            continue                          # the start pad the drone stands on
         # in and right at a gate opening the frame is close by design: only the drone itself counts
         margin = 0.2 if any(abs(line.s[i] - sk) < 1.5 for sk in real_s) else CLEARANCE
         for name, pp in colliders:
@@ -150,7 +185,7 @@ def _avoid(line, seq, colliders, step=0.5):
         via.via = True
         s_hit = line.s[i]
         pos = next((k for k, sk in enumerate(knot_s) if sk > s_hit), len(seq))
-        vias.append((pos, via))
+        vias.append((pos, s_hit, via))
     return vias, len(hits)
 
 

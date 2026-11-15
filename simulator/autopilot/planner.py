@@ -130,6 +130,12 @@ class RacingLine:
         for i, kv in enumerate(self.kappa_vec):
             if kv[1] < -1e-6:
                 v[i] = min(v[i], math.sqrt(self.down_accel / -kv[1]))
+        # steep descents: the drag pushes up by drag*v^2*|slope|, gravity minus the minimum thrust
+        # (no inverted flight) must still pull the drone down along the line
+        if lim.drag > 0:
+            for i, t in enumerate(self.tangent):
+                if t[1] < -0.05:
+                    v[i] = min(v[i], math.sqrt((9.81 - 1.5) / (lim.drag * -t[1])))
         v[-1] = min(v[-1], lim.max_speed)
         if self.launch_speed:
             v = [min(x, self.launch_speed) if self.s[i] < self.launch_dist else x for i, x in enumerate(v)]

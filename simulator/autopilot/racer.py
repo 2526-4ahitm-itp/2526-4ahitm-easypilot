@@ -37,7 +37,10 @@ class Racer:
         if prog.start_t is None:
             prog.start_t = state.t
         self.ctl.observe(state)
-        self.idx = line.closest(state.pos, self.idx)
+        # search only a short way ahead (0.2 s of flight + 4 m): where the course crosses or comes
+        # back near itself, a long window jumped to a later part and skipped gates
+        step = line.length / max(1, len(line.points) - 1)
+        self.idx = line.closest(state.pos, self.idx, window=int((state.speed * 0.2 + 4.0) / max(step, 0.05)) + 2)
         # crash: the line wants speed but the drone stands still (caught in a gate, on the ground)
         dt = state.t - self.last_t if self.last_t is not None else 0.0
         self.last_t = state.t
@@ -47,8 +50,9 @@ class Racer:
         else:
             self.stuck_time = 0.0
         # lost: far off the line for a while (hit a frame and hangs on it, or drifts away)
+        # (only after the first gate: at the start the line is at gate height, the drone climbs to it)
         off = norm(sub(state.pos, line.points[self.idx]))
-        self.off_time = self.off_time + dt if off > 3.0 else 0.0
+        self.off_time = self.off_time + dt if (off > 3.0 and prog.gate_index >= 1) else 0.0
         self.crashed = self.crashed or self.off_time > 1.5
         speed_here = line.speed[self.idx]
         p_ref, v_ref, a_ref, tangent = line.reference(self.idx, self.lookahead * max(2.0, speed_here) * 0.3)

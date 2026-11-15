@@ -247,6 +247,8 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
     rates, thrust = load_model()
     drone = SimDrone(pos=spawn, params=SimParams(hover_throttle=thrust.hover_throttle,
                                                  thrust_exponent=thrust.exponent, drag=DRAG), rates=rates)
+    # the simulator knows no terrain: put its ground plane below the start and every gate
+    drone.ground = min([spawn[1]] + [g.center[1] - g.height / 2 for g in gates]) - 0.5
     racer = Racer(line, FlightController(rates, thrust, Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)),
                   lookahead=0.12)
     dt, t, cmd, touch, xt = 0.002, 0.0, None, None, 0.0
@@ -256,7 +258,7 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
             cmd = racer.step(drone.state())
         drone.step(*cmd.as_tuple(), dt)
         t += dt
-        if int(t / dt) % 10 == 0 and touch is None:
+        if int(t / dt) % 10 == 0 and touch is None and racer.progress.gate_index >= 1:
             p = drone.pos
             for name, pp in cols:
                 if abs(pp[0][0] - p[0]) < 20 and abs(pp[0][2] - p[2]) < 20 and gatedb.pp_contains(pp, p, 0.15):

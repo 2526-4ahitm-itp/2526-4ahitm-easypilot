@@ -31,6 +31,7 @@ class SimDrone:
         self.omega = (0.0, 0.0, 0.0)
         self.thrust = G
         self.t = 0.0
+        self.ground = 0.0
         self.sticks = (0.0, 0.0, 0.0, 0.0)
 
     def step(self, throttle, yaw, pitch, roll, dt):
@@ -48,8 +49,8 @@ class SimDrone:
         acc = add(acc, mul(air, -p.drag * norm(air)))
         self.vel = add(self.vel, mul(acc, dt))
         self.pos = add(self.pos, mul(self.vel, dt))
-        if self.pos[1] < 0.0:  # ground
-            self.pos = (self.pos[0], 0.0, self.pos[2])
+        if self.pos[1] < self.ground:  # flat ground plane
+            self.pos = (self.pos[0], self.ground, self.pos[2])
             self.vel = (self.vel[0] * 0.5, max(0.0, self.vel[1]), self.vel[2] * 0.5)
         self.quat = integrate(self.quat, self.omega, dt)
         self.t += dt

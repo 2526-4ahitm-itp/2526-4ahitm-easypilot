@@ -55,7 +55,7 @@ class Gains:
     disturbance_tau: float = 0.12   # s, low-pass of the disturbance estimate
     disturbance_max: float = 45.0   # m/s^2
     drag: float = 0.0               # 1/m, quadratic drag a = -drag*|v|*v, measured in Liftoff
-    min_vertical_accel: float = 2.0  # never command less than this along +y net of gravity (avoid inversion)
+    min_vertical_accel: float = 0.8  # never command less than this along +y net of gravity (avoid inversion)
     hold_height: bool = True         # collective from the vertical need, not the projection (see accel_command)
 
 
