@@ -294,14 +294,20 @@ def extract_bundle(path):
 
 
 def scene_bundles():
-    """Bundles that contain a level scene (terrain or many colliders)."""
+    """Bundles that contain a level scene (terrain or many colliders), plus every scene Liftoff
+    was seen loading (Player.log), whatever its size."""
     import UnityPy
+    known = set(json.loads((ENV_DIR / "scenes.json").read_text()).values()) if (ENV_DIR / "scenes.json").exists() else set()
     out = []
     for f in sorted(BUNDLES.glob("*.bundle"), key=lambda p: -p.stat().st_size):
-        if f.stat().st_size < 20e6:
-            break
         try:
             env = UnityPy.load(str(f))
+            keys = set(env.container.keys()) if env.container else set()
+            if keys & known:
+                out.append(f)
+                continue
+            if f.stat().st_size < 20e6:
+                continue
             c = Counter(o.type.name for o in env.objects)
         except Exception:
             continue
