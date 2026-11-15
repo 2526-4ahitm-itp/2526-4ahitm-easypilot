@@ -383,10 +383,10 @@ def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max
         line = racer.line
         d = racer.ctl.debug
         e = sub(s.pos, line.points[racer.idx])
-        dist = racer.ctl.disturbance
+        dist = racer.ctl.total_disturbance
         sess.log(idx=racer.idx, gate=racer.progress.gate_index, v_ref=line.speed[racer.idx],
                  xt=math.dist(s.pos, line.points[racer.idx]), e_vert=e[1], e_horiz=math.hypot(e[0], e[2]),
-                 d_x=dist[0], d_y=dist[1], d_z=dist[2], tilt_err=d.get("tilt_err_deg", 0),
+                 d_x=dist[0], d_y=dist[1], d_z=dist[2], d_t=racer.ctl.thrust_offset, tilt_err=d.get("tilt_err_deg", 0),
                  cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll, **state_row(s))
         if on_step:
             on_step(s, racer)

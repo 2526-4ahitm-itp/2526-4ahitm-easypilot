@@ -245,7 +245,8 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
     line = build_line(gates, start, d, 1, k, colliders=obs if colliders else None)
     rates, thrust = load_model()
     drone = SimDrone(pos=spawn, params=SimParams(hover_throttle=thrust.hover_throttle,
-                                                 thrust_exponent=thrust.exponent, drag=DRAG), rates=rates)
+                                                 thrust_exponent=thrust.exponent, drag=DRAG,
+                                                 inflow=thrust.inflow, airmode=13.0), rates=rates)
     # the simulator knows no terrain: put its ground plane below the start and every gate
     drone.ground = min([spawn[1]] + [g.center[1] - g.height / 2 for g in gates]) - 0.5
     racer = Racer(line, FlightController(rates, thrust, Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)),
