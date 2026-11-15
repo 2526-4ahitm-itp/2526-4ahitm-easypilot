@@ -246,7 +246,7 @@ def extract_bundle(path):
         world = [tuple((m @ np.array([*p, 1.0]))[:3]) for p in local]
         pp = as_parallelepiped(world)
         spans = sorted(math.sqrt(sum(x * x for x in e)) for e in pp[1:])
-        if spans[1] > MAX_SPAN:                            # floor / ceiling / huge ground mesh
+        if t == "MeshCollider" and spans[1] > MAX_SPAN:     # bounds of a huge mesh say nothing
             continue
         try:
             nm = go.m_Name
@@ -269,10 +269,53 @@ def scene_bundles():
             c = Counter(o.type.name for o in env.objects)
         except Exception:
             continue
-        if c.get("TerrainCollider") or c.get("MeshCollider", 0) + c.get("BoxCollider", 0) > 400:
-            if c.get("GameObject", 0) > 1000:
-                out.append(f)
+        # a level scene (not a prefab collection): has render settings and many colliders or a terrain
+        if c.get("RenderSettings") and (c.get("TerrainCollider") or c.get("MeshCollider", 0) + c.get("BoxCollider", 0) > 300):
+            out.append(f)
     return out
+
+
+def env_items():
+    """Blueprint positions of all tracks per environment (official + custom)."""
+    from .track import TRACK_DIR, USER_DIR, load_track
+    out = defaultdict(list)
+    for d in (TRACK_DIR, USER_DIR / "Tracks"):
+        for p in (d.glob("*.xml") if d.exists() else []):
+            head = p.read_text(encoding="utf-8", errors="ignore")[:400]
+            if "<Track" not in head:
+                continue
+            try:
+                t = load_track(p)
+            except Exception:
+                continue
+            out[t["environment"]] += [b.pos for b in t["blueprints"]]
+    return out
+
+
+def match_score(cols, ters, items):
+    """How well a scene fits an environment's items: share of items inside the scene, and for terrain
+    scenes the share of items standing on the terrain (pivot within 0.5 m of the height map)."""
+    if not items:
+        return 0.0
+    pts = np.array(items)
+    if ters:
+        tset = [Terrain(*t) for t in ters]
+        on = 0
+        for p in pts[:: max(1, len(pts) // 300)]:
+            hs = [t.height(p[0], p[2]) for t in tset]
+            hs = [h for h in hs if h is not None]
+            on += any(abs(h - p[1]) < 0.5 for h in hs)
+        return on / len(pts[:: max(1, len(pts) // 300)]) + 0.01 * len(cols) / 1e5
+    if not cols:
+        return 0.0
+    # indoor levels: items stand on floors / platforms of the scene
+    obs = ObstacleSet(cols)
+    sample = pts[:: max(1, len(pts) // 200)]
+    on = 0
+    for p in sample:
+        q = (float(p[0]), float(p[1]) - 0.15, float(p[2]))
+        on += any(pp_contains(pp, q, 0.25) for _, pp in obs.near(q, 1.0))
+    return on / len(sample)
 
 
 def extract(only=None):
@@ -284,33 +327,44 @@ def extract(only=None):
     t0 = time.time()
     bundles = scene_bundles()
     print(f"{len(bundles)} scene bundles, {time.time() - t0:.0f} s", flush=True)
-    best = {}
+    items = env_items()
+    scenes = []
     for f in bundles:
         cols, ters, names, key = extract_bundle(f)
         names.pop("__key__", None)
-        env = next((e for e, h in known.items() if h == key), None)
-        if env is None:
-            if not names:
-                continue
-            env = names.most_common(1)[0][0]
+        scores = {e: match_score(cols, ters, items.get(e, [])) for e in ENVS}
+        best_env = max(scores, key=scores.get)
+        print(f"  {f.name}: best {best_env} {scores[best_env]:.2f} (names {dict(names.most_common(2))}), "
+              f"{len(cols)} colliders, {len(ters)} terrains, {time.time() - t0:.0f} s", flush=True)
+        scenes.append((f, cols, ters, key, scores))
+    # each environment takes the scene Liftoff loads (Player.log); the rest one-to-one by best match
+    assign = {}
+    for env in ENVS:
+        sc = next((x for x in scenes if known.get(env) == x[3]), None)
+        if sc is not None:
+            assign[env] = sc
+    pairs = sorted(((sc[4][e], e, i) for i, sc in enumerate(scenes) for e in ENVS), reverse=True)
+    used = {id(x) for x in assign.values()}
+    for score, env, i in pairs:
+        if env in assign or id(scenes[i]) in used or score < 0.3:
+            continue
+        assign[env] = scenes[i]
+        used.add(id(scenes[i]))
+    for env in ENVS:
         if only and env not in only:
             continue
-        score = len(cols) + 1000 * len(ters)
-        print(f"  {f.name}: {env} ({dict(names.most_common(2))}), {len(cols)} colliders, {len(ters)} terrains, "
-              f"{time.time() - t0:.0f} s", flush=True)
-        # several scenes per environment (lighting variants): keep the one Liftoff loads, else the richest
-        prefer = known.get(env) == key
-        if env not in best or prefer or (score > best[env][0] and not best[env][3]):
-            best[env] = (score, cols, ters, prefer)
-    for env, (_, cols, ters, _) in best.items():
+        if env not in assign:
+            print(f"{env}: no matching scene")
+            continue
+        f, cols, ters, key, scores = assign[env]
         data = {"pps": np.array([pp for _, pp in cols], np.float32).reshape(-1, 4, 3),
-                "names": json.dumps([n for n, _ in cols]), "n_terrain": len(ters)}
-        for k, (o, s, h) in enumerate(ters):
+                "names": json.dumps([n for n, _ in cols]), "n_terrain": len(ters), "scene": key}
+        for k, (o, s_, h) in enumerate(ters):
             data[f"t{k}_origin"] = np.array(o, np.float32)
-            data[f"t{k}_size"] = np.array(s, np.float32)
+            data[f"t{k}_size"] = np.array(s_, np.float32)
             data[f"t{k}_h"] = h.astype(np.float16)
         np.savez_compressed(ENV_DIR / f"{env}.npz", **data)
-        print(f"{env}: {len(cols)} colliders, {len(ters)} terrain tiles")
+        print(f"{env}: {f.name} (match {scores[env]:.2f}), {len(cols)} colliders, {len(ters)} terrain tiles")
 
 
 def show(env):
