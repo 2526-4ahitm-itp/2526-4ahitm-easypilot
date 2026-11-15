@@ -11,6 +11,7 @@ check of our own gate model.
   python -m autopilot.session load StrawBaleRace02
   python -m autopilot.session laps StrawBaleRace02
 """
+import json
 import re
 import subprocess
 import sys
@@ -139,11 +140,29 @@ def start_and_open_last_session(tel=None, timeout=600.0):
         while time.time() - t_click < 40:
             s = tel.latest(0.5) if tel is not None else None
             if s is not None and max(abs(v) for v in s.pos) > 1e-3:
+                remember_scene()
                 return True
             if tel is None and time.time() - t_click > 30:
                 return True
             time.sleep(0.5)
     return False
+
+
+def remember_scene():
+    """Liftoff logs which scene (bundle hash) it loaded for an environment: keep it for envdb.py."""
+    log = LIFTOFF_DIR / "Player.log"
+    try:
+        text = log.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return
+    pairs = re.findall(r"SCENE LOAD START: (\w+) =+\s[\s\S]*?SCENE LOAD END: ([0-9a-f]{32})", text)
+    if not pairs:
+        return
+    f = TRACK_DIR / "env" / "scenes.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    known = json.loads(f.read_text()) if f.exists() else {}
+    known.update({env: h for env, h in pairs})
+    f.write_text(json.dumps(known, indent=1))
 
 
 def load(race_name, tel=None, mode="race"):

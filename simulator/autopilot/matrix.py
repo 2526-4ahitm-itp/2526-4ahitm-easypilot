@@ -20,6 +20,7 @@ from pathlib import Path
 from .liftoff import RUNS, Session
 from .race import course, fly
 from .session import flush_laps, lap_counted, lap_record, load, race_info
+from .envdb import for_track
 from .gatedb import track_colliders
 from .recorder import Recorder, keep_as_reference
 from .tdot import DATA as TDOT_DATA, STAGES, Leaderboard, LapTimer
@@ -70,7 +71,7 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
     if rec:
         rec.go()
     t0 = time.time()
-    res = fly(sess, gates, 1, st.aggressiveness, max_time=240, colliders=track_colliders(info["track"]))
+    res = fly(sess, gates, 1, st.aggressiveness, max_time=240, colliders=for_track(info["track"]))
     timer.running = False
     time.sleep(1.0)
     after = flush_laps(info["race_id"])
@@ -190,13 +191,9 @@ def line_hits(line, colliders, radius=0.35, step=0.5):
         if s - last_s < step:
             continue
         last_s = s
-        for name, pp in colliders:
-            o = pp[0]
-            if abs(o[0] - p[0]) > 25 or abs(o[2] - p[2]) > 25:
-                continue
-            if gatedb.pp_contains(pp, p, radius):
-                hits.append((round(s, 1), name, tuple(round(v, 1) for v in p)))
-                break
+        name = colliders.blocked(p, radius)
+        if name:
+            hits.append((round(s, 1), name, tuple(round(v, 1) for v in p)))
     return hits
 
 
@@ -211,9 +208,9 @@ def linecheck(argv):
         gates = race_gates(info["race"], info["track"])
         spawn = gates[0].center      # approximation: the line from the start gate on
         start, d = launch(gates[0], (spawn[0] - 10 * gates[0].normal[0], spawn[1], spawn[2] - 10 * gates[0].normal[2]))
-        cols = gatedb.track_colliders(info["track"])
-        line = build_line(gates, start, d, 1, k, colliders=None if "--raw" in argv else cols)
-        hits = line_hits(line, cols)
+        obs = for_track(info["track"])
+        line = build_line(gates, start, d, 1, k, colliders=None if "--raw" in argv else obs)
+        hits = line_hits(line, obs)
         if hits:
             bad += 1
             items = sorted({h[1] for h in hits})
@@ -240,10 +237,10 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
     from .sysid import load_model
     info = race_info(race_name)
     gates = race_gates(info["race"], info["track"])
-    cols = gatedb.track_colliders(info["track"])
+    obs = for_track(info["track"])
     spawn = spawn_point(info["track"], gates[0])
     start, d = launch(gates[0], spawn)
-    line = build_line(gates, start, d, 1, k, colliders=cols if colliders else None)
+    line = build_line(gates, start, d, 1, k, colliders=obs if colliders else None)
     rates, thrust = load_model()
     drone = SimDrone(pos=spawn, params=SimParams(hover_throttle=thrust.hover_throttle,
                                                  thrust_exponent=thrust.exponent, drag=DRAG), rates=rates)
@@ -253,17 +250,18 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
                   lookahead=0.12)
     dt, t, cmd, touch, xt = 0.002, 0.0, None, None, 0.0
     near = []
+    flat = drone.ground
     while t < max_time and not racer.done:
         if cmd is None or int(t / dt) % 4 == 0:            # controller at 125 Hz like the Liftoff loop
             cmd = racer.step(drone.state())
+            g = obs.ground(drone.pos[0], drone.pos[2])        # the real terrain where it is known
+            drone.ground = g if g is not None else flat
         drone.step(*cmd.as_tuple(), dt)
         t += dt
         if int(t / dt) % 10 == 0 and touch is None and racer.progress.gate_index >= 1:
-            p = drone.pos
-            for name, pp in cols:
-                if abs(pp[0][0] - p[0]) < 20 and abs(pp[0][2] - p[2]) < 20 and gatedb.pp_contains(pp, p, 0.15):
-                    touch = (round(t, 1), name, racer.progress.gate_index)
-                    break
+            name = obs.blocked(drone.pos, 0.15)
+            if name:
+                touch = (round(t, 1), name, racer.progress.gate_index)
     prog = racer.progress
     return {"race": race_name, "k": k, "gates": len(prog.gate_times), "total": len(line.gate_sequence),
             "missed": len(prog.missed), "time": round(prog.gate_times[-1], 2) if prog.finished else None,

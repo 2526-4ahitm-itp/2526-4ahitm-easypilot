@@ -68,6 +68,9 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     line = plan(seq)
     if not colliders:
         return line
+    from .envdb import ObstacleSet
+    if not isinstance(colliders, ObstacleSet):
+        colliders = ObstacleSet(colliders)
     vias, n_hits = _avoid(line, seq, colliders)
     best = (n_hits, line)
     for _ in range(iterations):
@@ -142,16 +145,11 @@ def _avoid(line, seq, colliders, step=0.5):
             continue                          # the start pad the drone stands on
         # in and right at a gate opening the frame is close by design: only the drone itself counts
         margin = 0.2 if any(abs(line.s[i] - sk) < 1.5 for sk in real_s) else CLEARANCE
-        for name, pp in colliders:
-            o = pp[0]
-            if abs(o[0] - p[0]) > 25 or abs(o[2] - p[2]) > 25:
-                continue
-            # below the line keep more room: at speed the drone sags (thrust drops with airspeed in
-            # Liftoff) and scraped a row of lane lights 1.3 m under the line (Autumn Fields 04)
-            below = (p[0], p[1] - SAG, p[2]) if margin > 0.2 else p
-            if gatedb.pp_contains(pp, p, margin) or gatedb.pp_contains(pp, below, margin):
-                hits.append((i, pp))
-                break
+        # below the line keep more room: at speed the drone sags (thrust drops with airspeed in
+        # Liftoff) and scraped a row of lane lights 1.3 m under the line (Autumn Fields 04)
+        name = colliders.blocked(p, margin, SAG if margin > 0.2 else 0.0)
+        if name:
+            hits.append((i, name))
     if not hits:
         return [], 0
     # one via point per touching stretch (hits closer than 3 m belong together)
@@ -165,16 +163,12 @@ def _avoid(line, seq, colliders, step=0.5):
     groups.append(cur)
     vias = []
     for grp in groups:
-        i, pp = grp[len(grp) // 2]
+        i, _ = grp[len(grp) // 2]
         p, t = line.points[i], line.tangent[i]
         side = unit(cross((0.0, 1.0, 0.0), t), (1.0, 0.0, 0.0))
         up = unit(cross(t, side), (0.0, 1.0, 0.0))
-        near = [c for _, c in colliders if abs(c[0][0] - p[0]) < 30 and abs(c[0][2] - p[2]) < 30]
-
         def blocked(q):
-            low = (q[0], q[1] - SAG, q[2])
-            return q[1] < 0.6 or any(gatedb.pp_contains(c, q, CLEARANCE + 0.15) or
-                                     gatedb.pp_contains(c, low, CLEARANCE + 0.15) for c in near)
+            return colliders.blocked(q, CLEARANCE + 0.15, SAG) is not None
         # the shortest way out of all items: sideways, up, down or diagonal
         best_q, best_d = None, 1e9
         for a in range(8):
@@ -393,9 +387,9 @@ def main(argv):
             print(f"perturbed {g.name} by {perturb[g.name.split()[0]]} m")
     sess = Session(f"race-{name}-{k}")
     sess.reset_drone(settle=4.5)   # race mode: wait for the 3-2-1 countdown
-    from .gatedb import track_colliders
+    from .envdb import for_track
     result = fly(sess, gates, laps, k, vision=vision, true_centers=true_centers if perturb else None,
-                 colliders=track_colliders(track))
+                 colliders=for_track(track))
     result["race"] = race["name"]
     print(json.dumps(result, indent=1))
     RUNS.mkdir(exist_ok=True)

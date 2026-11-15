@@ -36,6 +36,22 @@ Reihenfolge; die Checkpoint-ID ist die Instanz-ID des Tors auf der Strecke.
 Ob eine Annahme stimmt, zeigt Liftoff selbst: Im Race-Modus zählt nur eine Runde, in der jeder
 Checkpoint getroffen wurde.
 
+### Jede Strecke, auch eigene: Geometrie aus den Spieldateien
+
+Messen und Raten skaliert nicht auf 92 Rennen und über 50 Tortypen. Deshalb liest das Programm die
+Geometrie direkt aus Liftoffs Dateien:
+
+- **Tore und Streckenobjekte** (`gatedb.py`): Jedes Objekt ist ein Unity-Prefab. Tore haben ein Kindobjekt
+  mit dem Skript `RaceCheckpoint` und einem Trigger-Volumen – genau dort zählt Liftoff den Durchflug.
+  Feste Teile, an denen die Drohne hängen bleibt, tragen das Skript `DroneObjectCollider` (andere
+  Collider sind Auswahlboxen für den Editor und spannen oft über die ganze Öffnung).
+- **Das Level selbst** (`envdb.py`): Gebäude, Wände, Bäume und das Gelände (Höhenkarte) stehen in den
+  Szenen-Dateien der Umgebungen, nicht in den Streckendateien.
+- Ein Checkpoint gilt wie in Liftoff als passiert, sobald die Drohne in sein Volumen eintritt.
+
+Weil eigene Strecken aus denselben Objekten in denselben Umgebungen gebaut werden, gilt das auch für
+Strecken aus dem Liftoff-Editor.
+
 ## 2. Rennlinie und Geschwindigkeit
 
 - Durch alle Tormitten läuft ein glatter Hermite-Spline; jedes Tor wird senkrecht durchflogen.
@@ -44,6 +60,20 @@ Checkpoint getroffen wurde.
   - Beschleunigen und Bremsen (Vorwärts- und Rückwärtsdurchlauf),
   - Luftwiderstand und Steigungen.
 - Ein Faktor `aggressiveness` (0–1) skaliert alle Grenzen. So steigert man das Tempo schrittweise.
+- **Wende-Tore:** Wird ein Tor schräg oder von hinten angeflogen (Turmfenster übereinander, Tor in
+  Gegenrichtung), setzt der Planer einen Anflugpunkt vor und einen Abflugpunkt hinter das Tor – die
+  Wende liegt dann außerhalb, wie bei einem menschlichen Piloten.
+- **Hindernisse:** Berührt die Linie ein festes Objekt, das Gelände oder Level-Geometrie, setzt der
+  Planer einen Hilfspunkt auf den kürzesten freien Weg daneben (seitlich, oben, unten, diagonal) und
+  plant neu. Nach unten bleibt mehr Abstand, weil die Drohne bei Tempo durchsackt.
+- **Steile Abstiege:** Bei Tempo drückt der Luftwiderstand die Drohne nach oben; ohne Rückenflug kommt
+  sie nur so schnell herunter, wie Schwerkraft minus Restschub erlaubt – das Tempo wird dort begrenzt.
+
+**Prüfen ohne Liftoff:** `python -m autopilot.matrix sim 0.6` fliegt alle 92 Rennen im eigenen
+Simulator mit dem vermessenen Drohnenmodell, demselben Regler und dem echten Gelände; `linecheck`
+prüft nur die Linie. Fehler, die der Simulator zeigt, treten auch in Liftoff auf – so lassen sich
+Korrekturen in Minuten statt Stunden prüfen. Die Abnahme macht aber Liftoff selbst
+(`python -m autopilot.matrix`, gewertet über Liftoffs eigene Rundenzeiten).
 
 ## 3. Renn-Regler
 
