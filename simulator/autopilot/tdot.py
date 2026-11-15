@@ -86,10 +86,10 @@ class LapTimer:
         if self.prev is not None and self.next < len(self.seq):
             p0, t_prev = self.prev
             g = self.seq[self.next]
-            if g.crossed(p0, s.pos):
+            if g.passed(p0, s.pos):
                 a = sum((p - c) * n for p, c, n in zip(p0, g.center, g.normal))
                 b = sum((p - c) * n for p, c, n in zip(s.pos, g.center, g.normal))
-                frac = a / (a - b) if a != b else 1.0
+                frac = min(1.0, max(0.0, a / (a - b))) if a != b and a < 0 <= b else 1.0
                 self.splits.append(round(t_prev + (s.t - t_prev) * frac - self.t0, 3))
                 self.next += 1
                 if self.next == len(self.seq):

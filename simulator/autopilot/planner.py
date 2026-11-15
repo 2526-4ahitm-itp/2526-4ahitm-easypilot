@@ -33,6 +33,18 @@ class Gate:
         up = cross(self.normal, side)
         return abs(dot(rel, side)) <= self.width / 2 - margin and abs(dot(rel, up)) <= self.height / 2 - margin
 
+    def passed(self, p0, p1):
+        """Did the segment p0->p1 count for this checkpoint? With Liftoff's trigger volume (gatedb) like
+        Liftoff: entering the volume - for flat gates in travel direction; else the opening rectangle."""
+        vol = getattr(self, "volume", None)
+        if vol is None or getattr(self, "thin", True):
+            return self.crossed(p0, p1)
+        from .gatedb import pp_contains
+        if not getattr(self, "omni", False) and dot(sub(p1, p0), self.normal) <= 0:
+            return False
+        n = max(1, int(norm(sub(p1, p0)) / 0.1) + 1)
+        return any(pp_contains(vol, add(p0, mul(sub(p1, p0), k / n)), 0.0) for k in range(1, n + 1))
+
 
 @dataclass
 class Limits:
@@ -151,6 +163,15 @@ class RacingLine:
         self.speed = v
         self.lap_time_estimate = sum((self.s[i + 1] - self.s[i]) / max(0.5, 0.5 * (v[i] + v[i + 1]))
                                      for i in range(len(v) - 1))
+
+    def gate_positions(self):
+        """Arc length of every gate of gate_sequence along the line (monotonic)."""
+        out, j = [], 0
+        for g in self.gate_sequence:
+            best = min(range(j, min(len(self.points), j + 4000)), key=lambda i: norm(sub(self.points[i], g.center)))
+            out.append(self.s[best])
+            j = best
+        return out
 
     def closest(self, p, hint=0, window=400):
         """Index of the closest point, searched forward from `hint` (progress is monotonic)."""

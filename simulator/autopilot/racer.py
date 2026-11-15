@@ -31,6 +31,7 @@ class Racer:
         self.last_t = None
         self.crashed = False
         self.off_time = 0.0
+        self.gate_s = None
 
     def step(self, state):
         line, prog = self.line, self.progress
@@ -70,8 +71,20 @@ class Racer:
             gate = self.line.gate_sequence[prog.gate_index]
             a = dot(sub(self.prev_pos, gate.center), gate.normal)
             b = dot(sub(state.pos, gate.center), gate.normal)
-            if a < 0 <= b and norm(sub(state.pos, gate.center)) < 3 * max(gate.width, gate.height):
-                if gate.crossed(self.prev_pos, state.pos, 0.0):
+            volume = getattr(gate, "volume", None) is not None and not getattr(gate, "thin", True)
+            done = None
+            if gate.passed(self.prev_pos, state.pos):
+                done = True
+            elif volume:
+                # volume checkpoints: missed once the drone is well past it along the line
+                if self.gate_s is None:
+                    self.gate_s = self.line.gate_positions()
+                if self.line.s[self.idx] > self.gate_s[prog.gate_index] + 15.0:
+                    done = False
+            elif a < 0 <= b and norm(sub(state.pos, gate.center)) < 3 * max(gate.width, gate.height):
+                done = False
+            if done is not None:
+                if done:
                     prog.gate_times.append(state.t - prog.start_t)
                 else:
                     prog.missed.append(prog.gate_index)
@@ -85,6 +98,7 @@ class Racer:
         s_now = self.line.s[self.idx]
         self.idx = new_line.index_at(s_now)
         self.line = new_line
+        self.gate_s = None
 
     @property
     def done(self):

@@ -173,8 +173,11 @@ def gate_from_db(bp, name):
         d, u = free(0, -1, hh), free(0, 1, hh)
         center = at((r - l) / 2, (u - d) / 2)
     g = Gate(center, normal, 2 * hw, 2 * hh, name)
-    # spheres / thick boxes have no passage plane: use the course direction (set in race_gates)
-    g.omni = length(edges[0]) > 0.5 * length(edges[1])
+    # Liftoff counts entering the trigger volume. Thick volumes (spheres, boxes along the course)
+    # have no passage plane: their direction is the course direction (set in race_gates)
+    g.volume = [list(o), list(a), list(b), list(c)]
+    g.thin = length(edges[0]) < 0.5
+    g.omni = length(edges[0]) > 1.0 or length(edges[0]) > 0.5 * length(edges[1])
     return g
 
 
