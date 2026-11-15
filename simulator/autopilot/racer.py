@@ -30,6 +30,7 @@ class Racer:
         self.stuck_time = 0.0
         self.last_t = None
         self.crashed = False
+        self.off_time = 0.0
 
     def step(self, state):
         line, prog = self.line, self.progress
@@ -45,6 +46,10 @@ class Racer:
             self.crashed = self.crashed or self.stuck_time > 0.6
         else:
             self.stuck_time = 0.0
+        # lost: far off the line for a while (hit a frame and hangs on it, or drifts away)
+        off = norm(sub(state.pos, line.points[self.idx]))
+        self.off_time = self.off_time + dt if off > 3.0 else 0.0
+        self.crashed = self.crashed or self.off_time > 1.5
         speed_here = line.speed[self.idx]
         p_ref, v_ref, a_ref, tangent = line.reference(self.idx, self.lookahead * max(2.0, speed_here) * 0.3)
         cross_track = norm(sub(state.pos, line.points[self.idx]))

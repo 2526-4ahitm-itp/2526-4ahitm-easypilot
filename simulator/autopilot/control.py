@@ -56,6 +56,7 @@ class Gains:
     disturbance_max: float = 45.0   # m/s^2
     drag: float = 0.0               # 1/m, quadratic drag a = -drag*|v|*v, measured in Liftoff
     min_vertical_accel: float = 2.0  # never command less than this along +y net of gravity (avoid inversion)
+    hold_height: bool = True         # collective from the vertical need, not the projection (see accel_command)
 
 
 @dataclass
@@ -133,7 +134,13 @@ class FlightController:
         b3_des = unit(thrust_vec)
         right, up, fwd = body_axes(state.quat)
         # collective: project the desired thrust on the current body axis
+        # collective: while the attitude still turns, the projection on the current body axis gives
+        # too much vertical thrust when braking (the drone climbs into the top bar of the next gate,
+        # Liftoff test 15.11.). Keep the vertical component right instead, as long as the body is
+        # upright enough; the horizontal part follows once the tilt is there.
         collective = max(0.0, dot(thrust_vec, up))
+        if g.hold_height and up[1] > 0.35 and thrust_vec[1] > 0:
+            collective = min(max(collective, 0.0) * 1.6 + 1.0, thrust_vec[1] / up[1])
         throttle = self.thrust.throttle(collective)
         # nominal model acceleration; observe() attributes the rest to the disturbance
         self._last_cmd_accel = add(sub(mul(up, self.thrust.accel(throttle)), (0.0, G, 0.0)), drag)

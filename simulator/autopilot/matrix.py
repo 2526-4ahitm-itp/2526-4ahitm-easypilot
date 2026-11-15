@@ -98,6 +98,8 @@ def main(argv):
         return diagnose(argv[1:])
     if argv and argv[0] == "linecheck":
         return linecheck(argv[1:])
+    if argv and argv[0] == "sim":
+        return simcheck(argv[1:])
     opts = {"--stages": "1,2,3,4,5", "--env": "", "--races": ""}
     again = "--again" in argv
     no_record = "--no-record" in argv
@@ -115,7 +117,11 @@ def main(argv):
     timer = LapTimer([])
     tel = Telemetry(on_state=timer.feed)
     tel.start()
+    import shutil
     for race_name in races:
+        if shutil.disk_usage(RUNS).free < 3e9:
+            print("less than 3 GB free on the disk - stopping (recordings need space)", flush=True)
+            break
         info = race_info(race_name)
         if envs and info["env"] not in envs:
             continue
@@ -213,6 +219,72 @@ def linecheck(argv):
             items = sorted({h[1] for h in hits})
             print(f"{race_name:28s} {len(hits):3d} hits  vias {getattr(line, 'vias', 0)}  {', '.join(items)[:100]}")
     print(f"{bad} of {len(all_races())} races: line touches solid items")
+
+
+def spawn_point(track, first_gate):
+    """Drone spawn of a track (SpawnPoint item), else 10 m before the first gate on the ground."""
+    for b in track["blueprints"]:
+        if b.item.startswith(("SpawnPoint", "PlayerPosition")):
+            return b.pos
+    c, n = first_gate.center, first_gate.normal
+    return (c[0] - 10 * n[0], max(0.0, c[1] - 1.5), c[2] - 10 * n[2])
+
+
+def sim_race(race_name, k, colliders=True, max_time=240.0):
+    """Fly a race in the simulator (sim.py) with the Liftoff drone model and the real controller."""
+    from . import gatedb
+    from .control import FlightController, Gains, ThrustModel
+    from .race import DRAG, build_line, launch
+    from .racer import Racer
+    from .sim import SimDrone, SimParams
+    from .sysid import load_model
+    info = race_info(race_name)
+    gates = race_gates(info["race"], info["track"])
+    cols = gatedb.track_colliders(info["track"])
+    spawn = spawn_point(info["track"], gates[0])
+    start, d = launch(gates[0], spawn)
+    line = build_line(gates, start, d, 1, k, colliders=cols if colliders else None)
+    rates, thrust = load_model()
+    drone = SimDrone(pos=spawn, params=SimParams(hover_throttle=thrust.hover_throttle,
+                                                 thrust_exponent=thrust.exponent, drag=DRAG), rates=rates)
+    racer = Racer(line, FlightController(rates, thrust, Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)),
+                  lookahead=0.12)
+    dt, t, cmd, touch, xt = 0.002, 0.0, None, None, 0.0
+    near = []
+    while t < max_time and not racer.done:
+        if cmd is None or int(t / dt) % 4 == 0:            # controller at 125 Hz like the Liftoff loop
+            cmd = racer.step(drone.state())
+        drone.step(*cmd.as_tuple(), dt)
+        t += dt
+        if int(t / dt) % 10 == 0 and touch is None:
+            p = drone.pos
+            for name, pp in cols:
+                if abs(pp[0][0] - p[0]) < 20 and abs(pp[0][2] - p[2]) < 20 and gatedb.pp_contains(pp, p, 0.15):
+                    touch = (round(t, 1), name, racer.progress.gate_index)
+                    break
+    prog = racer.progress
+    return {"race": race_name, "k": k, "gates": len(prog.gate_times), "total": len(line.gate_sequence),
+            "missed": len(prog.missed), "time": round(prog.gate_times[-1], 2) if prog.finished else None,
+            "touch": touch, "xt": round(racer.max_cross_track, 2), "vias": getattr(line, "vias", 0)}
+
+
+def simcheck(argv):
+    """python -m autopilot.matrix sim [k] [races...]: all races in the simulator, no Liftoff needed."""
+    k = float(argv[0]) if argv and argv[0].replace(".", "").isdigit() else 0.6
+    races = [a for a in argv if not a.replace(".", "").isdigit()] or all_races()
+    ok = 0
+    for rn in races:
+        try:
+            r = sim_race(rn, k)
+        except Exception as exc:
+            print(f"{rn:28s} ERROR {exc!r}"[:150])
+            continue
+        good = r["time"] is not None and not r["missed"] and r["touch"] is None
+        ok += good
+        if not good or len(races) < 5:
+            print(f"{rn:28s} gates {r['gates']}/{r['total']} missed {r['missed']} touch {r['touch']} "
+                  f"xt {r['xt']} vias {r['vias']} t {r['time']}", flush=True)
+    print(f"{ok}/{len(races)} races clean in the simulator at k={k}")
 
 
 def diagnose(argv):
