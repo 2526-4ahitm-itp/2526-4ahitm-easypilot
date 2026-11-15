@@ -157,7 +157,7 @@ def gate_from_db(bp, name):
         up = tuple(-x for x in up)
     hw, hh = length(side_e) / 2, length(up_e) / 2
     if not bp.item.startswith("Checkpoint"):          # invisible checkpoints have nothing to hit
-        cols = [gatedb.transform_pp(pp, bp.pos, bp.quat, scale) for pp in rec["colliders"]]
+        cols = [gatedb.transform_pp(pp, bp.pos, bp.quat, scale) for pp in gatedb.solid(rec)]
         cols = [pp for pp in cols if math.dist(gatedb.pp_corners(pp)[0], center) < 3 * (hw + hh) + 5]
         hit = lambda q: any(gatedb.pp_contains(pp, q, 0.05) for pp in cols)
         at = lambda u, v: tuple(center[k] + side[k] * u + up[k] * v for k in range(3))

@@ -7,6 +7,7 @@ Every autonomous mode (sysid, racing, waypoint flight) runs through `Session.loo
 import csv
 import ctypes
 import math
+import os
 import time
 from pathlib import Path
 
@@ -14,7 +15,9 @@ from . import window
 from .telemetry import Telemetry
 from .vjoy import BTN_RESET, VJoy
 
-RUNS = Path(__file__).resolve().parent / "runs"
+# logs, recordings, dataset and results: big and machine-local, so outside the repo / OneDrive
+# (EASYPILOT_RUNS overrides, e.g. a second disk)
+RUNS = Path(os.environ.get("EASYPILOT_RUNS") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EasyPilot" / "runs")
 user32 = ctypes.windll.user32
 VK_F9 = 0x78
 

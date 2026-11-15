@@ -50,6 +50,13 @@ $("startBtn").onclick = () => {
   if (mode === "human") {
     const name = $("pilotName").value.trim();
     if (!name) { $("pilotName").focus(); return; }
+    const c = EP.state && EP.state.controllers;
+    if (!c || !c.connected.length || !c.calibrated) {
+      alert("Kein kalibrierter Controller. Controller anstecken (oder über Parsec verbinden) und einmal
+" +
+            "python -m autopilot.pilot calibrate ausführen. Ohne Controller: „Autopilot fliegt“.");
+      return;
+    }
     cmd({action: "human", name, stage}).then(j => { if (j.ok) $("pilotName").value = ""; });
   } else if ($("customOn").checked) {
     cmd({action: "bot", speed: +$("customSpeed").value});

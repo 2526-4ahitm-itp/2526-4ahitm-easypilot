@@ -19,7 +19,8 @@ from . import window
 from .control import FlightController, Gains, ThrustModel
 from .geometry import body_axes, sub, unit
 from .liftoff import RUNS, Session, state_row
-from .planner import Limits, RacingLine
+from .geometry import add, mul
+from .planner import Gate, Limits, RacingLine
 from .racer import Racer
 from .sysid import load_model
 from .track import load_race_with_track, race_gates
@@ -50,10 +51,107 @@ def launch(first_gate, spawn):
     return start, unit((d[0], 0.0, d[2]))
 
 
-def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0):
+CLEARANCE = 0.35 + 0.45     # drone radius + safety margin to solid track items [m]
+
+
+def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=6):
+    """Racing line through all gates. With `colliders` (gatedb.track_colliders) the line is pushed
+    around solid track items: where it touches one, a via point is put beside the item and the
+    line is planned again."""
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
-    return RacingLine(course(gates, laps), start=start, start_dir=start_dir, laps=1, limits=limits,
-                      aggressiveness=aggressiveness, finish_extra=4.0, launch_speed=9.0)
+    seq = course(gates, laps)
+
+    def plan(sq):
+        return RacingLine(sq, start=start, start_dir=start_dir, laps=1, limits=limits,
+                          aggressiveness=aggressiveness, finish_extra=4.0, launch_speed=9.0)
+    line = plan(seq)
+    if not colliders:
+        return line
+    vias, n_hits = _avoid(line, seq, colliders)
+    best = (n_hits, line)
+    for _ in range(iterations):
+        if not vias:
+            break
+        trial = list(seq)
+        for pos, via in sorted(vias, key=lambda v: -v[0]):
+            trial.insert(pos, via)
+        cand = plan(trial)
+        new_vias, new_hits = _avoid(cand, trial, colliders)
+        if new_hits >= best[0]:
+            break                              # no progress: keep the best line so far
+        seq, vias, best = trial, new_vias, (new_hits, cand)
+    line = best[1]
+    line.vias = sum(1 for g in line.gates if getattr(g, "via", False))
+    line.touching = best[0]
+    return line
+
+
+def _avoid(line, seq, colliders, step=0.5):
+    """Via points for the stretches where the line touches a solid item: [(insert index, Gate)]."""
+    from . import gatedb
+    from .geometry import cross, dot, norm, sub, unit
+    # where along the line each knot of the sequence lies (monotonic search)
+    knot_s, j = [], 0
+    for g in seq:
+        while j + 1 < len(line.points) and math.dist(line.points[j + 1], g.center) <= math.dist(line.points[j], g.center) + 1e-9:
+            j += 1
+        best = min(range(j, min(len(line.points), j + 400)), key=lambda i: math.dist(line.points[i], g.center))
+        knot_s.append(line.s[best])
+        j = best
+    real_s = [sk for sk, g in zip(knot_s, seq) if not getattr(g, "via", False)]
+    hits, last = [], -1e9
+    for i, p in enumerate(line.points):
+        if line.s[i] - last < step:
+            continue
+        last = line.s[i]
+        # in and right at a gate opening the frame is close by design: only the drone itself counts
+        margin = 0.2 if any(abs(line.s[i] - sk) < 1.5 for sk in real_s) else CLEARANCE
+        for name, pp in colliders:
+            o = pp[0]
+            if abs(o[0] - p[0]) > 25 or abs(o[2] - p[2]) > 25:
+                continue
+            if gatedb.pp_contains(pp, p, margin):
+                hits.append((i, pp))
+                break
+    if not hits:
+        return [], 0
+    # one via point per touching stretch (hits closer than 3 m belong together)
+    groups, cur = [], [hits[0]]
+    for h in hits[1:]:
+        if line.s[h[0]] - line.s[cur[-1][0]] < 3.0:
+            cur.append(h)
+        else:
+            groups.append(cur)
+            cur = [h]
+    groups.append(cur)
+    vias = []
+    for grp in groups:
+        i, pp = grp[len(grp) // 2]
+        p, t = line.points[i], line.tangent[i]
+        side = unit(cross((0.0, 1.0, 0.0), t), (1.0, 0.0, 0.0))
+        up = unit(cross(t, side), (0.0, 1.0, 0.0))
+        near = [c for _, c in colliders if abs(c[0][0] - p[0]) < 30 and abs(c[0][2] - p[2]) < 30]
+
+        def blocked(q):
+            return q[1] < 0.6 or any(gatedb.pp_contains(c, q, CLEARANCE + 0.15) for c in near)
+        # the shortest way out of all items: sideways, up, down or diagonal
+        best_q, best_d = None, 1e9
+        for a in range(8):
+            ang = a * math.pi / 4
+            d = add(mul(side, math.cos(ang)), mul(up, math.sin(ang)))
+            dist = 0.25
+            while dist < 10.0 and blocked(add(p, mul(d, dist))):
+                dist += 0.25
+            if dist < best_d and dist < 10.0:
+                best_q, best_d = add(p, mul(d, dist + 0.2)), dist
+        if best_q is None:
+            continue
+        via = Gate(best_q, t, 6.0, 6.0, "via")
+        via.via = True
+        s_hit = line.s[i]
+        pos = next((k for k, sk in enumerate(knot_s) if sk > s_hit), len(seq))
+        vias.append((pos, via))
+    return vias, len(hits)
 
 
 class VisionAssist(threading.Thread):
@@ -61,11 +159,11 @@ class VisionAssist(threading.Thread):
 
     TITLE = "EasyPilot - Torerkennung"
 
-    def __init__(self, sess, gates, laps, k, start, start_dir, racer, overlay=True):
+    def __init__(self, sess, gates, laps, k, start, start_dir, racer, overlay=True, colliders=None):
         super().__init__(daemon=True)
         from .capture import FrameStream
         self.sess, self.laps, self.k, self.line_start, self.start_dir = sess, laps, k, start, start_dir
-        self.racer, self.overlay = racer, overlay
+        self.racer, self.overlay, self.colliders = racer, overlay, colliders
         self.frames = FrameStream(640, fps=60)
         self.gates = gates
         self.gate_map = None
@@ -119,7 +217,8 @@ class VisionAssist(threading.Thread):
             now = time.perf_counter()
             if self.gate_map.version != planned_version and now - last_plan > 0.15:
                 planned_version, last_plan = self.gate_map.version, now
-                line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k)
+                line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k,
+                                  colliders=self.colliders)
                 self.racer.swap_line(line)
                 self.replans += 1
             n += 1
@@ -141,7 +240,7 @@ class VisionAssist(threading.Thread):
         self.running = False
 
 
-def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max_time=None):
+def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max_time=None, colliders=None):
     """Fly the race from where the drone stands now (after reset/countdown). Returns the result dict.
 
     `on_step(state, racer)` is called every control step (live dashboard), `sess` may share its
@@ -151,11 +250,11 @@ def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max
     gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
     s0 = sess.tel.wait()
     start, start_dir = launch(gates[0], s0.pos)
-    line = build_line(gates, start, start_dir, laps, k)
+    line = build_line(gates, start, start_dir, laps, k, colliders=colliders)
     racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
     assist = None
     if vision:
-        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer)
+        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer, colliders=colliders)
         assist.start()
         assist.window_ready.wait(30)
         window.focus_liftoff(hard=False)
@@ -253,7 +352,9 @@ def main(argv):
             print(f"perturbed {g.name} by {perturb[g.name.split()[0]]} m")
     sess = Session(f"race-{name}-{k}")
     sess.reset_drone(settle=4.5)   # race mode: wait for the 3-2-1 countdown
-    result = fly(sess, gates, laps, k, vision=vision, true_centers=true_centers if perturb else None)
+    from .gatedb import track_colliders
+    result = fly(sess, gates, laps, k, vision=vision, true_centers=true_centers if perturb else None,
+                 colliders=track_colliders(track))
     result["race"] = race["name"]
     print(json.dumps(result, indent=1))
     RUNS.mkdir(exist_ok=True)

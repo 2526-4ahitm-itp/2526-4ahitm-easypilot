@@ -26,7 +26,7 @@ def video_path(race_name, stage):
 
 
 class Recorder(threading.Thread):
-    def __init__(self, tel, race_name, stage, k, fps=30, width=960, dataset_every=3, latency=0.012):
+    def __init__(self, tel, race_name, stage, k, fps=30, width=960, dataset_every=6, latency=0.012):
         super().__init__(daemon=True)
         from .capture import COLORONCOLOR, FrameStream
         self.tel, self.race_name, self.stage, self.k = tel, race_name, stage, k
@@ -69,7 +69,7 @@ class Recorder(threading.Thread):
                     name = f"{len(self.meta):05d}.jpg"
                     small = cv2.resize(img, (640, int(round(img.shape[0] * 640 / img.shape[1]))),
                                        interpolation=cv2.INTER_AREA)
-                    cv2.imwrite(str(self.raw / name), small, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                    cv2.imwrite(str(self.raw / name), small, [cv2.IMWRITE_JPEG_QUALITY, 85])
                     self.meta.append({"file": name, "pos": s.pos, "quat": s.quat, "speed": s.speed})
         self.frames.close()
 

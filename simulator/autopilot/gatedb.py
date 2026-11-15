@@ -150,6 +150,8 @@ class _Extractor:
                     out["checkpoint"].append(pp)
                 elif not trig and getattr(c, "m_Enabled", True):
                     out["colliders"].append(pp)
+                    out.setdefault("collider_info", []).append(
+                        {"layer": int(getattr(go, "m_Layer", -1)), "go": go.m_Name, "scripts": sorted(scripts)})
         for ch in tr.m_Children:
             try:
                 self.walk(ch.read().m_GameObject.read(), chain, out)
@@ -285,3 +287,36 @@ if __name__ == "__main__":
         extract()
     elif sys.argv[1] == "show":
         show(sys.argv[2])
+
+
+def solid(rec):
+    """Colliders the drone can hit: only those with Liftoff's DroneObjectCollider script. Others are
+    editor selection boxes (often spanning the whole gate opening), snap points or photo helpers."""
+    info = rec.get("collider_info")
+    if info is None:
+        return rec["colliders"]
+    return [pp for pp, i in zip(rec["colliders"], info) if "DroneObjectCollider" in i["scripts"]]
+
+
+def track_colliders(track):
+    """All solid parts of a track's items in world coordinates: [(item name, parallelepiped)]."""
+    out = []
+    for bp in track["blueprints"]:
+        rec = item(bp.item)
+        if not rec or bp.item.startswith("Checkpoint"):
+            continue
+        scale = bp.extra.get("scale") or tuple(rec.get("root_scale", (1.0, 1.0, 1.0)))
+        for pp in solid(rec):
+            out.append((bp.item, transform_pp(pp, bp.pos, bp.quat, scale)))
+    return out
+
+
+def pp_distance(pp, p):
+    """Approximate distance from a point to a parallelepiped (exact for rectangular boxes)."""
+    o, a, b, c = pp
+    u = _solve3((a, b, c), tuple(p[k] - o[k] for k in range(3)))
+    if u is None:
+        return 1e9
+    u = [min(1.0, max(0.0, x)) for x in u]
+    q = tuple(o[k] + u[0] * a[k] + u[1] * b[k] + u[2] * c[k] for k in range(3))
+    return math.dist(q, p)

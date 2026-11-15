@@ -20,11 +20,12 @@ import cv2
 import numpy as np
 
 from .camera import Camera
+from .liftoff import RUNS
 from .geometry import cross, unit
 from .sysid import load_camera
 from .track import PIVOT_AT_CENTER, center_lift, gate_size, load_race_with_track, load_track, race_gates
 
-DATA = Path(__file__).resolve().parent / "runs" / "dataset"
+DATA = RUNS / "dataset"
 IMG_W = 640
 WHITE_CHECK = False      # the white-pixel occlusion test only works for white arches (first two tracks)
 
@@ -167,10 +168,16 @@ def collect(race_name, ks, laps=1):
         print(k, ok, sess.reason, len(meta), "frames,", len(racer.progress.gate_times), "gates ->", out)
 
 
-def label(val_every=7):
+def label(val_every=7, holdout=()):
+    """Write YOLO images/labels. Runs of the `holdout` environments go to the test split only: the
+    model never sees these worlds in training, so test = how well it works on unknown maps."""
+    import shutil
     cam_full = load_camera(IMG_W)
-    images = {"train": DATA / "images" / "train", "val": DATA / "images" / "val"}
-    labels = {"train": DATA / "labels" / "train", "val": DATA / "labels" / "val"}
+    for sub in ("images", "labels"):
+        shutil.rmtree(DATA / sub, ignore_errors=True)
+    images = {k: DATA / "images" / k for k in ("train", "val", "test")}
+    labels = {k: DATA / "labels" / k for k in ("train", "val", "test")}
+    envs = {}
     for p in list(images.values()) + list(labels.values()):
         p.mkdir(parents=True, exist_ok=True)
     tracks = {}
@@ -186,7 +193,12 @@ def label(val_every=7):
                 continue
             tracks[meta["race"]] = all_gates(track)
         gates = tracks[meta["race"]]
-        split = "val" if zlib.crc32(run.name.encode()) % val_every == 0 else "train"
+        if meta["race"] not in envs:
+            envs[meta["race"]] = load_race_with_track(meta["race"])[1]["environment"]
+        if envs[meta["race"]] in holdout:
+            split = "test"
+        else:
+            split = "val" if zlib.crc32(run.name.encode()) % val_every == 0 else "train"
         for f in meta["frames"]:
             img = run / f["file"]
             pic = cv2.imread(str(img))
@@ -200,7 +212,7 @@ def label(val_every=7):
             n_img += 1
             n_obj += len(rows)
     (DATA / "gates.yaml").write_text(
-        f"path: {DATA.as_posix()}\ntrain: images/train\nval: images/val\nkpt_shape: [4, 3]\n"
+        f"path: {DATA.as_posix()}\ntrain: images/train\nval: images/val\ntest: images/test\nkpt_shape: [4, 3]\n"
         "flip_idx: [3, 2, 1, 0]\nnames:\n  0: gate\n")
     print(n_img, "images,", n_obj, "gates labelled ->", DATA / "gates.yaml")
 
@@ -235,6 +247,8 @@ if __name__ == "__main__":
     if cmd == "collect":
         collect(sys.argv[2], [float(k) for k in sys.argv[3:]] or [0.6])
     elif cmd == "label":
-        label()
+        # python -m autopilot.dataset label [--holdout Hannover,PineValley]
+        hold = sys.argv[sys.argv.index("--holdout") + 1].split(",") if "--holdout" in sys.argv else ()
+        label(holdout=set(hold))
     elif cmd == "preview":
         preview(sys.argv[2])

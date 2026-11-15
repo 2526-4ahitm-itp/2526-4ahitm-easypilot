@@ -83,7 +83,8 @@ class RacingLine:
         self._curvature()
         self._speed_profile()
         # gate order along the line (index into points), used for progress/timing
-        self.gate_sequence = [g for _ in range(laps) for g in self.gates]
+        # via points (obstacle avoidance) shape the line but are no gates to pass
+        self.gate_sequence = [g for _ in range(laps) for g in self.gates if not getattr(g, "via", False)]
 
     def _sample(self, knots, step, tangent_scale):
         pts = [knots[0][0]]

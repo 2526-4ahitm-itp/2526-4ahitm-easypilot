@@ -20,6 +20,7 @@ from pathlib import Path
 from .liftoff import RUNS, Session
 from .race import course, fly
 from .session import flush_laps, lap_counted, lap_record, load, race_info
+from .gatedb import track_colliders
 from .recorder import Recorder, keep_as_reference
 from .tdot import DATA as TDOT_DATA, STAGES, Leaderboard, LapTimer
 from .telemetry import Telemetry
@@ -69,7 +70,7 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
     if rec:
         rec.go()
     t0 = time.time()
-    res = fly(sess, gates, 1, st.aggressiveness, max_time=240)
+    res = fly(sess, gates, 1, st.aggressiveness, max_time=240, colliders=track_colliders(info["track"]))
     timer.running = False
     time.sleep(1.0)
     after = flush_laps(info["race_id"])
@@ -93,6 +94,10 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
 def main(argv):
     if argv and argv[0] == "summary":
         return summary()
+    if argv and argv[0] == "diagnose":
+        return diagnose(argv[1:])
+    if argv and argv[0] == "linecheck":
+        return linecheck(argv[1:])
     opts = {"--stages": "1,2,3,4,5", "--env": "", "--races": ""}
     again = "--again" in argv
     no_record = "--no-record" in argv
@@ -166,6 +171,86 @@ def summary():
             cells.append("   -   " if r is None else (f"{r['our_time']:6.1f} " if r["passed"] and r.get("our_time")
                                                        else ("  ok   " if r["passed"] else " FAIL  ")))
         print(f"{race:28s} " + " ".join(cells))
+
+
+def line_hits(line, colliders, radius=0.35, step=0.5):
+    """Points of a racing line that run into a solid track item: [(s, item, point)]."""
+    from . import gatedb
+    hits = []
+    pts = line.points
+    last_s = -1e9
+    for i, p in enumerate(pts):
+        s = line.s[i]
+        if s - last_s < step:
+            continue
+        last_s = s
+        for name, pp in colliders:
+            o = pp[0]
+            if abs(o[0] - p[0]) > 25 or abs(o[2] - p[2]) > 25:
+                continue
+            if gatedb.pp_contains(pp, p, radius):
+                hits.append((round(s, 1), name, tuple(round(v, 1) for v in p)))
+                break
+    return hits
+
+
+def linecheck(argv):
+    """Offline: does the planned racing line of every race touch a solid item? (no Liftoff needed)"""
+    from . import gatedb
+    from .race import build_line, launch
+    k = float(argv[0]) if argv and not argv[0].startswith("--") else 0.6
+    bad = 0
+    for race_name in all_races():
+        info = race_info(race_name)
+        gates = race_gates(info["race"], info["track"])
+        spawn = gates[0].center      # approximation: the line from the start gate on
+        start, d = launch(gates[0], (spawn[0] - 10 * gates[0].normal[0], spawn[1], spawn[2] - 10 * gates[0].normal[2]))
+        cols = gatedb.track_colliders(info["track"])
+        line = build_line(gates, start, d, 1, k, colliders=None if "--raw" in argv else cols)
+        hits = line_hits(line, cols)
+        if hits:
+            bad += 1
+            items = sorted({h[1] for h in hits})
+            print(f"{race_name:28s} {len(hits):3d} hits  vias {getattr(line, 'vias', 0)}  {', '.join(items)[:100]}")
+    print(f"{bad} of {len(all_races())} races: line touches solid items")
+
+
+def diagnose(argv):
+    """Where and why did failed runs end? Crash point, gate reached, nearest solid track item."""
+    import csv
+    from . import gatedb
+    from .track import load_race_with_track
+    latest = {}
+    for line in RESULTS.read_text(encoding="utf-8").splitlines():
+        r = json.loads(line)
+        if r.get("stage") is not None:
+            latest[(r["race"], r["stage"])] = r
+    fails = [r for r in latest.values() if not r["passed"] and (not argv or r["race"] in argv)]
+    for r in sorted(fails, key=lambda r: r["race"]):
+        print(f"\n{r['race']} S{r['stage']} ({r.get('title')}): {r.get('reason') or r.get('error')}, "
+              f"ours {r.get('our_gates')}/{r.get('gates')}, xt_max {r.get('max_xt')}")
+        log = r.get("log")
+        if not log or not Path(log).exists():
+            continue
+        rows = list(csv.DictReader(open(log, encoding="utf-8")))
+        if not rows:
+            continue
+        pts = [(float(x["x"]), float(x["y"]), float(x["z"]), float(x["speed"]), int(x["gate"]),
+                float(x["xt"])) for x in rows]
+        # crash = first moment the speed collapses (>6 m/s to <40 % within 0.15 s)
+        crash = len(pts) - 1
+        for i in range(15, len(pts)):
+            if pts[i - 15][3] > 6 and pts[i][3] < 0.4 * pts[i - 15][3]:
+                crash = i - 15
+                break
+        p = pts[crash]
+        _, track = load_race_with_track(r["race"])
+        cols = gatedb.track_colliders(track)
+        near = sorted(((gatedb.pp_distance(pp, p[:3]), name) for name, pp in cols
+                       if abs(pp[0][0] - p[0]) < 30 and abs(pp[0][2] - p[2]) < 30), key=lambda t: t[0])[:3]
+        print(f"   crash at t={crash / 100:.1f}s gate {p[4]} pos ({p[0]:.1f},{p[1]:.1f},{p[2]:.1f}) "
+              f"speed {pts[max(0, crash - 15)][3]:.1f} m/s, off line {p[5]:.2f} m")
+        print("   nearest items:", ", ".join(f"{n} {d:.2f} m" for d, n in near))
 
 
 if __name__ == "__main__":
