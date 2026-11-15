@@ -155,7 +155,18 @@ def remember_scene():
         text = log.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return
-    pairs = re.findall(r"SCENE LOAD START: (\w+) =+\s[\s\S]*?SCENE LOAD END: ([0-9a-f]{32})", text)
+    pairs, start = [], None
+    for line in text.splitlines():
+        m = re.search(r"SCENE LOAD (START|END): (\w+)", line)
+        if not m:
+            continue
+        if m.group(1) == "START":
+            start = m.group(2)
+        elif start and re.fullmatch(r"[0-9a-f]{32}", m.group(2)):
+            pairs.append((start, m.group(2)))
+            start = None
+        else:
+            start = None
     if not pairs:
         return
     f = TRACK_DIR / "env" / "scenes.json"

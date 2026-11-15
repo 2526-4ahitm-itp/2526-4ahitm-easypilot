@@ -26,7 +26,7 @@ from .sysid import load_model
 from .track import load_race_with_track, race_gates
 
 # usable acceleration at racing speed (the static 12.7 g drop a lot with airspeed)
-USABLE_ACCEL = 60.0
+USABLE_ACCEL = 45.0
 DRAG = 0.033          # 1/m, from the disturbance estimate at 27 m/s (~25 m/s^2)
 
 
@@ -55,7 +55,7 @@ CLEARANCE = 0.35 + 0.3      # drone radius + safety margin to solid items [m] (t
 SAG = 0.3                   # extra room below the line
 
 
-def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=6):
+def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
     """Racing line through all gates. With `colliders` (gatedb.track_colliders) the line is pushed
     around solid track items: where it touches one, a via point is put beside the item and the
     line is planned again."""
@@ -73,8 +73,9 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
         colliders = ObstacleSet(colliders)
     vias, n_hits = _avoid(line, seq, colliders)
     best = (n_hits, line)
+    stale = 0
     for _ in range(iterations):
-        if not vias:
+        if not vias or best[0] == 0:
             break
         # insert in order along the line: several vias can fall into the same stretch
         trial = []
@@ -84,9 +85,13 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
                 trial.append(g)
         cand = plan(trial)
         new_vias, new_hits = _avoid(cand, trial, colliders)
-        if new_hits >= best[0]:
-            break                              # no progress: keep the best line so far
-        seq, vias, best = trial, new_vias, (new_hits, cand)
+        seq, vias = trial, new_vias            # keep going from here, remember the best line
+        if new_hits < best[0]:
+            best, stale = (new_hits, cand), 0
+        else:
+            stale += 1
+            if stale >= 2:
+                break
     line = best[1]
     line.vias = sum(1 for g in line.gates if getattr(g, "via", False))
     line.touching = best[0]

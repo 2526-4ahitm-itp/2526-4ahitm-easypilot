@@ -153,7 +153,26 @@ def for_track(track, extra=None):
     pts = [b.pos for b in track["blueprints"]]
     xs, zs = [p[0] for p in pts], [p[2] for p in pts]
     level = load(track["environment"], (min(xs), min(zs), max(xs), max(zs))) if pts else ObstacleSet()
-    return ObstacleSet(list(extra) + level.items, level.terrain)
+    # level blocks (mostly mesh bounds) that contain a gate or its guide points are passable by design
+    # - a wall with a doorway, a hall the course runs through
+    from . import gatedb
+    probes = []
+    for b in track["blueprints"]:
+        rec = gatedb.item(b.item)
+        if not rec or not rec.get("checkpoint"):
+            continue
+        scale = b.extra.get("scale") or tuple(rec.get("root_scale", (1.0, 1.0, 1.0)))
+        for q in [rec.get("target", (0.0, 0.0, 0.0))] + list(rec.get("guides", [])):
+            probes.append(gatedb.transform_point(q, b.pos, b.quat, scale))
+    keep = []
+    idx = ObstacleSet(level.items)
+    drop = set()
+    for q in probes:
+        for i, k in enumerate(idx.grid.get((int(math.floor(q[0] / idx.cell)), int(math.floor(q[2] / idx.cell))), ())):
+            if k not in drop and pp_contains(idx.items[k][1], q, 0.3):
+                drop.add(k)
+    keep = [it for k, it in enumerate(level.items) if k not in drop]
+    return ObstacleSet(list(extra) + keep, level.terrain)
 
 
 # ---------------------------------------------------------------------------- extraction
