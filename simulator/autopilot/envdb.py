@@ -2,6 +2,7 @@
 
   python -m autopilot.envdb extract            # all environments, ~20-40 min, writes tracks/env/*.npz
   python -m autopilot.envdb extract BandoCity  # one environment
+  python -m autopilot.envdb trees              # add the terrain trees (after extract), ~5 min
   python -m autopilot.envdb show BandoCity
 
 Track files only list the placed items (gates, flags, barriers). The level scene has everything else:
@@ -139,6 +140,14 @@ def load(env, bounds=None, margin=60.0):
         o = pps[:, 0, :]
         keep = (o[:, 0] > x0 - margin) & (o[:, 0] < x1 + margin) & (o[:, 2] > z0 - margin) & (o[:, 2] < z1 + margin)
     cols = [(names[i] if i < len(names) else "level", pps[i].tolist()) for i in np.nonzero(keep)[0]]
+    if "tree_pps" in d.files and len(d["tree_pps"]):
+        tp, tn = d["tree_pps"], json.loads(str(d["tree_names"]))
+        tk = np.ones(len(tp), bool)
+        if bounds is not None:
+            x0, z0, x1, z1 = bounds
+            o = tp[:, 0, :]
+            tk = (o[:, 0] > x0 - margin) & (o[:, 0] < x1 + margin) & (o[:, 2] > z0 - margin) & (o[:, 2] < z1 + margin)
+        cols += [(tn[i], tp[i].tolist()) for i in np.nonzero(tk)[0]]
     ters = []
     for k in range(int(d["n_terrain"])):
         ters.append(Terrain(d[f"t{k}_origin"], d[f"t{k}_size"], d[f"t{k}_h"]))
@@ -410,6 +419,169 @@ def extract(only=None):
         print(f"{env}: {f.name} (match {scores[env]:.2f}), {len(cols)} colliders, {len(ters)} terrain tiles")
 
 
+# ---------------------------------------------------------------------------- terrain trees
+CABS = ENV_DIR / "cabs.json"                    # internal file (CAB-...) -> bundle file
+SCENE_BUNDLES = ENV_DIR / "scene_bundles.json"  # scene key -> bundle file
+
+
+def _unitypy():
+    import UnityPy
+    UnityPy.config.FALLBACK_UNITY_VERSION = "2022.3.62f3"
+    return UnityPy
+
+
+def _cab_map():
+    """Which bundle holds which internal file - read from the bundle headers only (~1 min)."""
+    if CABS.exists():
+        return json.loads(CABS.read_text())
+    _unitypy()
+    from UnityPy.files import BundleFile
+    from UnityPy.streams import EndianBinaryReader
+    m = {}
+    for f in BUNDLES.glob("*.bundle"):
+        try:
+            with open(f, "rb") as fh:
+                for name in BundleFile(EndianBinaryReader(fh.read()), None).files:
+                    m[name.lower()] = f.name
+        except Exception:
+            pass
+    CABS.write_text(json.dumps(m))
+    return m
+
+
+def _scene_bundles():
+    """Scene key (tracks/env/*.npz 'scene') -> bundle file, from the bundles that hold a scene."""
+    if SCENE_BUNDLES.exists():
+        return json.loads(SCENE_BUNDLES.read_text())
+    unitypy = _unitypy()
+    out = {}
+    for b in sorted({v for k, v in _cab_map().items() if k.endswith(".sharedassets")}):
+        try:
+            for k in unitypy.load(str(BUNDLES / b)).container.keys():
+                out[k] = b
+        except Exception:
+            pass
+    SCENE_BUNDLES.write_text(json.dumps(out, indent=1))
+    return out
+
+
+def _components(go):
+    return [(getattr(cc, "component", None) or cc).read() for cc in go.m_Component]
+
+
+def _solid_boxes(go, root_inv, sc):
+    """Corner sets (8 points, prefab space) of all solid colliders in a prefab hierarchy."""
+    comps = _components(go)
+    tr = next((c for c in comps if c.object_reader.type.name == "Transform"), None)
+    if tr is None:
+        return []
+    m = root_inv @ sc.transform(tr)
+    out = []
+    for c in comps:
+        tn = c.object_reader.type.name
+        if tn not in ("BoxCollider", "SphereCollider", "CapsuleCollider") or getattr(c, "m_IsTrigger", False):
+            continue
+        ctr = (c.m_Center.x, c.m_Center.y, c.m_Center.z)
+        if tn == "BoxCollider":
+            half = (c.m_Size.x / 2, c.m_Size.y / 2, c.m_Size.z / 2)
+        elif tn == "SphereCollider":
+            half = (c.m_Radius,) * 3
+        else:
+            half = [c.m_Radius] * 3
+            half[c.m_Direction] = max(c.m_Height, 2 * c.m_Radius) / 2
+        out.append([tuple((m @ np.array([*q, 1.0]))[:3]) for q in box_corners(ctr, tuple(half))])
+    for ch in tr.m_Children:
+        out += _solid_boxes(ch.read().m_GameObject.read(), root_inv, sc)
+    return out
+
+
+def tree_colliders(scene_bundle):
+    """Solid parts (trunks, branches) of every tree painted on the terrain of a scene.
+
+    They are no GameObjects of the scene but TerrainData tree instances of a few prototype prefabs
+    (in other bundles); the leaves are triggers, the drone flies through them. AutumnFields04 hit
+    such a trunk 1.6 m above the ground, invisible to the planner (15.11.)."""
+    unitypy = _unitypy()
+    cabs = _cab_map()
+    env = unitypy.load(str(BUNDLES / scene_bundle))
+    deps = set()
+    for obj in env.objects:
+        if obj.type.name == "TerrainData":
+            for ext in obj.assets_file.externals:
+                b = cabs.get(Path(ext.path).name.lower())
+                if b and b != scene_bundle:
+                    deps.add(b)
+            break
+    if deps:
+        env = unitypy.load(str(BUNDLES / scene_bundle), *[str(BUNDLES / b) for b in sorted(deps)])
+    sc = _Scene(env)
+    out, protos = [], {}
+    for obj in env.objects:
+        if obj.type.name != "TerrainCollider":
+            continue
+        try:
+            c = obj.read()
+            go = c.m_GameObject.read()
+            tr = next(x for x in _components(go) if x.object_reader.type.name in ("Transform", "RectTransform"))
+            origin = sc.transform(tr)[:3, 3]
+            td = c.m_TerrainData.read()
+            hm = td.m_Heightmap
+            size = ((hm.m_Resolution - 1) * hm.m_Scale.x, hm.m_Scale.y, (hm.m_Resolution - 1) * hm.m_Scale.z)
+            db = td.m_DetailDatabase
+        except Exception:
+            continue
+        kinds = []
+        for i, p in enumerate(db.m_TreePrototypes):
+            key = (p.prefab.m_FileID, p.prefab.m_PathID)
+            if key not in protos:
+                try:
+                    pf = p.prefab.read()
+                    root = next(x for x in _components(pf) if x.object_reader.type.name == "Transform")
+                    protos[key] = (pf.m_Name, _solid_boxes(pf, np.linalg.inv(sc.transform(root)), sc))
+                except Exception as exc:
+                    print("  tree prototype", i, "unreadable:", str(exc)[:80])
+                    protos[key] = ("tree", [])
+            kinds.append(protos[key])
+        for t in db.m_TreeInstances:
+            if t.index >= len(kinds) or not kinds[t.index][1]:
+                continue
+            name, parts = kinds[t.index]
+            w, h = t.widthScale, t.heightScale
+            rot = float(getattr(t, "rotation", 0.0) or 0.0)
+            cr, sr = math.cos(rot), math.sin(rot)
+            base = (origin[0] + t.position.x * size[0], origin[1] + t.position.y * size[1],
+                    origin[2] + t.position.z * size[2])
+            for corners in parts:
+                world = []
+                for x, y, z in corners:
+                    x, y, z = x * w, y * h, z * w
+                    world.append((base[0] + cr * x + sr * z, base[1] + y, base[2] - sr * x + cr * z))
+                out.append((f"tree:{name}", as_parallelepiped(world)))
+    return out
+
+
+def extract_trees(only=None):
+    """Add the terrain trees to the environment files (tracks/env/<Env>.npz)."""
+    warnings.filterwarnings("ignore")
+    keys = _scene_bundles()
+    for f in sorted(ENV_DIR.glob("*.npz")):
+        env = f.stem
+        if only and env not in only:
+            continue
+        with np.load(f, allow_pickle=False) as z:
+            d = {k: z[k] for k in z.files}
+        bundle = keys.get(str(d["scene"]))
+        if not bundle:
+            print(f"{env}: scene bundle unknown")
+            continue
+        t0 = time.time()
+        trees = tree_colliders(bundle)
+        d["tree_pps"] = np.array([pp for _, pp in trees], np.float32).reshape(-1, 4, 3)
+        d["tree_names"] = json.dumps([n for n, _ in trees])
+        np.savez_compressed(f, **d)
+        print(f"{env}: {len(trees)} solid tree parts, {time.time() - t0:.0f} s", flush=True)
+
+
 def show(env):
     o = load(env)
     print(f"{env}: {len(o)} colliders, {len(o.terrain)} terrain tiles")
@@ -421,5 +593,7 @@ def show(env):
 if __name__ == "__main__":
     if sys.argv[1] == "extract":
         extract(set(sys.argv[2:]) or None)
+    elif sys.argv[1] == "trees":
+        extract_trees(set(sys.argv[2:]) or None)
     elif sys.argv[1] == "show":
         show(sys.argv[2])
