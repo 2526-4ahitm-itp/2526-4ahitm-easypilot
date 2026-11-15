@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import window
-from .track import find, load_race, load_track, TRACK_DIR
+from .track import find, load_race, load_race_with_track, load_track, TRACK_DIR, USER_DIR
 
 LIFTOFF_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff"
 USER_DATA = LIFTOFF_DIR / "Saves/Player/UserData.xml"
@@ -54,12 +54,31 @@ FREE_SESSION = """<lastPlaySession xsi:type="FreeFlightSessionData">
 def race_info(race_name):
     path = find(race_name)
     root_id = re.search(r"<localID>\s*<str>([^<]+)</str>", path.read_text(encoding="utf-8", errors="ignore"))
-    race = load_race(path)
-    track_path = next(p for p in TRACK_DIR.glob("*Track*.xml")
-                      if load_track(p)["id"] == race["track"])
-    track = load_track(track_path)
+    race, track = load_race_with_track(race_name)
     return {"race_id": root_id.group(1), "race": race, "track": track, "env": track["environment"],
             "track_id": track["id"], "name": race["name"]}
+
+
+def catalog():
+    """All races that can be flown: official ones (extracted) and custom ones from Liftoff's editor."""
+    out = []
+    for d, custom in ((TRACK_DIR, False), (USER_DIR / "Races", True)):
+        if not d.exists():
+            continue
+        for p in sorted(d.glob("*.xml")):
+            head = p.read_text(encoding="utf-8", errors="ignore")[:3000]
+            if "<Race" not in head[:400]:
+                continue
+            key = p.name.split("_")[0] if not custom else p.stem
+            name = re.search(r"<name>([^<]*)</name>", head)
+            env = None
+            try:
+                info = race_info(key)
+                env, title, gates = info["env"], info["name"], len(info["race"]["passages"])
+            except Exception:
+                continue                      # race without its track file
+            out.append({"key": key, "title": title, "env": env, "custom": custom, "gates": gates})
+    return out
 
 
 def liftoff_running():
@@ -89,18 +108,20 @@ def set_last_session(fragment):
     USER_DATA.write_text(new, encoding="utf-8")
 
 
-def start_and_open_last_session(tel=None, timeout=150.0):
+def start_and_open_last_session(tel=None, timeout=600.0):
     """Start Liftoff (if needed), Quick Play > Last Session, wait until the drone is in the level."""
     from .ui import click_capture
     if not liftoff_running():
         subprocess.run(["cmd", "/c", "start", "", STEAM_APP])
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.time() + timeout         # Steam may update Liftoff first
+    while True:
         try:
-            if window.client_rect()[2] > 800:
+            if window.find_window() is not None and window.client_rect()[2] > 400:
                 break
         except Exception:
             pass
+        if time.time() > end:
+            return False
         time.sleep(2)
     time.sleep(25)                      # splash screen and main menu
     for _ in range(3):

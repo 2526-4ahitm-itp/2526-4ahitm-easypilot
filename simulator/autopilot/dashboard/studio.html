@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasyPilot Studio</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/studio.css">
+</head>
+<body class="studio">
+<div class="countdown" id="countdown"></div>
+
+<!-- top row: left = real Liftoff window (always on top), right = autopilot half of the split screen -->
+<section class="top">
+  <div class="slot" id="slot">
+    <img id="liveImg" alt="">
+    <div class="slot-hint" id="slotHint">
+      <b>Liftoff-Fenster</b>
+      <span>wird hier platziert – Einstellungen → „Liftoff anordnen“</span>
+    </div>
+    <div class="tag left"><i class="dot live"></i><span id="leftTag">LIVE</span></div>
+  </div>
+  <div class="half" id="half">
+    <video id="botVideo" muted playsinline preload="auto"></video>
+    <canvas id="bigMap"></canvas>
+    <div class="half-empty" id="halfEmpty">
+      <b>Noch kein Autopilot-Lauf</b>
+      <span id="halfEmptyText">für diese Strecke und Stufe – einmal „Autopilot fliegt“ starten.</span>
+    </div>
+    <div class="tag right"><i class="dot bot"></i><span id="rightTag">AUTOPILOT</span></div>
+    <div class="mini-clock num" id="rightClock"></div>
+  </div>
+</section>
+
+<!-- bottom: header, tabs and panels -->
+<section class="bottom">
+  <header class="bar">
+    <div class="brand">EasyPilot <span>Studio</span></div>
+    <div class="map-title"><b id="mapTitle">–</b><span id="mapEnv"></span></div>
+    <div class="chips">
+      <span class="chip" id="chipLiftoff">Liftoff</span>
+      <span class="chip" id="chipTel">Telemetrie</span>
+      <span class="chip" id="chipCtl">Controller</span>
+    </div>
+    <nav class="tabs">
+      <button data-tab="live" class="on">Rennen</button>
+      <button data-tab="maps">Strecken</button>
+      <button data-tab="results">Ergebnisse</button>
+      <button data-tab="settings">Einstellungen</button>
+    </nav>
+  </header>
+
+  <!-- RACE -->
+  <div class="tab on" id="tab-live">
+    <div class="race-grid">
+      <div class="card start">
+        <h3>Wer fliegt?</h3>
+        <div class="seg" id="modeSeg">
+          <button data-mode="bot" class="on">🤖 Autopilot fliegt</button>
+          <button data-mode="human">🧑 Mensch vs. Autopilot</button>
+        </div>
+        <div id="humanBox" class="hidden">
+          <input id="pilotName" maxlength="24" placeholder="Name der Pilotin / des Piloten" autocomplete="off">
+          <div class="hint" id="ctlHint"></div>
+        </div>
+        <h3>Tempo</h3>
+        <div class="stages" id="stagePills"></div>
+        <label class="custom"><input type="checkbox" id="customOn"> frei wählen
+          <input type="range" id="customSpeed" min="10" max="100" step="5" value="70" disabled>
+          <b class="num" id="customVal">70 %</b></label>
+        <div class="row-buttons">
+          <button class="go" id="startBtn">Start</button>
+          <button class="stop" id="stopBtn">Stopp</button>
+        </div>
+        <div class="queue" id="queue"></div>
+      </div>
+
+      <div class="card timing">
+        <div class="pilot" id="pilot">Bereit</div>
+        <div id="stageBadge"></div>
+        <div class="clock num" id="clock">0,00</div>
+        <div class="progress"><div id="bar"></div></div>
+        <div class="stats">
+          <div><div class="label">Tor</div><div class="big-stat num" id="gate">–</div></div>
+          <div><div class="label">zum Autopiloten</div><div class="big-stat num" id="delta">–</div></div>
+          <div><div class="label">Autopilot</div><div class="big-stat num" id="botTime">–</div></div>
+          <div><div class="label">km/h</div><div class="big-stat num" id="speed">–</div></div>
+        </div>
+        <div class="banner" id="banner">Wer schlägt den Autopiloten?</div>
+      </div>
+
+      <div class="card mapcard"><canvas id="map"></canvas></div>
+
+      <div class="card board">
+        <h3>Bestenliste <span class="muted" id="boardMap"></span></h3>
+        <table id="ranking"></table>
+        <h3 style="margin-top:12px">Autopilot je Stufe</h3>
+        <div class="ladder" id="ladder"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAPS -->
+  <div class="tab" id="tab-maps">
+    <div class="maps-head">
+      <input id="mapSearch" placeholder="Strecke oder Umgebung suchen …">
+      <label><input type="checkbox" id="onlyCustom"> nur eigene Strecken</label>
+      <span class="muted" id="mapCount"></span>
+    </div>
+    <div class="maps" id="maps"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="tab" id="tab-results">
+    <div class="results-grid">
+      <div class="card"><h3>Bestenliste dieser Strecke</h3><table id="ranking2"></table></div>
+      <div class="card"><h3>Letzte Läufe</h3><table id="recent"></table></div>
+      <div class="card"><h3>Autopilot-Referenzen auf allen Strecken</h3><div id="coverage"></div></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="tab-settings">
+    <div class="settings-grid">
+      <div class="card">
+        <h3>Bildschirm</h3>
+        <p class="muted">Liftoff wird randlos oben links platziert und bleibt im Vordergrund. Diese Seite im Vollbild (F11) daneben.</p>
+        <div class="row-buttons">
+          <button onclick="cmd({action:'layout', mode:'quarter'})">Liftoff anordnen</button>
+          <button onclick="cmd({action:'layout', mode:'full'})">Liftoff Vollbild</button>
+        </div>
+        <label class="opt"><input type="checkbox" id="streamLeft"> Live-Bild als Stream in der Seite anzeigen (wenn Liftoff auf einem anderen Bildschirm ist)</label>
+      </div>
+      <div class="card">
+        <h3>Rennen</h3>
+        <label class="opt">Runden <select id="lapsSel"><option>1</option><option>2</option><option>3</option></select></label>
+        <label class="opt">Zeitlimit Mensch <select id="timeoutSel"><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
+        <label class="opt"><input type="checkbox" id="visionOn"> Kamera-Korrektur der Tore (KI) beim Autopiloten</label>
+      </div>
+      <div class="card">
+        <h3>Controller</h3>
+        <div id="ctlInfo" class="muted"></div>
+        <p class="muted">Neuer Controller: einmal <code>python -m autopilot.pilot calibrate</code>. Über Parsec wird ein Gamepad des entfernten Rechners wie ein angesteckter Controller durchgereicht. Ohne Controller geht „Autopilot fliegt“.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/static/app.js"></script>
+<script src="/static/studio.js"></script>
+</body>
+</html>

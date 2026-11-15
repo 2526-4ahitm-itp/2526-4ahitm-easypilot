@@ -217,12 +217,26 @@ def obstacles(track):
     return [b for b in track["blueprints"] if gate_size(b.item) is None and "TriggerBox" not in b.item]
 
 
+# tracks and races built in Liftoff's own editor (custom maps)
+USER_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff"
+
+
+def search_dirs():
+    return [TRACK_DIR, USER_DIR / "Races", USER_DIR / "Tracks"]
+
+
 def find(name_part):
+    """A race/track file by (part of) its file name; custom races also by their exact display name."""
     TRACK_DIR.mkdir(exist_ok=True)
-    hits = sorted(TRACK_DIR.glob(f"*{name_part}*.xml"))
-    if not hits:
-        raise FileNotFoundError(f"no track/race matching {name_part} in {TRACK_DIR} - run `extract` first")
-    return hits[0]
+    for d in search_dirs():
+        hits = sorted(d.glob(f"*{name_part}*.xml")) if d.exists() else []
+        if hits:
+            return hits[0]
+    for d in search_dirs()[1:]:
+        for p in (d.glob("*.xml") if d.exists() else []):
+            if f"<name>{name_part}</name>" in p.read_text(encoding="utf-8", errors="ignore")[:2000]:
+                return p
+    raise FileNotFoundError(f"no track/race matching {name_part} - run `python -m autopilot.track extract` first")
 
 
 def load_race_with_track(race_name):
@@ -230,7 +244,7 @@ def load_race_with_track(race_name):
     def is_track(p):
         head = p.read_text(encoding="utf-8", errors="ignore")[:600]
         return "<Track" in head and race["track"] in head
-    track_file = next(p for p in TRACK_DIR.glob("*.xml") if is_track(p))
+    track_file = next(p for d in search_dirs() if d.exists() for p in d.glob("*.xml") if is_track(p))
     return race, load_track(track_file)
 
 

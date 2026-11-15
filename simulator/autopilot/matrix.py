@@ -20,7 +20,8 @@ from pathlib import Path
 from .liftoff import RUNS, Session
 from .race import course, fly
 from .session import lap_counted, lap_record, load, race_info
-from .tdot import STAGES, LapTimer
+from .recorder import Recorder, keep_as_reference
+from .tdot import DATA as TDOT_DATA, STAGES, Leaderboard, LapTimer
 from .telemetry import Telemetry
 from .track import TRACK_DIR, race_gates
 
@@ -50,25 +51,43 @@ def reset(sess, settle=4.5):
     return False
 
 
-def run_one(tel, timer, info, gates, level):
+def run_one(tel, timer, race_name, info, gates, level, record=True):
     st = next(s for s in STAGES if s.level == level)
-    sess = Session(f"matrix-{info['race']['name'][:20]}-{level}".replace(" ", ""), tel=tel)
+    sess = Session(f"matrix-{race_name}-{level}", tel=tel)
     time.sleep(0.5)
     before = lap_record(info["race_id"])
+    rec = Recorder(tel, race_name, level, st.aggressiveness) if record else None
+    if rec:
+        rec.start()
     if not reset(sess):
         sess.close()
+        if rec:
+            rec.finish(keep_video=False)
         return {"error": "reset not seen"}
     s0 = tel.wait(2.0)
     timer.go(s0.t)
+    if rec:
+        rec.go()
     t0 = time.time()
     res = fly(sess, gates, 1, st.aggressiveness, max_time=240)
     timer.running = False
     time.sleep(1.5)
     after = lap_record(info["race_id"])
-    return {"liftoff_lap": lap_counted(before, after), "our_gates": timer.next, "our_time": timer.time,
-            "bot_gates": res["gates_passed"], "reason": res["reason"], "max_xt": res["max_cross_track_m"],
-            "planned_s": res["planned_s"], "wall_s": round(time.time() - t0, 1), "log": res["log"],
-            "lap_after": after["best"][:1] if after else None}
+    passed = lap_counted(before, after)
+    out = {"liftoff_lap": passed, "our_gates": timer.next, "our_time": timer.time,
+           "bot_gates": res["gates_passed"], "reason": res["reason"], "max_xt": res["max_cross_track_m"],
+           "planned_s": res["planned_s"], "wall_s": round(time.time() - t0, 1), "log": res["log"],
+           "lap_after": after["best"][:1] if after else None}
+    mp4 = rec.finish(keep_video=passed and timer.time is not None) if rec else None
+    if passed and timer.time is not None:
+        board = Leaderboard(TDOT_DATA / f"{race_name}-1lap.json")
+        if board.add_bot(level, timer.time, timer.splits, timer.path):
+            out["new_reference"] = True
+            if mp4:
+                keep_as_reference(mp4, race_name, level)
+    if mp4 and mp4.exists():
+        mp4.unlink()
+    return out
 
 
 def main(argv):
@@ -76,6 +95,7 @@ def main(argv):
         return summary()
     opts = {"--stages": "1,2,3,4,5", "--env": "", "--races": ""}
     again = "--again" in argv
+    no_record = "--no-record" in argv
     i = 0
     while i < len(argv):
         if argv[i] in opts:
@@ -107,7 +127,7 @@ def main(argv):
             continue
         for level in todo:
             try:
-                r = run_one(tel, timer, info, gates, level)
+                r = run_one(tel, timer, race_name, info, gates, level, record=not no_record)
             except Exception as exc:
                 r = {"error": repr(exc)}
             rec = {"race": race_name, "env": info["env"], "title": info["name"], "stage": level,
