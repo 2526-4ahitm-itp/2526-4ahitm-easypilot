@@ -178,6 +178,13 @@ def gate_from_db(bp, name):
         center = gatedb.transform_point(rec.get("target", (0.0, 0.0, 0.0)), bp.pos, bp.quat, scale)
     g = Gate(center, normal, 2 * hw, 2 * hh, name)
     g.guides = [gatedb.transform_point(q, bp.pos, bp.quat, scale) for q in rec.get("guides", [])]
+    # outer half width of the frame (posts, corners) seen from the gate centre, for passing beside it
+    outer = hw
+    for pp in gatedb.solid(rec):
+        for c in gatedb.pp_corners(gatedb.transform_pp(pp, bp.pos, bp.quat, scale)):
+            rel = tuple(c[k] - center[k] for k in range(3))
+            outer = max(outer, abs(sum(rel[k] * side[k] for k in range(3))))
+    g.outer = outer
     # Liftoff counts entering the trigger volume. Thick volumes (spheres, boxes along the course)
     # have no passage plane: their direction is the course direction (set in race_gates)
     g.volume = [list(o), list(a), list(b), list(c)]

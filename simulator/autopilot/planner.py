@@ -46,6 +46,10 @@ class Gate:
         return any(pp_contains(vol, add(p0, mul(sub(p1, p0), k / n)), 0.0) for k in range(1, n + 1))
 
 
+BRAKE_SHARE = 0.35
+REORIENT_TIME = 0.3     # s the drone needs to swing its thrust around (attitude change before braking)
+
+
 @dataclass
 class Limits:
     max_speed: float = 40.0     # m/s
@@ -61,8 +65,9 @@ class Limits:
     def from_thrust(max_accel, max_speed=45.0, lateral_share=0.6, longitudinal_share=0.55, drag=0.0):
         """Limits that leave the controller a reserve: shares of the horizontal thrust at level height."""
         horizontal = (max(0.0, max_accel ** 2 - 9.81 ** 2)) ** 0.5
+        # braking needs the drone to turn its thrust around first (~0.3 s at full rate): plan it softer
         return Limits(max_speed, horizontal * lateral_share, horizontal * longitudinal_share,
-                      horizontal * longitudinal_share, drag)
+                      horizontal * BRAKE_SHARE, drag)
 
 
 def hermite(p0, m0, p1, m1, t):
@@ -83,6 +88,12 @@ class RacingLine:
             knots.append((start, unit(start_dir or sub(first, start))))
         for _ in range(laps):
             knots += [(g.center, unit(g.normal)) for g in self.gates]
+        # via points (obstacle / turn helpers) have no own direction: follow the course through them
+        # (Catmull-Rom), a fixed direction there made kinks
+        flags = ([False] if start is not None else []) + [getattr(g, "via", False) for _ in range(laps) for g in self.gates]
+        for i, is_via in enumerate(flags):
+            if is_via and 0 < i < len(knots) - 1:
+                knots[i] = (knots[i][0], unit(sub(knots[i + 1][0], knots[i - 1][0]), knots[i][1]))
         last_c, last_n = knots[-1]
         knots.append((add(last_c, mul(last_n, finish_extra)), last_n))
         self.launch_speed = launch_speed
@@ -151,6 +162,7 @@ class RacingLine:
         v[-1] = min(v[-1], lim.max_speed)
         if self.launch_speed:
             v = [min(x, self.launch_speed) if self.s[i] < self.launch_dist else x for i, x in enumerate(v)]
+            v[0] = 0.0          # the drone stands at the start: accelerate from rest, not with a jump to 9 m/s
         for i in range(1, len(v)):
             ds = self.s[i] - self.s[i - 1]
             # thrust left for accelerating after drag and climbing
@@ -160,6 +172,17 @@ class RacingLine:
         for i in range(len(v) - 2, -1, -1):
             ds = self.s[i + 1] - self.s[i]
             v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * (lim.brake + 0.5 * lim.drag * v[i + 1] ** 2) * ds))
+        # start slowing down early: the speed limit of the next REORIENT_TIME of flight applies now
+        n = len(v)
+        out = list(v)
+        j = 0
+        for i in range(n):
+            reach = self.s[i] + max(v[i], 1.0) * REORIENT_TIME
+            j = max(j, i)
+            while j + 1 < n and self.s[j + 1] <= reach:
+                j += 1
+            out[i] = min(v[i:j + 1]) if j > i else v[i]
+        v = out
         self.speed = v
         self.lap_time_estimate = sum((self.s[i + 1] - self.s[i]) / max(0.5, 0.5 * (v[i] + v[i + 1]))
                                      for i in range(len(v) - 1))

@@ -51,8 +51,9 @@ def launch(first_gate, spawn):
     return start, unit((d[0], 0.0, d[2]))
 
 
-CLEARANCE = 0.35 + 0.3      # drone radius + safety margin to solid items [m] (the guide line is flyable as designed)
-SAG = 0.3                   # extra room below the line
+CLEARANCE = 0.4             # drone radius: avoid only real contact - every via is a bend the real drone
+                            # turns into big stick moves (Liftoff 15.11.), the designed course is flyable
+SAG = 0.0                   # extra room below the line
 
 
 def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
@@ -60,7 +61,9 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     around solid track items: where it touches one, a via point is put beside the item and the
     line is planned again."""
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
-    seq = align_vias(guide_vias(course(gates, laps)))
+    # Liftoff's guide points give the passage direction (race_gates); as extra knots right next to the
+    # gate they made kinks the real drone turned into wild stick moves - so only align / avoid vias
+    seq = align_vias(course(gates, laps))
 
     def plan(sq):
         return RacingLine(sq, start=start, start_dir=start_dir, laps=1, limits=limits,
@@ -110,38 +113,68 @@ def guide_vias(seq):
     for g in seq:
         entry, exit_ = getattr(g, "entry", None), getattr(g, "exit", None)
         if entry is not None and math.dist(entry, g.center) > 0.3:
-            out.append(_via(entry, g.normal))
+            v = _via(entry, g.normal)
+            v.role = "entry"
+            out.append(v)
         out.append(g)
         if exit_ is not None and math.dist(exit_, g.center) > 0.3:
-            out.append(_via(exit_, g.normal))
+            v = _via(exit_, g.normal)
+            v.role = "exit"
+            out.append(v)
     return out
 
 
 def align_vias(seq, max_angle=50.0):
     """Approach / exit points for gates that are entered at a steep angle or from behind (turn-around
-    gates, stacked tower windows): the turn then happens in front of / behind the gate, not inside it."""
-    from .geometry import dot, norm, sub, unit
-    out = []
+    gates, stacked tower windows): the turn then happens in front of / behind the gate, not inside it.
+    Angles are judged against the previous / next real gate (guide points next to a gate do not count),
+    the approach point goes outside the guide point."""
+    from .geometry import cross, dot, norm, sub, unit
+    real = [i for i, g in enumerate(seq) if not getattr(g, "via", False)]
+    before, after = {}, {}
     cos_max = math.cos(math.radians(max_angle))
-    for i, g in enumerate(seq):
+    for k, i in enumerate(real):
+        g = seq[i]
         n = unit(g.normal)
-        if getattr(g, "via", False):
-            out.append(g)
-            continue
-        if i > 0:
-            chord = sub(g.center, seq[i - 1].center)
+        guide_in = math.dist(g.entry, g.center) if getattr(g, "entry", None) is not None else 0.0
+        guide_out = math.dist(g.exit, g.center) if getattr(g, "exit", None) is not None else 0.0
+        if k > 0:
+            chord = sub(g.center, seq[real[k - 1]].center)
             dist = norm(chord)
             if dist > 1e-3 and dot(unit(chord), n) < cos_max:
-                ra = min(8.0, max(3.0, 0.3 * dist))
-                out.append(_via(sub(g.center, mul(n, ra)), n))
-        out.append(g)
-        if i + 1 < len(seq):
-            chord = sub(seq[i + 1].center, g.center)
+                ra = max(guide_in + 2.0, min(8.0, max(3.0, 0.3 * dist)))
+                before[i] = [_via(sub(g.center, mul(n, ra)), n)]
+                if dot(unit(chord), n) < -0.3:
+                    # entered from behind: first pass beside the gate (half width + 2.5 m) on the side we
+                    # come from, then turn in front of it - not tight around its posts
+                    side = unit(cross((0.0, 1.0, 0.0), n), (1.0, 0.0, 0.0))
+                    if dot(side, sub(seq[real[k - 1]].center, g.center)) < 0:
+                        side = mul(side, -1.0)
+                    beside = add(g.center, mul(side, getattr(g, "outer", g.width / 2) + 2.5))
+                    before[i].insert(0, _via(beside, n))
+        if k + 1 < len(real):
+            chord = sub(seq[real[k + 1]].center, g.center)
             dist = norm(chord)
             if dist > 1e-3 and dot(unit(chord), n) < cos_max:
-                re = min(8.0, max(3.0, 0.3 * dist))
-                out.append(_via(add(g.center, mul(n, re)), n))
-    return out
+                re = max(guide_out + 2.0, min(8.0, max(3.0, 0.3 * dist)))
+                after[i] = _via(add(g.center, mul(n, re)), n)
+    out = []
+    for k, i in enumerate(real):
+        lo = real[k - 1] + 1 if k > 0 else 0
+        hi = real[k + 1] if k + 1 < len(real) else len(seq)
+        # elements between the previous real gate and this one: exit vias of the previous gate were
+        # already placed; here come the entry guide via(s) - the approach point goes before them
+        pre = [g for g in seq[lo:i] if getattr(g, "role", "") != "exit"]
+        if i in before:
+            out += before[i]
+        out += pre
+        out.append(seq[i])
+        post = [g for g in seq[i + 1:hi] if getattr(g, "role", "") == "exit"]
+        out += post
+        if i in after:
+            out.append(after[i])
+    head = [g for g in seq[:real[0]] if getattr(g, "role", "") == "exit"] if real else list(seq)
+    return out if real else list(seq)
 
 
 def _avoid(line, seq, colliders, step=0.5):
@@ -162,8 +195,8 @@ def _avoid(line, seq, colliders, step=0.5):
         if line.s[i] - last < step:
             continue
         last = line.s[i]
-        if math.dist(p, line.points[0]) < 3.0:
-            continue                          # the start pad the drone stands on
+        if line.s[i] < 8.0:
+            continue                          # lift-off: obstacles next to the start pad are not in the way
         # in and right at a gate opening the frame is close by design: only the drone itself counts
         margin = 0.2 if any(abs(line.s[i] - sk) < 1.5 for sk in real_s) else CLEARANCE
         # below the line keep more room: at speed the drone sags (thrust drops with airspeed in
@@ -202,9 +235,12 @@ def _avoid(line, seq, colliders, step=0.5):
                 best_q, best_d = add(p, mul(d, dist + 0.2)), dist
         if best_q is None:
             continue
+        s_hit = line.s[i]
+        # keep vias apart from gates and from each other: close knots make kinks
+        if any(abs(s_hit - sk) < 2.5 for sk in real_s) or any(abs(s_hit - v[1]) < 6.0 for v in vias):
+            continue
         via = Gate(best_q, t, 6.0, 6.0, "via")
         via.via = True
-        s_hit = line.s[i]
         pos = next((k for k, sk in enumerate(knot_s) if sk > s_hit), len(seq))
         vias.append((pos, s_hit, via))
     return vias, len(hits)
