@@ -73,6 +73,11 @@ def pp_contains(pp, p, margin=0.0):
     return True
 
 
+def transform_point(p, pos, quat, scale=(1.0, 1.0, 1.0)):
+    q = qrot(quat, (p[0] * scale[0], p[1] * scale[1], p[2] * scale[2]))
+    return (q[0] + pos[0], q[1] + pos[1], q[2] + pos[2])
+
+
 def transform_pp(pp, pos, quat, scale=(1.0, 1.0, 1.0)):
     """Item frame -> world (blueprint position / rotation / scale)."""
     def tp(p):
@@ -118,11 +123,12 @@ class _Extractor:
         self.errors = []
 
     def walk(self, go, chain, out):
-        comps = []
+        comps, ptrs = [], []
         for c in go.m_Component:
             p = getattr(c, "component", None) or (c[1] if isinstance(c, tuple) else c)
             try:
                 comps.append(p.read())
+                ptrs.append(p)
             except Exception:
                 pass
         tr = next((c for c in comps if type(c).__name__ in ("Transform", "RectTransform")), None)
@@ -139,6 +145,23 @@ class _Extractor:
                 except Exception:
                     pass
         is_cp = "RaceCheckpoint" in scripts
+        # Liftoff's guide line: target point of the checkpoint and entry/exit guide points
+        for c, ptr in zip(comps, ptrs):
+            if type(c).__name__ != "MonoBehaviour":
+                continue
+            try:
+                cls = c.m_Script.read().m_ClassName
+                if cls not in ("RaceCheckpoint", "FixedCheckpointGuideProvider"):
+                    continue
+                tree = ptr.deref().read_typetree() if hasattr(ptr, "deref") else ptr.read_typetree()
+            except Exception:
+                continue
+            if cls == "RaceCheckpoint" and "visualizerTargetOffset" in tree:
+                v = tree["visualizerTargetOffset"]
+                out["target"] = list(self.point_to_root((v["x"], v["y"], v["z"]), chain))
+            if cls == "FixedCheckpointGuideProvider":
+                out["guides"] = [list(self.point_to_root((v["x"], v["y"], v["z"]), chain))
+                                 for v in tree.get("guidePoints", [])]
         if go.m_IsActive is not False:
             for c in comps:
                 shape = self.collider(c)
@@ -157,6 +180,12 @@ class _Extractor:
                 self.walk(ch.read().m_GameObject.read(), chain, out)
             except Exception:
                 pass
+
+    @staticmethod
+    def point_to_root(p, chain):
+        for pos, quat, sc in reversed(chain[1:]):
+            p = tuple(a + b for a, b in zip(qrot(quat, (p[0] * sc[0], p[1] * sc[1], p[2] * sc[2])), pos))
+        return p
 
     @staticmethod
     def to_root(corners, chain):

@@ -58,7 +58,9 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
     sess = Session(f"matrix-{race_name}-{level}", tel=tel)
     time.sleep(0.5)
     before = lap_record(info["race_id"])
-    rec = Recorder(tel, race_name, level, st.aggressiveness) if record else None
+    # training images only from the first run of each race (disk space); video always (split screen)
+    have_images = any((RUNS / "dataset" / "raw").glob(f"{race_name}-*")) if (RUNS / "dataset" / "raw").exists() else False
+    rec = Recorder(tel, race_name, level, st.aggressiveness, dataset_every=0 if have_images else 6) if record else None
     if rec:
         rec.start()
     if not reset(sess):
@@ -260,6 +262,9 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
         t += dt
         if int(t / dt) % 10 == 0 and touch is None and racer.progress.gate_index >= 1:
             name = obs.blocked(drone.pos, 0.15)
+            g = obs.ground(drone.pos[0], drone.pos[2])
+            if name == "terrain" and g is not None and drone.pos[1] > g + 0.05:
+                name = None                                   # close to the ground is no contact
             if name:
                 touch = (round(t, 1), name, racer.progress.gate_index)
     prog = racer.progress

@@ -51,8 +51,8 @@ def launch(first_gate, spawn):
     return start, unit((d[0], 0.0, d[2]))
 
 
-CLEARANCE = 0.35 + 0.45     # drone radius + safety margin to solid track items [m]
-SAG = 0.8                   # extra room below the line
+CLEARANCE = 0.35 + 0.3      # drone radius + safety margin to solid items [m] (the guide line is flyable as designed)
+SAG = 0.3                   # extra room below the line
 
 
 def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=6):
@@ -60,7 +60,7 @@ def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, co
     around solid track items: where it touches one, a via point is put beside the item and the
     line is planned again."""
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
-    seq = align_vias(course(gates, laps))
+    seq = align_vias(guide_vias(course(gates, laps)))
 
     def plan(sq):
         return RacingLine(sq, start=start, start_dir=start_dir, laps=1, limits=limits,
@@ -99,6 +99,19 @@ def _via(center, direction):
     return g
 
 
+def guide_vias(seq):
+    """Liftoff's guide points around each gate (entry before, exit behind) as via points."""
+    out = []
+    for g in seq:
+        entry, exit_ = getattr(g, "entry", None), getattr(g, "exit", None)
+        if entry is not None and math.dist(entry, g.center) > 0.3:
+            out.append(_via(entry, g.normal))
+        out.append(g)
+        if exit_ is not None and math.dist(exit_, g.center) > 0.3:
+            out.append(_via(exit_, g.normal))
+    return out
+
+
 def align_vias(seq, max_angle=50.0):
     """Approach / exit points for gates that are entered at a steep angle or from behind (turn-around
     gates, stacked tower windows): the turn then happens in front of / behind the gate, not inside it."""
@@ -107,6 +120,9 @@ def align_vias(seq, max_angle=50.0):
     cos_max = math.cos(math.radians(max_angle))
     for i, g in enumerate(seq):
         n = unit(g.normal)
+        if getattr(g, "via", False):
+            out.append(g)
+            continue
         if i > 0:
             chord = sub(g.center, seq[i - 1].center)
             dist = norm(chord)

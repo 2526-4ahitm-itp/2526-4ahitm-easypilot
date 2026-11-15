@@ -172,7 +172,12 @@ def gate_from_db(bp, name):
         l, r = free(-1, 0, hw), free(1, 0, hw)
         d, u = free(0, -1, hh), free(0, 1, hh)
         center = at((r - l) / 2, (u - d) / 2)
+    # Liftoff's own guide line passes the checkpoint at its target point and enters / leaves through
+    # the guide points - that is the path the track designer intended (blue/white line in the game)
+    if rec.get("target") and any(abs(v) > 1e-6 for v in rec["target"]) or rec.get("guides"):
+        center = gatedb.transform_point(rec.get("target", (0.0, 0.0, 0.0)), bp.pos, bp.quat, scale)
     g = Gate(center, normal, 2 * hw, 2 * hh, name)
+    g.guides = [gatedb.transform_point(q, bp.pos, bp.quat, scale) for q in rec.get("guides", [])]
     # Liftoff counts entering the trigger volume. Thick volumes (spheres, boxes along the course)
     # have no passage plane: their direction is the course direction (set in race_gates)
     g.volume = [list(o), list(a), list(b), list(c)]
@@ -206,6 +211,22 @@ def race_gates(race, track):
     for i, g in enumerate(gates):
         a, b = gates[i - 1].center, gates[(i + 1) % k].center
         course = tuple(b[j] - a[j] for j in range(3))
+        if getattr(g, "guides", None) and len(g.guides) >= 2:
+            # entry = the guide point on the side we come from; the pair through the gate that best fits
+            # the course (gates with 4 guide points can be passed in two axes)
+            best = None
+            for e in g.guides:
+                for x in g.guides:
+                    d = tuple(x[j] - e[j] for j in range(3))
+                    n = math.sqrt(sum(v * v for v in d))
+                    if n < 1e-6:
+                        continue
+                    score = sum(d[j] * course[j] for j in range(3)) / n
+                    if best is None or score > best[0]:
+                        best = (score, e, x, tuple(v / n for v in d))
+            if best:
+                g.entry, g.exit, g.normal = best[1], best[2], best[3]
+                continue
         if getattr(g, "omni", False):
             n = math.sqrt(sum(v * v for v in course)) or 1.0
             g.normal = tuple(v / n for v in course)

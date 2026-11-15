@@ -29,6 +29,8 @@ ENV_DIR = Path(__file__).resolve().parent / "tracks" / "env"
 ENVS = ["AutumnFields", "BandoCity", "BardwellsYard", "DubaiLegends", "Hall26", "HangarC03", "Hannover",
         "LiftoffArena", "MarinaBay", "MinusTwo", "ParisDroneFestival", "Permafrost", "PineValley", "Rustline",
         "ShortCircuit", "StrawBale", "Surtur", "TheGreen", "ThePit", "TheRussianWoodpecker"]
+GROUND_CLEARANCE = 0.3  # m above terrain / floors
+MIN_MATCH = 0.6         # scene <-> environment match needed to trust the level geometry
 MAX_SPAN = 80.0          # colliders larger than this in two directions are floors/ceilings, not obstacles
 
 
@@ -41,10 +43,13 @@ class ObstacleSet:
         self.items = list(colliders)                 # [(name, pp)]
         self.terrain = list(terrain)                 # [Terrain]
         self.grid = defaultdict(list)
+        self.floor = set()                           # flat slabs (floors, roofs, ground planes)
         for k, (name, pp) in enumerate(self.items):
             cs = _corners(pp)
             lo = np.min(cs, axis=0)
             hi = np.max(cs, axis=0)
+            if hi[0] - lo[0] > 6.0 and hi[2] - lo[2] > 6.0 and hi[1] - lo[1] < 1.5:
+                self.floor.add(k)
             for i in range(int(math.floor(lo[0] / cell)), int(math.floor(hi[0] / cell)) + 1):
                 for j in range(int(math.floor(lo[2] / cell)), int(math.floor(hi[2] / cell)) + 1):
                     self.grid[(i, j)].append(k)
@@ -74,13 +79,22 @@ class ObstacleSet:
 
     def blocked(self, p, margin, below=0.0):
         """Is p (or p lowered by `below`) closer than `margin` to an obstacle or the terrain?"""
+        # ground (terrain, floors, roofs): only the drone itself must stay clear - gates are often
+        # just 1.3 m above it, a safety margin below would push the whole line up all the time
         g = self.ground(p[0], p[2])
-        if g is not None and p[1] - below < g + margin:
+        if g is not None and p[1] < g + GROUND_CLEARANCE:
             return "terrain"
         low = (p[0], p[1] - below, p[2])
-        for name, pp in self.near(p, margin + below + 1.0):
-            if pp_contains(pp, p, margin) or (below and pp_contains(pp, low, margin)):
-                return name
+        c = self.cell
+        for i in range(int(math.floor((p[0] - margin - below - 1) / c)), int(math.floor((p[0] + margin + below + 1) / c)) + 1):
+            for j in range(int(math.floor((p[2] - margin - below - 1) / c)), int(math.floor((p[2] + margin + below + 1) / c)) + 1):
+                for k in self.grid.get((i, j), ()):
+                    name, pp = self.items[k]
+                    if k in self.floor:
+                        if pp_contains(pp, p, GROUND_CLEARANCE):
+                            return name
+                    elif pp_contains(pp, p, margin) or (below and pp_contains(pp, low, margin)):
+                        return name
         return None
 
 
@@ -114,6 +128,9 @@ def load(env, bounds=None, margin=60.0):
     if not f.exists():
         return ObstacleSet()
     d = np.load(f, allow_pickle=False)
+    # an uncertain scene match would put walls where there are none (wild evasive moves): skip it
+    if "match" not in d.files or float(d["match"]) < MIN_MATCH:
+        return ObstacleSet()
     pps = d["pps"]
     names = json.loads(str(d["names"]))
     keep = np.ones(len(pps), bool)
@@ -358,7 +375,8 @@ def extract(only=None):
             continue
         f, cols, ters, key, scores = assign[env]
         data = {"pps": np.array([pp for _, pp in cols], np.float32).reshape(-1, 4, 3),
-                "names": json.dumps([n for n, _ in cols]), "n_terrain": len(ters), "scene": key}
+                "names": json.dumps([n for n, _ in cols]), "n_terrain": len(ters), "scene": key,
+                "match": 1.0 if known.get(env) == key else float(scores[env])}
         for k, (o, s_, h) in enumerate(ters):
             data[f"t{k}_origin"] = np.array(o, np.float32)
             data[f"t{k}_size"] = np.array(s_, np.float32)

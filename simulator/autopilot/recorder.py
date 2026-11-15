@@ -63,7 +63,7 @@ class Recorder(threading.Thread):
                 cv2.imwrite(str(self.tmp / f"{self.n_video:05d}.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 88])
                 self.n_video += 1
             n += 1
-            if n % self.dataset_every == 0:
+            if self.dataset_every and n % self.dataset_every == 0:
                 s = self.tel.at(stamp - self.latency)
                 if s is not None and max(abs(v) for v in s.pos) > 1e-3:
                     name = f"{len(self.meta):05d}.jpg"
