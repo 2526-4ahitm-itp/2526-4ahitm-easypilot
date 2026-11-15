@@ -32,7 +32,7 @@ from . import window
 from .liftoff import RUNS, Session, key_down, VK_F9
 from .race import course
 from .recorder import Recorder, keep_as_reference, video_path
-from .session import catalog, lap_counted, lap_record, load as load_liftoff, race_info
+from .session import catalog, flush_laps, lap_counted, lap_record, load as load_liftoff, race_info
 from .tdot import STAGES, LapTimer, Leaderboard
 from .telemetry import Telemetry
 from .track import race_gates
@@ -284,7 +284,7 @@ class Studio:
                 racer.progress.finished = True          # brake and land (race.fly)
         res = fly(sess, self.gates, self.laps, k, vision=bool(self.settings.get("vision")), on_step=on_step)
         time.sleep(1.0)
-        counted = lap_counted(before, lap_record(self.info["race_id"]))
+        counted = lap_counted(before, flush_laps(self.info["race_id"]))
         why = "abgebrochen" if self.abort.is_set() else ("im Ziel" if self.timer.finished else res.get("reason", ""))
         mp4 = rec.finish(keep_video=self.timer.finished) if rec else None
         extra = {"liftoff_counted": counted}

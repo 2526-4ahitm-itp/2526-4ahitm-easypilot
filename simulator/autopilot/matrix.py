@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .liftoff import RUNS, Session
 from .race import course, fly
-from .session import lap_counted, lap_record, load, race_info
+from .session import flush_laps, lap_counted, lap_record, load, race_info
 from .recorder import Recorder, keep_as_reference
 from .tdot import DATA as TDOT_DATA, STAGES, Leaderboard, LapTimer
 from .telemetry import Telemetry
@@ -71,8 +71,8 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
     t0 = time.time()
     res = fly(sess, gates, 1, st.aggressiveness, max_time=240)
     timer.running = False
-    time.sleep(1.5)
-    after = lap_record(info["race_id"])
+    time.sleep(1.0)
+    after = flush_laps(info["race_id"])
     passed = lap_counted(before, after)
     out = {"liftoff_lap": passed, "our_gates": timer.next, "our_time": timer.time,
            "bot_gates": res["gates_passed"], "reason": res["reason"], "max_xt": res["max_cross_track_m"],

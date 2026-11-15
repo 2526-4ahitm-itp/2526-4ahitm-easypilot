@@ -31,11 +31,17 @@ RACE_SESSION = """<lastPlaySession xsi:type="RaceSessionData">
     <environmentVariant>Default</environmentVariant>
     <includeSlipstream>false</includeSlipstream>
     <IncludeSlipstreamAssets>false</IncludeSlipstreamAssets>
+    <track>
+      <str>{track_id}</str>
+      <version>1</version>
+      <type>TRACK</type>
+    </track>
     <race>
       <str>{race_id}</str>
       <version>1</version>
       <type>RACE</type>
     </race>
+    <isInfinite>false</isInfinite>
   </lastPlaySession>"""
 
 FREE_SESSION = """<lastPlaySession xsi:type="FreeFlightSessionData">
@@ -144,7 +150,7 @@ def load(race_name, tel=None, mode="race"):
     info = race_info(race_name)
     quit_liftoff()
     if mode == "race":
-        set_last_session(RACE_SESSION.format(env=info["env"], race_id=info["race_id"]))
+        set_last_session(RACE_SESSION.format(env=info["env"], race_id=info["race_id"], track_id=info["track_id"]))
     else:
         set_last_session(FREE_SESSION.format(env=info["env"], track_id=info["track_id"]))
     ok = start_and_open_last_session(tel)
@@ -161,6 +167,27 @@ def lap_record(race_id):
             times = [float(t.text) for t in lt.iter("Time")]
             return {"average": float(lt.findtext("average") or 0), "best": times, "mtime": LAP_TIMES.stat().st_mtime}
     return {"average": None, "best": [], "mtime": LAP_TIMES.stat().st_mtime}
+
+
+def flush_laps(race_id, joy=None, timeout=4.0):
+    """Liftoff writes finished laps to lapTimes.xml only when the race is reset or left: press Reset
+    and return the record afterwards."""
+    from .vjoy import BTN_RESET, VJoy
+    own = joy is None
+    if own:
+        joy = VJoy()
+        time.sleep(0.5)
+    m0 = LAP_TIMES.stat().st_mtime if LAP_TIMES.exists() else 0
+    try:
+        joy.tap(BTN_RESET, 0.15)
+        end = time.time() + timeout
+        while time.time() < end and (LAP_TIMES.stat().st_mtime if LAP_TIMES.exists() else 0) == m0:
+            time.sleep(0.1)
+        time.sleep(0.2)
+    finally:
+        if own:
+            joy.close()
+    return lap_record(race_id)
 
 
 def lap_counted(before, after):
