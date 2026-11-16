@@ -52,8 +52,7 @@ $("startBtn").onclick = () => {
     if (!name) { $("pilotName").focus(); return; }
     const c = EP.state && EP.state.controllers;
     if (!c || !c.connected.length || !c.calibrated) {
-      alert("Kein kalibrierter Controller. Controller anstecken (oder über Parsec verbinden) und einmal
-" +
+      alert("Kein kalibrierter Controller. Controller anstecken (oder über Parsec verbinden) und einmal " +
             "python -m autopilot.pilot calibrate ausführen. Ohne Controller: „Autopilot fliegt“.");
       return;
     }

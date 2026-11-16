@@ -182,6 +182,7 @@ def label(val_every=7, holdout=()):
         p.mkdir(parents=True, exist_ok=True)
     tracks = {}
     n_img = n_obj = 0
+    skipped = 0
     for run in sorted((DATA / "raw").glob("*")):
         meta_file = run / "meta.json"
         if not meta_file.exists():
@@ -202,6 +203,9 @@ def label(val_every=7, holdout=()):
         for f in meta["frames"]:
             img = run / f["file"]
             pic = cv2.imread(str(img))
+            if pic is None:
+                skipped += 1           # thinned out earlier to save disk space (StrawBale01 from 18.10.)
+                continue
             cam = Camera(pic.shape[1], pic.shape[0], cam_full.hfov_deg, cam_full.tilt_deg)
             rows = label_frame(cam, tuple(f["quat"]), tuple(f["pos"]), gates, img=pic)
             stem = f"{run.name}_{Path(f['file']).stem}"
@@ -214,7 +218,7 @@ def label(val_every=7, holdout=()):
     (DATA / "gates.yaml").write_text(
         f"path: {DATA.as_posix()}\ntrain: images/train\nval: images/val\ntest: images/test\nkpt_shape: [4, 3]\n"
         "flip_idx: [3, 2, 1, 0]\nnames:\n  0: gate\n")
-    print(n_img, "images,", n_obj, "gates labelled ->", DATA / "gates.yaml")
+    print(n_img, "images,", n_obj, "gates labelled,", skipped, "missing frames skipped ->", DATA / "gates.yaml")
 
 
 def preview(run_name, n=12):
