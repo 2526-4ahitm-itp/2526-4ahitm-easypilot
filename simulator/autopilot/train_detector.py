@@ -5,6 +5,7 @@ Result: autopilot/models/gates.pt. If a model exists, training continues from it
 --fresh starts from the generic yolov8n-pose weights. Afterwards the model is evaluated on the
 test split (environments held out with `dataset label --holdout ...`): models/gates_eval.json.
 """
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -25,7 +26,9 @@ def main(argv):
         shutil.copy2(start, MODELS / "gates-previous.pt")
     res = model.train(data=str(DATA / "gates.yaml"), epochs=epochs, imgsz=640, batch=32, device=0,
                       project=str(DATA / "train"), name="gates", exist_ok=True, fliplr=0.5,
-                      mosaic=1.0, hsv_v=0.3, degrees=10.0, workers=4, verbose=False)
+                      mosaic=1.0, hsv_v=0.3, degrees=10.0, verbose=False,
+                      # 4 loader processes died on Windows when validation started (16.11.)
+                      workers=int(os.environ.get("EASYPILOT_WORKERS", "2")))
     MODELS.mkdir(exist_ok=True)
     best = Path(res.save_dir) / "weights" / "best.pt"
     shutil.copy2(best, MODELS / "gates.pt")

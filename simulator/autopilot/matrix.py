@@ -130,8 +130,7 @@ def main(argv):
         if envs and info["env"] not in envs:
             continue
         if race_name in unavailable() and not opts["--races"]:
-            print(f"
-=== {race_name}: content missing in Liftoff on this PC - skipped", flush=True)
+            print(f"\n=== {race_name}: content missing in Liftoff on this PC - skipped", flush=True)
             continue
         todo = [lv for lv in stages if (race_name, lv) not in passed]
         if not todo:
