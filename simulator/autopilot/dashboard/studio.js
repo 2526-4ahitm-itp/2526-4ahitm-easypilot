@@ -78,6 +78,11 @@ $("stopBtn").onclick = () => cmd({action: "abort"});
 $("lapsSel").onchange = () => cmd({action: "settings", laps: +$("lapsSel").value}).then(() => EP.loadTrack());
 $("timeoutSel").onchange = () => cmd({action: "settings", timeout: +$("timeoutSel").value});
 $("visionOn").onchange = () => cmd({action: "settings", vision: $("visionOn").checked});
+// live debug view during autopilot runs (on by default, remembered in this browser)
+try { $("dbgOn").checked = localStorage.getItem("ep-debug") !== "0"; } catch (e) {}
+$("dbgOn").onchange = () => { try { localStorage.setItem("ep-debug", $("dbgOn").checked ? "1" : "0"); } catch (e) {} };
+TV.attachDrag($("dbgPlan"));
+let showDbg = false;
 $("streamLeft").onchange = () => {
   const on = $("streamLeft").checked;
   try { localStorage.setItem("ep-stream", on ? "1" : ""); } catch (e) {}
@@ -195,12 +200,23 @@ function render(s) {
   const running = (s.kind === "human" || s.kind === "bot") && s.phase !== "idle";
   $("leftTag").textContent = s.pilot ? (s.kind === "bot" ? "Autopilot live" : "Live · " + s.pilot) : "Live";
   $("slotHint").style.display = $("streamLeft").checked ? "none" : "flex";
-  const showVideo = running && !!s.video;
+  // autopilot run with the debug view: the right half shows what it sees and plans, the map card its telemetry
+  showDbg = $("dbgOn").checked && s.kind === "bot" && s.phase !== "idle" && s.debug && s.debug.plan !== null;
+  TV.update(s.debug);
+  $("dbg").classList.toggle("hidden", !showDbg);
+  const dimg = $("dbgImg");
+  if (showDbg && !dimg.getAttribute("src")) dimg.src = "/api/live.mjpg";
+  if (!showDbg && dimg.getAttribute("src")) dimg.removeAttribute("src");
+  $("map").classList.toggle("hidden", showDbg);
+  $("dbgPlanBox").classList.toggle("hidden", !showDbg);
+  $("dbgChart").classList.toggle("hidden", !showDbg);
+  $("boardBody").classList.toggle("hidden", showDbg);
+  const showVideo = running && !!s.video && !showDbg;
   const v = $("botVideo");
   v.style.display = showVideo ? "block" : "none";
-  $("bigMap").style.display = showVideo ? "none" : "block";
+  $("bigMap").style.display = showVideo || showDbg ? "none" : "block";
   $("halfEmpty").classList.toggle("hidden", !(human && !s.video));
-  $("rightTag").textContent = showVideo ? (s.kind === "bot" ? `Bestzeit · Stufe ${s.stage}` : `Autopilot · Stufe ${s.stage}`) : "Strecke";
+  $("rightTag").textContent = showDbg ? "Autopilot · Debug" : showVideo ? (s.kind === "bot" ? `Bestzeit · Stufe ${s.stage}` : `Autopilot · Stufe ${s.stage}`) : "Strecke";
   if (showVideo && videoSrc !== s.video) { videoSrc = s.video; v.src = s.video; v.load(); }
   if (showVideo) {
     if (s.phase === "countdown" || s.phase === "ready") { v.pause(); if (v.currentTime > 0.05) v.currentTime = 0; }
@@ -234,8 +250,9 @@ function frame() {
     $("clock").textContent = t;
     const s = EP.state;
     const showVideo = (s.kind === "human" || s.kind === "bot") && s.video && s.phase !== "idle";
-    $("rightClock").textContent = showVideo && s.bot_time ? EP.fmt(Math.min(EP.elapsed(), s.bot_time)) : "";
-    EP.drawMap($("map"), trail);
+    $("rightClock").textContent = showVideo && !showDbg && s.bot_time ? EP.fmt(Math.min(EP.elapsed(), s.bot_time)) : "";
+    if (showDbg) { TV.drawCam($("dbgCam"), $("dbgImg"), s.debug); TV.drawPlan($("dbgPlan"), s.debug); TV.drawChart($("dbgChart")); }
+    else EP.drawMap($("map"), trail);
     if ($("bigMap").style.display !== "none") EP.drawMap($("bigMap"), trail);
   }
   requestAnimationFrame(frame);

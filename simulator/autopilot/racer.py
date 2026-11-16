@@ -64,6 +64,7 @@ class Racer:
         # look where we are going: ahead along the line
         _, _, _, ahead = line.reference_s(s_here + max(3.0, 0.4 * speed_here))
         cmd = self.ctl.track(state, p_ref, v_ref, a_ref, ahead)
+        self.last_ref, self.last_cmd, self.last_v_ref = p_ref, cmd, speed_here   # live debug view
         self._score(state)
         return cmd
 

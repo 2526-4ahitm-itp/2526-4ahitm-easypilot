@@ -41,6 +41,10 @@
       <b>Noch kein Autopilot-Lauf</b>
       <span id="halfEmptyText">Für diese Strecke und Stufe einmal „Autopilot fliegt“ starten</span>
     </div>
+    <div class="dbg hidden" id="dbg">
+      <div class="dbg-pane"><img id="dbgImg" alt=""><canvas id="dbgCam"></canvas>
+        <div class="dbg-cap">KI-Sicht · <i class="lg det"></i>erkanntes Tor <i class="lg ramp"></i>Linie <i class="lg dash"></i>Tor laut Karte</div></div>
+    </div>
     <div class="tag right"><i class="dot bot"></i><span id="rightTag">Autopilot</span></div>
     <div class="mini-clock num" id="rightClock"></div>
   </div>
@@ -106,13 +110,18 @@
         <div class="banner" id="banner">Wer schlägt den Autopiloten</div>
       </div>
 
-      <div class="card mapcard"><canvas id="map"></canvas></div>
+      <div class="card mapcard"><canvas id="map"></canvas>
+        <div class="dbg-plan hidden" id="dbgPlanBox"><canvas id="dbgPlan"></canvas>
+          <div class="dbg-cap">Plan · <i class="lg ramp"></i>Linie, Farbe = Tempo <i class="lg trail"></i>geflogen <i class="lg via"></i>Ausweichpunkt <i class="lg box"></i>Hindernis · ziehen zum Drehen</div></div></div>
 
       <div class="card board">
+        <canvas id="dbgChart" class="hidden"></canvas>
+        <div id="boardBody">
         <h3>Bestenliste <span class="muted" id="boardMap"></span></h3>
         <table id="ranking"></table>
         <h3 class="sub">Autopilot je Stufe</h3>
         <div class="ladder" id="ladder"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -153,6 +162,7 @@
         <label class="opt">Runden <select id="lapsSel"><option>1</option><option>2</option><option>3</option></select></label>
         <label class="opt">Zeitlimit Mensch <select id="timeoutSel"><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
         <label class="opt"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
+        <label class="opt"><input type="checkbox" id="dbgOn" checked> Debug-Ansicht beim Autopiloten: KI-Sicht, Plan und Telemetrie</label>
       </div>
       <div class="card">
         <h3>Controller</h3>
@@ -164,6 +174,7 @@
 </section>
 
 <script src="/static/app.js"></script>
+<script src="/static/techview.js"></script>
 <script src="/static/studio.js"></script>
 </body>
 </html>

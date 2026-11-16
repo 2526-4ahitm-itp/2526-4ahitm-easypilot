@@ -67,6 +67,9 @@ class Studio:
         self.queue_list = []
         self.spawn = None
         self.frames = None
+        self.dbg_racer, self.dbg_state, self.dbg_plan = None, None, None
+        self.dets = None              # (stamp, [[x0, y0, x1, y1, conf, 4 corners...]] normalised) of the live image
+        self.det_thread = None
         self._select(self.settings["race"], self.settings["laps"])
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -74,10 +77,10 @@ class Studio:
     def _select(self, race, laps):
         info = race_info(race)
         self.race, self.info = race, info
-        self.gates = race_gates(info["race"], info["track"])
-        self.colliders = for_track(info["track"])
-        self.laps = int(laps)
-        self.seq = course(self.gates, self.laps)
+        gates = race_gates(info["race"], info["track"])
+        colliders = for_track(info["track"])
+        # gates and their sequence change together: /api/track polled in between failed (16.11.)
+        self.gates, self.seq, self.colliders, self.laps = gates, course(gates, int(laps)), colliders, int(laps)
         self.timer.seq = self.seq
         self.timer.reset()
         self.board = Leaderboard(board_path(race, self.laps))
@@ -108,7 +111,99 @@ class Studio:
                 "last_result": self.last_result, "waiting": self.queue_list, "board": self.board.summary(),
                 "liftoff": {"running": window.find_window() is not None, "telemetry": s is not None,
                             "in_level": bool(s and max(abs(v) for v in s.pos) > 1e-3)},
-                "controllers": self.controllers()}
+                "controllers": self.controllers(), "debug": self.debug_state()}
+
+    # ---------------------------------------------------------------- live debug view
+    def debug_state(self):
+        """What the autopilot does right now: pose, plan reference, sticks, AI detections of the live image."""
+        r, s = self.dbg_racer, self.dbg_state
+        out = {"plan": id(r.line) if r is not None else None}
+        if r is not None and s is not None and getattr(r, "last_cmd", None) is not None:
+            c, d = r.last_cmd, r.ctl.debug
+            out.update(t=round(s.t, 3), p=[round(v, 2) for v in s.pos], q=[round(v, 4) for v in s.quat],
+                       v=round(s.speed, 2), vr=round(r.last_v_ref, 2), xt=round(math.dist(s.pos, r.line.points[r.idx]), 3),
+                       st=[round(c.throttle, 3), round(c.yaw, 3), round(c.pitch, 3), round(c.roll, 3)],
+                       ref=[round(v, 2) for v in r.last_ref], g=r.progress.gate_index,
+                       tilt=round(d.get("tilt_err_deg", 0.0), 1))
+        if self.dets is not None and time.time() - self.dets[0] < 1.0:
+            out["dets"] = self.dets[1]
+        return out
+
+    def debug_plan(self):
+        """The racing line of the running flight with what the planner knew (cached per line)."""
+        r = self.dbg_racer
+        if r is None:
+            return {}
+        if self.dbg_plan and self.dbg_plan[0] == id(r.line):
+            return self.dbg_plan[1]
+        from . import gatedb
+        from .geometry import cross, unit
+        from .sysid import load_camera
+        line = r.line
+        pts, last = [], -1e9
+        for i, p in enumerate(line.points):
+            if line.s[i] - last >= 0.5 or i == len(line.points) - 1:
+                pts.append([round(p[0], 2), round(p[1], 2), round(p[2], 2), round(line.speed[i], 2)])
+                last = line.s[i]
+        gates = []
+        for g in self.gates:
+            n = unit(g.normal)
+            side = unit(cross((0.0, 1.0, 0.0), n), (1.0, 0.0, 0.0))
+            up = cross(n, side)
+            gates.append({"c": [round(v, 2) for v in g.center], "o": [[round(g.center[k] + sx * g.width / 2 * side[k] + sy * g.height / 2 * up[k], 2)
+                          for k in range(3)] for sx, sy in ((-1, -1), (-1, 1), (1, 1), (1, -1))]})
+        boxes, seen = [], set()
+        for p in line.points[::8]:
+            for name, pp in self.colliders.near(p, 3.0):
+                if id(pp) in seen or gatedb.pp_distance(pp, p) > 3.0:
+                    continue
+                cs = gatedb.pp_corners(pp)
+                if max(math.dist(a, b) for a in cs for b in cs) < 60:
+                    seen.add(id(pp))
+                    boxes.append([[round(v, 2) for v in c] for c in cs])
+        cam = load_camera()
+        plan = {"id": id(line), "line": pts, "vias": [[round(v, 2) for v in g.center] for g in line.gates if getattr(g, "via", False)],
+                "gates": gates, "boxes": boxes[:400], "cam": {"hfov": cam.hfov_deg, "tilt": cam.tilt_deg},
+                "length": round(line.length, 1), "planned": round(line.lap_time_estimate, 2)}
+        self.dbg_plan = (id(line), plan)
+        return plan
+
+    def _start_detector(self):
+        """YOLO on the live image during runs (debug view): ~15 Hz, a few ms on the GPU."""
+        if not self.settings.get("debug_vision", True) or (self.det_thread and self.det_thread.is_alive()):
+            return
+        def loop():
+            from .capture import COLORONCOLOR, FrameStream
+            from .detector import GateDetector
+            try:
+                det = GateDetector()
+            except Exception as exc:
+                print("debug detector off:", exc, flush=True)
+                return
+            if self.frames is None or not self.frames.is_alive():
+                self.frames = FrameStream(960, fps=25, mode=COLORONCOLOR)
+                self.frames.start()
+            last = 0.0
+            while True:
+                if self.live["phase"] not in ("ready", "countdown", "racing"):
+                    time.sleep(0.2)
+                    continue
+                stamp, img = self.frames.latest()
+                if img is None or stamp == last:
+                    time.sleep(0.01)
+                    continue
+                last = stamp
+                h, w = img.shape[:2]
+                out = []
+                for d in det.detect(img):
+                    kp = [round(float(v), 4) for xy, c in zip(d.kps, d.kp_conf)
+                          for v in ((xy[0] / w, xy[1] / h) if c > 0.5 else (-1, -1))]
+                    out.append([round(d.box[0] / w, 4), round(d.box[1] / h, 4), round(d.box[2] / w, 4),
+                                round(d.box[3] / h, 4), round(d.conf, 2)] + kp)
+                self.dets = (time.time(), out)
+                time.sleep(0.05)
+        self.det_thread = threading.Thread(target=loop, daemon=True)
+        self.det_thread.start()
 
     def controllers(self):
         try:
@@ -289,7 +384,11 @@ class Studio:
         if rec:
             rec.go()
 
+        self.dbg_racer, self.dbg_plan = None, None
+        self._start_detector()
+
         def on_step(state, racer):
+            self.dbg_racer, self.dbg_state = racer, state
             if self.abort.is_set() or self.timer.finished:
                 racer.progress.finished = True          # brake and land (race.fly)
         res = fly(sess, self.gates, self.laps, k, vision=bool(self.settings.get("vision")), on_step=on_step,
@@ -309,6 +408,7 @@ class Studio:
         return self._finish("bot", name, level, why, extra)
 
     def run_human(self, name, level):
+        self.dbg_racer, self.dbg_plan = None, None     # the debug view belongs to autopilot runs
         from .pilot import Controller
         from .vjoy import VJoy
         try:
@@ -439,6 +539,8 @@ def make_handler(studio, admin_key):
                 return self._send(200, json.dumps(studio.state(), ensure_ascii=False))
             if p == "/api/track":
                 return self._send(200, json.dumps(studio.track_info(), ensure_ascii=False))
+            if p == "/api/plan":
+                return self._send(200, json.dumps(studio.debug_plan()))
             if p == "/api/maps":
                 return self._send(200, json.dumps(studio.maps(), ensure_ascii=False))
             m = re.match(r"/api/video/([^/]+)/(\d+)$", p)

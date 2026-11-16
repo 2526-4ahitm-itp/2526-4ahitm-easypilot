@@ -255,4 +255,29 @@ body.studio .countdown { position: fixed; inset: 0; z-index: 5; display: none; f
   body.studio td, .ladder div { height: 28px; }
 }
 
+/* ------------------------------------------------------------------ live debug view (autopilot runs) */
+.dbg { position: absolute; inset: 0; z-index: 1; display: grid; grid-template-columns: 1fr; background: var(--deep); }
+.dbg-pane { position: relative; overflow: hidden; background: var(--deep); }
+.dbg-pane img, .dbg-pane canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dbg-pane img { object-fit: contain; }
+#dbgPlan { cursor: grab; touch-action: none; }
+.dbg-cap { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 4px 8px; padding: 4px 8px; border-radius: 6px; background: rgba(15, 15, 16, 0.8); font-size: 12px; line-height: 16px;
+  color: var(--text-2); }
+.dbg-cap .lg { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-left: 4px; }
+.dbg-cap .lg.det { background: #4cc38a; }
+.dbg-cap .lg.ramp { width: 16px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #4cc38a, #f2b33d, #e5484d); }
+.dbg-cap .lg.dash { width: 12px; height: 0; border-radius: 0; border-top: 2px dashed #a1a1a6; }
+.dbg-cap .lg.trail { background: #ededed; }
+.dbg-cap .lg.via { width: 8px; height: 8px; border-radius: 1px; background: #7aa2ff; transform: rotate(45deg); }
+.dbg-cap .lg.box { border-radius: 1px; box-shadow: inset 0 0 0 1px rgba(161, 161, 166, 0.6); }
+.half .tag.right { z-index: 3; }
+#dbgChart { width: 100%; height: 100%; display: block; }
+#map.hidden, #dbgChart.hidden { display: none; }
+.mapcard { position: relative; }
+.dbg-plan { position: absolute; inset: 8px; border-radius: 8px; overflow: hidden; background: var(--deep); }
+.dbg-plan canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dbg-plan.hidden { display: none; }
+.board #dbgChart { height: 100%; }
+
 @media (prefers-reduced-motion: reduce) { body.studio * { transition: none !important; } }
