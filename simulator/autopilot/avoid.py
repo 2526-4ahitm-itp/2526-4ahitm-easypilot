@@ -66,7 +66,10 @@ class FastObs:
         if self.ok.any():
             inv[self.ok] = np.linalg.inv(m[self.ok])
         self.Inv = inv                                       # rows: dual vectors, u = Inv @ (p - o)
-        self.L = np.maximum(np.linalg.norm(pp[:, 1:, :], axis=2), 1e-9)
+        # clamp only edges of exactly zero length, like gatedb.pp_contains: a slab 2e-16 m thin
+        # (MinusTwo "Fake Floor") otherwise lost its whole margin and the band flew through it
+        L = np.linalg.norm(pp[:, 1:, :], axis=2)
+        self.L = np.where(L > 0, L, 1e-9)
         self.floor = np.zeros(k, bool)
         if obs.floor:
             self.floor[list(obs.floor)] = True
@@ -352,13 +355,15 @@ def _scalar_band(n, need, fixed):
     return f
 
 
-def _repair_window(line, fo, lo_hit, hi_hit, iv, spots, P_all, s_all, T_all):
+def _repair_window(line, fo, lo_hit, hi_hit, iv, base, spots, P_all, s_all, T_all):
     """Elastic band around the touching stretch [lo_hit, hi_hit] inside the free interval iv.
     One escape angle (in the local side/up frame) for the stretch, scalar push profile."""
     centre = _interp(np.array([(lo_hit + hi_hit) / 2]), s_all, P_all)[0]
     key = tuple(np.round(centre / 2.0).astype(int))
-    margin = BAND_R + BAND_R_STEP * spots.get(key, 0)
-    spots[key] = spots.get(key, 0) + 1
+    # count from the start of the round: with laps > 1 the same spot comes once per lap, lap 2 got
+    # more margin than lap 1 and a worse line (MinusTwo04 two laps: 18 contacts in lap 2, 16.11.)
+    margin = BAND_R + BAND_R_STEP * base.get(key, 0)
+    spots[key] = base.get(key, 0) + 1
     gm = GROUND_CLEARANCE + GROUND_EXTRA
     sh = np.arange(lo_hit, hi_hit + 1e-6, NODE)
     Ph, Th = _interp(sh, s_all, P_all), _interp(sh, s_all, T_all)
@@ -774,8 +779,9 @@ def _repair(line, seq, start, start_dir, fo):
             wins.append([x, x, iv])
     W, ws = list(seq), list(knot_s)
     changed = False
+    base = dict(_repair.spots)
     for a, b, iv in wins:
-        band = _repair_window(line, fo, a, b, iv, _repair.spots, P_all, s_all, T_all)
+        band = _repair_window(line, fo, a, b, iv, base, _repair.spots, P_all, s_all, T_all)
         if band is None:
             continue
         changed |= _fit_window(W, ws, start, start_dir, fo, band, real_s, real_g)

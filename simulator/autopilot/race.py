@@ -317,7 +317,7 @@ class VisionAssist(threading.Thread):
             if s is not None and max(abs(v) for v in s.pos) > 1e-3:
                 self.gate_map.update(cam, s.quat, s.pos, dets)
             now = time.perf_counter()
-            if self.gate_map.version != planned_version and now - last_plan > 0.15:
+            if self.running and self.gate_map.version != planned_version and now - last_plan > 0.15:
                 planned_version, last_plan = self.gate_map.version, now
                 line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k,
                                   colliders=self.colliders)
@@ -438,6 +438,8 @@ def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max
     ok = sess.loop(step, max_time=max_time or line.lap_time_estimate * 2.5 + 20)
     if assist:
         assist.close()
+        # a replan still running holds the planner lock: the next run would wait for it after GO
+        assist.join(timeout=60)
     log = sess.close()
     p = racer.progress
     result = {"aggressiveness": k, "laps": laps, "ok": ok and not racer.crashed,

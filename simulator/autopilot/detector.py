@@ -6,6 +6,7 @@ matched to the map gate whose projection is closest, its 3-D pose is solved with
 from the four corners, and a low-pass filtered offset corrects that gate. The racer
 re-plans when a correction becomes significant.
 """
+import copy
 import math
 import threading
 import time
@@ -109,9 +110,23 @@ class GateMap:
     version: int = 0
 
     def corrected(self, i):
+        """The gate with its camera offset. A copy keeps every attribute from race_gates (volume, thin,
+        omni, entry/exit guide points, outer): a bare Gate made the first replan move the line at
+        gates that were never corrected and scored volume checkpoints as flat rectangles."""
         g = self.gates[i]
-        o = self.offsets.get(i, (0.0, 0.0, 0.0))
-        return Gate(tuple(g.center[k] + o[k] for k in range(3)), g.normal, g.width, g.height, g.name)
+        o = self.offsets.get(i)
+        if not o or not any(o):
+            return g
+        c = copy.copy(g)
+        c.center = tuple(g.center[k] + o[k] for k in range(3))
+        for a in ("entry", "exit"):
+            p = getattr(g, a, None)
+            if p is not None:
+                setattr(c, a, tuple(p[k] + o[k] for k in range(3)))
+        vol = getattr(g, "volume", None)
+        if vol is not None:
+            c.volume = (tuple(vol[0][k] + o[k] for k in range(3)),) + tuple(vol[1:])
+        return c
 
     def all_corrected(self):
         return [self.corrected(i) for i in range(len(self.gates))]
