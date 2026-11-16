@@ -375,7 +375,35 @@ def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max
                 return None
         return racer.ctl.track(s, stop["p"], v_ref, (0.0, 0.0, 0.0), stop["look"])
 
+    # Liftoff holds the drone after the countdown until the throttle comes up from zero. If the
+    # countdown is longer than our wait (races with a mid-air start), our throttle was already up at
+    # GO and the drone hung there for the whole time limit (6 races, 16.11.): re-arm with a short
+    # zero-throttle pulse until it moves.
+    arm = {"moved": False, "since": None, "p0": None, "pulse": 0.0, "pulses": 0}
+
+    def armed(s):
+        if arm["moved"]:
+            return True
+        if arm["since"] is None:
+            arm["since"], arm["p0"] = s.t, s.pos
+        if math.dist(s.pos, arm["p0"]) > 0.03:
+            arm["moved"] = True
+            racer.ctl.reset()                     # estimates learned while held are nonsense
+            if arm["pulses"]:
+                print(f"drone released after {arm['pulses']} re-arm pulse(s)")
+            return True
+        if s.t < arm["pulse"]:
+            return False
+        if s.t - arm["since"] > 0.8:              # not moved for 0.8 s although we fly: re-arm
+            arm["pulse"] = s.t + 0.3
+            arm["since"], arm["p0"] = s.t + 0.3, s.pos
+            arm["pulses"] += 1
+            return False
+        return True
+
     def step(s, dt):
+        if not armed(s):
+            return (0.0, 0.0, 0.0, 0.0)
         if stop["phase"] or (racer.done and not racer.crashed):
             c = finish_command(s, dt)
             return None if c is None else c.as_tuple()

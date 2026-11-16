@@ -75,6 +75,7 @@ class Gains:
     min_vertical_accel: float = 0.8  # never command less than this along +y net of gravity (avoid inversion)
     dir_min_vertical: float = 4.9    # m/s^2: vertical part used for the thrust direction (tilt <= 63 deg unless braking/turning)
     idle_rate_share: float = 0.5     # body rate limit at idle throttle (airmode lift)
+    idle_tilt_share: float = 0.15    # tilt gain while the throttle is cut
     hold_height: bool = True         # collective from the vertical need, not the projection (see accel_command)
 
 
@@ -124,7 +125,7 @@ class FlightController:
             dt = state.t - self._last_t
             # at idle or while the attitude still swings around, Liftoff's airmode raises the motors
             # for the rate demand: that is no thrust error, and learning it starts a tumble
-            steady = self._last_throttle > 0.08 and self._last_tilt_err < math.radians(45)
+            steady = self._last_throttle > 0.2 and self._last_tilt_err < math.radians(30)
             if 0.0005 < dt < 0.05 and not steady:
                 pass
             elif 0.0005 < dt < 0.05:
@@ -203,7 +204,12 @@ class FlightController:
         self._last_tilt_err = angle
         omega = (0.0, 0.0, 0.0)
         if s > 1e-9:
-            omega = mul(qinvrot(state.quat, mul(axis_w, 1.0 / s)), g.tilt * angle)
+            # no thrust wanted: the attitude makes no force, but every rotation does (airmode lifts
+            # the drone). Hold it until thrust is needed again - chasing a target that jumps around
+            # with the position error made the drone climb 4 m with zero throttle (BandoCity05, 16.11.)
+            idle = throttle <= self.thrust.min_throttle + 0.03 and up[1] > 0.3   # upside down: right it anyway
+            k_tilt = g.tilt * (g.idle_tilt_share if idle else 1.0)
+            omega = mul(qinvrot(state.quat, mul(axis_w, 1.0 / s)), k_tilt * angle)
         # yaw: turn the body-forward (projected on the thrust plane) towards yaw_dir
         f_des = sub(yaw_dir, mul(b3_des, dot(yaw_dir, b3_des)))
         if norm(f_des) > 1e-6:

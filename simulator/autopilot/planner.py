@@ -48,6 +48,8 @@ class Gate:
 
 BRAKE_SHARE = 0.35
 REORIENT_TIME = 0.3     # s the drone needs to swing its thrust around (attitude change before braking)
+LAUNCH_ACCEL = 4.0      # m/s^2 along the path right at the start (tilt ~22 deg) ...
+LAUNCH_RAMP = 6.0       # ... rising to the full limit over the first metres
 
 
 @dataclass
@@ -168,6 +170,10 @@ class RacingLine:
             # thrust left for accelerating after drag and climbing
             climb = 9.81 * max(0.0, self.tangent[i][1])
             a = max(0.5, lim.accel - lim.drag * v[i - 1] ** 2 - climb)
+            if self.launch_speed and self.s[i] < LAUNCH_RAMP:
+                # lift off gently: full acceleration from rest tilts the drone 66 deg on the pad or a
+                # ledge, it touched the ground or the structure and started to tumble (Rustline02, 16.11.)
+                a = min(a, LAUNCH_ACCEL + (lim.accel - LAUNCH_ACCEL) * self.s[i] / LAUNCH_RAMP)
             v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * a * ds))
         for i in range(len(v) - 2, -1, -1):
             ds = self.s[i + 1] - self.s[i]

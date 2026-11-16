@@ -184,7 +184,31 @@ def load(race_name, tel=None, mode="race"):
     else:
         set_last_session(FREE_SESSION.format(env=info["env"], track_id=info["track_id"]))
     ok = start_and_open_last_session(tel)
+    if ok:
+        warmup_reset(tel)
     return ok, info
+
+
+def warmup_reset(tel=None, joy=None):
+    """One reset right after loading. The first reset after a fresh level load leaves the drone
+    frozen at the spawn in some races (MarinaBay01, Rustline02, Permafrost03/05 ...: 240 s without
+    moving, test 16.11.); every later reset works. Burn that first one here."""
+    from .vjoy import BTN_RESET, VJoy
+    own = joy is None
+    if own:
+        joy = VJoy()
+        time.sleep(0.5)
+    try:
+        before = tel.resets if tel is not None else None
+        joy.idle()
+        joy.tap(BTN_RESET, 0.15)
+        end = time.time() + 3.0
+        while tel is not None and time.time() < end and tel.resets == before:
+            time.sleep(0.02)
+        time.sleep(1.0)
+    finally:
+        if own:
+            joy.close()
 
 
 def lap_record(race_id):

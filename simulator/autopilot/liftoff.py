@@ -79,8 +79,15 @@ class Session:
                     return False
                 s = self.tel.latest(0.3)          # Liftoff hitches (first flight after start) pause physics too
                 if s is None:
-                    self.reason = "telemetry stale"
-                    return False
+                    # streaming in a far part of the level can stall Liftoff for more than 0.3 s
+                    # (Permafrost04, MarinaBay05, Rustline03 ended here, 16.11.): wait up to 1.5 s
+                    s = self.tel.latest(1.5)
+                    if s is None:
+                        self.reason = "telemetry stale"
+                        return False
+                    time.sleep(0.002)
+                    if s.t == last_t:
+                        continue
                 if self.tel.resets != resets0:
                     self.reason = "drone reset / crash respawn"
                     return False
