@@ -135,8 +135,8 @@ def main(argv):
     import shutil
     for race_name in races:
         # recordings need a few GB; without them only the flight logs are written (~5 MB per race)
-        if shutil.disk_usage(RUNS).free < (3e9 if not no_record else 0.4e9):
-            print("less than 3 GB free on the disk - stopping (recordings need space)", flush=True)
+        if shutil.disk_usage(RUNS).free < (1.5e9 if not no_record else 0.4e9):
+            print("less than 1.5 GB free on the disk - stopping (recordings need space)", flush=True)
             break
         info = race_info(race_name)
         if envs and info["env"] not in envs:
