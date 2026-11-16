@@ -50,6 +50,7 @@ BRAKE_SHARE = 0.35
 REORIENT_TIME = 0.3     # s the drone needs to swing its thrust around (attitude change before braking)
 LAUNCH_ACCEL = 4.0      # m/s^2 along the path right at the start (tilt ~22 deg) ...
 LAUNCH_RAMP = 6.0       # ... rising to the full limit over the first metres
+ACCEL_BLEND = 0.06      # s of travel before and after: feed-forward acceleration averaged over it
 
 
 @dataclass
@@ -107,6 +108,7 @@ class RacingLine:
         self._arc_length()
         self._curvature()
         self._speed_profile()
+        self._accel_profile()
         # gate order along the line (index into points), used for progress/timing
         # via points (obstacle avoidance) shape the line but are no gates to pass
         self.gate_sequence = [g for _ in range(laps) for g in self.gates if not getattr(g, "via", False)]
@@ -193,6 +195,31 @@ class RacingLine:
         self.lap_time_estimate = sum((self.s[i + 1] - self.s[i]) / max(0.5, 0.5 * (v[i] + v[i + 1]))
                                      for i in range(len(v) - 1))
 
+    def _accel_profile(self):
+        """Feed-forward acceleration per point, averaged over ACCEL_BLEND s before and after.
+
+        The speed profile switches from full acceleration to full braking from one point to the
+        next: the target attitude flipped by up to 90 deg in one step (37 m/s^2 within 0.1 s on
+        Hall26-01), the drone swung through with full sticks and left the line (Liftoff, 16.11.).
+        Averaged around the point (no lag), the flip becomes a short ramp."""
+        n = len(self.points)
+        raw = []
+        for j in range(n):
+            k = min(n - 1, j + 1)
+            ds = max(1e-6, self.s[k] - self.s[j])
+            a_long = (self.speed[k] ** 2 - self.speed[j] ** 2) / (2 * ds) if k > j else 0.0
+            raw.append(add(mul(self.tangent[j], a_long), mul(self.kappa_vec[j], self.speed[j] ** 2)))
+        pre = [(0.0, 0.0, 0.0)]
+        for a in raw:
+            pre.append(add(pre[-1], a))
+        self.accel = []
+        for j in range(n):
+            h = max(0.3, ACCEL_BLEND * self.speed[j])
+            lo = bisect.bisect_left(self.s, self.s[j] - h)
+            hi = min(n - 1, bisect.bisect_right(self.s, self.s[j] + h) - 1)
+            hi = max(hi, j)
+            self.accel.append(mul(sub(pre[hi + 1], pre[lo]), 1.0 / (hi + 1 - lo)))
+
     def gate_positions(self):
         """Arc length of every gate of gate_sequence along the line (monotonic)."""
         out, j = [], 0
@@ -221,9 +248,4 @@ class RacingLine:
         """Reference position, velocity and acceleration at path index i (+ lookahead)."""
         j = self.index_at(self.s[i] + lookahead_s)
         t, v = self.tangent[j], self.speed[j]
-        # longitudinal acceleration from the profile
-        k = min(len(self.s) - 1, j + 1)
-        ds = max(1e-6, self.s[k] - self.s[j])
-        a_long = (self.speed[k] ** 2 - v ** 2) / (2 * ds)
-        a = add(mul(t, a_long), mul(self.kappa_vec[j], v * v))
-        return self.points[j], mul(t, v), a, t
+        return self.points[j], mul(t, v), self.accel[j], t

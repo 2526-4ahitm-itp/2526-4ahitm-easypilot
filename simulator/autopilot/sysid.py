@@ -20,16 +20,18 @@ from .rates import AxisRate, Rates, load_drone
 OUT = Path(__file__).resolve().parent / "drone.json"
 G = 9.81
 LIFTOFF_INFLOW = 1.37   # m/s^2 thrust change per m/s axial air speed at full throttle (fit 15.11.)
+LIFTOFF_AIRMODE = 13.0  # m/s^2 thrust at full stick deflection with zero throttle (measured 15.11.)
 
 
 def load_model():
     """Rates and thrust model of the flown drone: measured values win over the .drone file."""
     rates = load_drone()
-    thrust = ThrustModel()
+    thrust = ThrustModel(inflow=LIFTOFF_INFLOW, airmode=LIFTOFF_AIRMODE)
     if OUT.exists():
         d = json.loads(OUT.read_text())
         thrust = ThrustModel(d["hover_throttle"], d.get("thrust_exponent", 1.0),
-                             inflow=d.get("thrust_inflow", LIFTOFF_INFLOW))
+                             inflow=d.get("thrust_inflow", LIFTOFF_INFLOW),
+                             airmode=d.get("airmode", LIFTOFF_AIRMODE))
         if "rates" in d:
             r = d["rates"]
             axis = AxisRate(r["rc_rate"], r["expo"], r["super_rate"])

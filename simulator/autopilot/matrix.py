@@ -11,6 +11,7 @@ gate timer runs alongside, the difference between both points at wrong gate geom
 Results: runs/matrix/results.jsonl (one line per run), skips races already passed unless --again.
 """
 import json
+import os
 import math
 import sys
 import time
@@ -229,8 +230,14 @@ def spawn_point(track, first_gate):
     return (c[0] - 10 * n[0], max(0.0, c[1] - 1.5), c[2] - 10 * n[2])
 
 
-def sim_race(race_name, k, colliders=True, max_time=240.0):
-    """Fly a race in the simulator (sim.py) with the Liftoff drone model and the real controller."""
+def sim_race(race_name, k, colliders=True, max_time=240.0, latency=None):
+    """Fly a race in the simulator (sim.py) with the Liftoff drone model and the real controller.
+
+    latency: s between the drone state and the stick reaching it (telemetry + game frame). Without it
+    the simulator never showed the stick oscillation of the Liftoff runs (EASYPILOT_SIM_LATENCY)."""
+    import collections
+    if latency is None:
+        latency = float(os.environ.get("EASYPILOT_SIM_LATENCY", "0.03"))
     from . import gatedb
     from .control import FlightController, Gains, ThrustModel
     from .race import DRAG, build_line, launch
@@ -254,9 +261,13 @@ def sim_race(race_name, k, colliders=True, max_time=240.0):
     dt, t, cmd, touch, xt = 0.002, 0.0, None, None, 0.0
     near = []
     flat = drone.ground
+    seen = collections.deque()
     while t < max_time and not racer.done:
+        seen.append(drone.state())
+        while len(seen) > 1 and seen[1].t <= t - latency:
+            seen.popleft()
         if cmd is None or int(t / dt) % 4 == 0:            # controller at 125 Hz like the Liftoff loop
-            cmd = racer.step(drone.state())
+            cmd = racer.step(seen[0])
             g = obs.ground(drone.pos[0], drone.pos[2])        # the real terrain where it is known
             drone.ground = g if g is not None else flat
         drone.step(*cmd.as_tuple(), dt)

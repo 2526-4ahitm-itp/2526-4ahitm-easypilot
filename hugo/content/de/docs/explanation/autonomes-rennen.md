@@ -84,6 +84,9 @@ Der Hover-Regler aus dem Prototyp ist auf 25° Neigung begrenzt. Beim Rennen fli
 mit 60–75° Neigung, deshalb ein eigener Regler:
 
 1. **Soll-Beschleunigung** = Vorsteuerung aus der Rennlinie + PD auf Position und Geschwindigkeit.
+   Die Vorsteuerung ist über ±60 ms Flugweg gemittelt: Das Geschwindigkeitsprofil springt sonst von
+   voller Beschleunigung auf volles Bremsen (bis 37 m/s² in 0,1 s), die Soll-Lage kippte um 90° auf
+   einmal, und die Drohne schwang mit vollem Stickausschlag von der Linie.
 2. **Luftwiderstand** wird vorgesteuert (a = –0,033 · |v| · v, gemessen). Bei 27 m/s sind das
    ~25 m/s², also mehr als die Erdbeschleunigung.
 3. **Anströmung der Propeller:** Kommt die Luft von oben (Nase unten im Geradeausflug), sinkt der
@@ -96,10 +99,21 @@ mit 60–75° Neigung, deshalb ein eigener Regler:
    Vorher war das ein einziger Vektor. Beim Bremsen sprang er von −11 auf +20 m/s², der Regler wollte
    „nach unten“, kippte die Soll-Lage um, die Schätzung folgte der Lage – die Drohne taumelte mit
    vollem Stickausschlag 3 m über das Tor.
+
+   **Treffer sind kein Wind:** Ändert sich die Geschwindigkeit innerhalb von 20 ms um mehr als
+   95 m/s² (saubere Flüge bleiben unter 80), war es ein Aufprall. Die Schätzung wird verworfen und
+   0,25 s lang nicht gelernt. Vorher trieb ein Streifer bei 25 m/s beide Schätzwerte an ihre Grenzen,
+   und die Drohne flog danach mit Vollgas seitwärts.
 5. Daraus folgen **Schubrichtung und Schubbetrag**. Gas aus dem Schubmodell (mit Anströmung).
    Soll die Drohne schneller sinken als die Schwerkraft erlaubt, wird nur das Gas weggenommen; die
-   Schubrichtung wird dabei nicht flacher. Im Leerlauf sind die Drehraten halbiert: Liftoffs
-   Airmode dreht sonst für jede Drehung die Motoren hoch (gemessen bis 13 m/s² bei Gas 0).
+   Schubrichtung wird dabei nicht flacher.
+
+   **Airmode-Budget:** Liftoffs Airmode macht aus jedem Stickausschlag Schub, bis 13 m/s² bei
+   vollem Ausschlag und Gas 0. Beim Sinkflug hielten die Drehungen allein die Drohne in der Luft:
+   sie hing 1 m über der Linie, das Ziel rückte weiter weg, die Sticks gingen auf Anschlag, und sie
+   traf den nächsten Rahmen oder eine Schiene (die häufigste Absturzursache in Testreihe 8). Der
+   Regler erlaubt deshalb nur so viel Ausschlag, wie Schub ohnehin gewünscht ist
+   (Stick ≤ √((Schub + 1,5)/13), mindestens 0,3). Die Lage dreht dann langsamer, die Drohne sinkt aber.
 6. **Lage → Drehraten:** zuerst die Neigung, danach das Heading. Die Drehraten werden über die
    **umgekehrte Betaflight-Rate-Kurve** der Drohne zu Stickwerten.
 
@@ -147,5 +161,5 @@ Das Drohnenmodell (Schwebegas, Schubkurve, Raten, Kamera) wird automatisch verme
   Durchgang wirkt wie ein Block. Blöcke, in denen ein Tor oder sein Führungspunkt liegt, werden
   deshalb ignoriert.
 - Der eigene Simulator kennt Liftoffs Aerodynamik nur genähert (Luftwiderstand, Anströmung,
-  Airmode). Die Abnahme ist immer ein Lauf in Liftoff.
+  Airmode, 30 ms Telemetrie-Verzögerung). Die Abnahme ist immer ein Lauf in Liftoff.
 - Jede neue Drohne braucht einmal `sysid` und `calib_cam`.

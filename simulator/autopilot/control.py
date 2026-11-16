@@ -32,6 +32,11 @@ class ThrustModel:
     min_throttle: float = 0.0
     max_throttle: float = 1.0
     inflow: float = 0.0          # Liftoff drone: 1.37 (sysid.load_model)
+    airmode: float = 0.0         # m/s^2 at full stick even at zero throttle (Liftoff: 13, sysid.load_model)
+
+    def airmode_accel(self, stick):
+        """Thrust Liftoff's airmode makes for a stick deflection, whatever the throttle says."""
+        return self.airmode * stick * stick
 
     @property
     def k(self):
@@ -71,11 +76,16 @@ class Gains:
     disturbance_max: float = 15.0   # m/s^2
     thrust_tau: float = 0.12        # s, low-pass of the thrust error along the body axis
     thrust_offset_max: float = 25.0  # m/s^2
+    thrust_offset_min: float = 8.0   # m/s^2 below the model at most
+    impact_accel: float = 95.0       # m/s^2 velocity change over 20 ms: a hit, not a disturbance
+    impact_hold: float = 0.25        # s without learning after a hit
     drag: float = 0.0               # 1/m, quadratic drag a = -drag*|v|*v, measured in Liftoff
     min_vertical_accel: float = 0.8  # never command less than this along +y net of gravity (avoid inversion)
     dir_min_vertical: float = 4.9    # m/s^2: vertical part used for the thrust direction (tilt <= 63 deg unless braking/turning)
     idle_rate_share: float = 0.5     # body rate limit at idle throttle (airmode lift)
     idle_tilt_share: float = 0.15    # tilt gain while the throttle is cut
+    airmode_margin: float = 1.5      # m/s^2 of airmode lift allowed above the wanted thrust
+    airmode_min_stick: float = 0.3   # never limit the sticks below this (righting, braking flips)
     hold_height: bool = True         # collective from the vertical need, not the projection (see accel_command)
 
 
@@ -105,6 +115,9 @@ class FlightController:
         self.thrust_offset = 0.0              # m/s^2 along the body axis (thrust model error, ram air)
         self._last_vel = self._last_t = self._last_cmd_accel = self._last_up = None
         self._last_throttle, self._last_tilt_err = 1.0, 0.0
+        self._last_stick = 0.0
+        self._impact_until = -1.0
+        self._vel_hist = []
 
     @property
     def total_disturbance(self):
@@ -126,17 +139,35 @@ class FlightController:
             # at idle or while the attitude still swings around, Liftoff's airmode raises the motors
             # for the rate demand: that is no thrust error, and learning it starts a tumble
             steady = self._last_throttle > 0.2 and self._last_tilt_err < math.radians(30)
+            g = self.gains
+            # a hit (gate frame, pole) is no wind: one clip at 25 m/s drove the estimates to their
+            # limits, the controller then flew sideways at full throttle and never recovered
+            # (MarinaBay01, 16.11.). Forget the estimates and learn again once it is over.
+            # Velocity change over >= 20 ms: clean Liftoff flights stay below 80 m/s^2, hits above 100.
+            hist = self._vel_hist
+            hist.append((state.t, state.vel))
+            while len(hist) > 2 and state.t - hist[1][0] >= 0.02:
+                hist.pop(0)
+            span = state.t - hist[0][0]
+            if span >= 0.02 and norm(sub(state.vel, hist[0][1])) / span > g.impact_accel:
+                if state.t >= self._impact_until:
+                    self.disturbance, self.thrust_offset = (0.0, 0.0, 0.0), 0.0
+                self._impact_until = state.t + g.impact_hold
+            if state.t < self._impact_until:
+                steady = False
+            if 0.0005 < dt < 0.05:
+                measured = mul(sub(state.vel, self._last_vel), 1.0 / dt)
+                error = sub(measured, self._last_cmd_accel)
             if 0.0005 < dt < 0.05 and not steady:
                 pass
             elif 0.0005 < dt < 0.05:
-                g = self.gains
-                measured = mul(sub(state.vel, self._last_vel), 1.0 / dt)
-                error = sub(measured, self._last_cmd_accel)
                 up = self._last_up
                 along = dot(error, up)
                 a = clamp(dt / g.thrust_tau, 0.0, 1.0)
+                # less thrust than the model is only plausible within a few m/s^2 (ram air at speed),
+                # more is real (braking belly-first): the limits are not symmetric
                 self.thrust_offset = clamp(self.thrust_offset + (along - self.thrust_offset) * a,
-                                           -g.thrust_offset_max, g.thrust_offset_max)
+                                           -g.thrust_offset_min, g.thrust_offset_max)
                 across = sub(error, mul(up, along))
                 a = clamp(dt / g.disturbance_tau, 0.0, 1.0)
                 d = add(self.disturbance, mul(sub(across, self.disturbance), a))
@@ -223,6 +254,23 @@ class FlightController:
             max_r *= g.idle_rate_share
         omega = tuple(clamp(w, -max_r, max_r) for w in omega)
         cmd = self.rates_to_sticks(omega, throttle)
+        # airmode budget: Liftoff mixes every stick deflection into extra thrust (13 m/s^2 at full
+        # stick, zero throttle). Descending with the throttle cut, the rotations alone held the drone
+        # up: it hung 1 m above the line, the target moved further away, the sticks went to full
+        # and it hit the next frame (AutumnFields02, Hall26-01, 16.11.). Allow only as much stick
+        # as the thrust that is wanted anyway, the attitude then turns slower.
+        self._last_stick = max(abs(cmd.pitch), abs(cmd.roll), abs(cmd.yaw))
+        if self.thrust.airmode > 0 and up[1] > 0.3:
+            want = max(self.thrust.accel(throttle, v_axial), collective - self.thrust_offset, 0.0)
+            limit = max(g.airmode_min_stick, math.sqrt((want + g.airmode_margin) / self.thrust.airmode))
+            if self._last_stick > limit:
+                k = limit / self._last_stick
+                cmd = Command(cmd.throttle, cmd.yaw * k, cmd.pitch * k, cmd.roll * k)
+                self._last_stick = limit
+        # nominal thrust includes the airmode share, so the estimates do not learn it as an error
+        a_air = self.thrust.airmode_accel(self._last_stick)
+        if a_air > self.thrust.accel(throttle, v_axial):
+            self._last_cmd_accel = add(sub(mul(up, a_air), (0.0, G, 0.0)), drag)
         self.debug = {"tilt_err_deg": math.degrees(angle), "collective": collective, "omega": omega,
                       "b3_des": b3_des, "dist": self.disturbance,
                       "thrust_offset": self.thrust_offset}
