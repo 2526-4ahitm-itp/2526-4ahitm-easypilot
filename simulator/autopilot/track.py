@@ -181,8 +181,8 @@ def gate_from_db(bp, name):
     # outer half width of the frame (posts, corners) seen from the gate centre, for passing beside it
     outer = hw
     for pp in gatedb.solid(rec):
-        for c in gatedb.pp_corners(gatedb.transform_pp(pp, bp.pos, bp.quat, scale)):
-            rel = tuple(c[k] - center[k] for k in range(3))
+        for corner in gatedb.pp_corners(gatedb.transform_pp(pp, bp.pos, bp.quat, scale)):
+            rel = tuple(corner[k] - center[k] for k in range(3))
             outer = max(outer, abs(sum(rel[k] * side[k] for k in range(3))))
     g.outer = outer
     # Liftoff counts entering the trigger volume. Thick volumes (spheres, boxes along the course)
