@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .liftoff import RUNS, Session
 from .race import course, fly
-from .session import flush_laps, lap_counted, lap_record, load, race_info
+from .session import flush_laps, lap_counted, lap_record, load, race_info, unavailable
 from .envdb import for_track
 from .gatedb import track_colliders
 from .recorder import Recorder, keep_as_reference
@@ -129,6 +129,10 @@ def main(argv):
         info = race_info(race_name)
         if envs and info["env"] not in envs:
             continue
+        if race_name in unavailable() and not opts["--races"]:
+            print(f"
+=== {race_name}: content missing in Liftoff on this PC - skipped", flush=True)
+            continue
         todo = [lv for lv in stages if (race_name, lv) not in passed]
         if not todo:
             continue
@@ -137,6 +141,7 @@ def main(argv):
         print(f"\n=== {race_name} ({info['env']}: {info['name']}), {len(timer.seq)} gates, stages {todo}", flush=True)
         ok, _ = load(race_name, tel=tel, mode="race")
         if not ok:
+            print("  level not loaded", flush=True)
             rec = {"race": race_name, "env": info["env"], "stage": None, "passed": False, "error": "level not loaded"}
             _write(rec)
             continue

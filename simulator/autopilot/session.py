@@ -25,6 +25,9 @@ from .track import find, load_race, load_race_with_track, load_track, TRACK_DIR,
 LIFTOFF_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff"
 USER_DATA = LIFTOFF_DIR / "Saves/Player/UserData.xml"
 LAP_TIMES = LIFTOFF_DIR / "LapTimes/lapTimes.xml"
+# point-to-point races (start and finish apart) end at the finish: Liftoff stores the race time here,
+# not as a lap, and respawns the drone (ThePit01, Surtur01/02 looked failed in test series 9, 16.11.)
+RACE_TIMES = LIFTOFF_DIR / "RaceTimes/raceTimes.xml"
 STEAM_APP = "steam://rungameid/410340"
 
 RACE_SESSION = """<lastPlaySession xsi:type="RaceSessionData">
@@ -69,6 +72,7 @@ def race_info(race_name):
 def catalog():
     """All races that can be flown: official ones (extracted) and custom ones from Liftoff's editor."""
     out = []
+    skip = unavailable()
     for d, custom in ((TRACK_DIR, False), (USER_DIR / "Races", True)):
         if not d.exists():
             continue
@@ -77,6 +81,8 @@ def catalog():
             if "<Race" not in head[:400]:
                 continue
             key = p.name.split("_")[0] if not custom else p.stem
+            if key in skip:
+                continue
             name = re.search(r"<name>([^<]*)</name>", head)
             env = None
             try:
@@ -176,6 +182,31 @@ def remember_scene():
     f.write_text(json.dumps(known, indent=1))
 
 
+def _unavailable_file():
+    from .liftoff import RUNS
+    return RUNS / "unavailable_races.json"
+
+
+def unavailable():
+    """Races whose level Liftoff did not start: content missing on this PC ("Missing data - did you
+    remove or unsubscribe from content?", PineValley05 and ShortCircuit03 on 16.11.)."""
+    f = _unavailable_file()
+    try:
+        return set(json.loads(f.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return set()
+
+
+def _mark(race_name, missing):
+    races = unavailable()
+    if (race_name in races) == missing:
+        return
+    (races.add if missing else races.discard)(race_name)
+    f = _unavailable_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(sorted(races)), encoding="utf-8")
+
+
 def load(race_name, tel=None, mode="race"):
     info = race_info(race_name)
     quit_liftoff()
@@ -186,6 +217,8 @@ def load(race_name, tel=None, mode="race"):
     ok = start_and_open_last_session(tel)
     if ok:
         warmup_reset(tel)
+    if tel is not None:              # only with telemetry is "no drone in the level" a reliable answer
+        _mark(race_name, not ok)
     return ok, info
 
 
@@ -211,16 +244,35 @@ def warmup_reset(tel=None, joy=None):
             joy.close()
 
 
-def lap_record(race_id):
-    """(average, number of best times, file mtime) for a race in lapTimes.xml, or None."""
-    if not LAP_TIMES.exists():
+def _times(path, tag, race_id):
+    """(best times, average) of one race in a Liftoff times file, or None if it has no entry."""
+    if not path.exists():
         return None
-    root = ET.fromstring(LAP_TIMES.read_text(encoding="utf-8-sig").split("?>", 1)[-1])
-    for lt in root.iter("lapTime"):
+    root = ET.fromstring(path.read_text(encoding="utf-8-sig").split("?>", 1)[-1])
+    for lt in root.iter(tag):
         if lt.findtext("ID/str") == race_id:
-            times = [float(t.text) for t in lt.iter("Time")]
-            return {"average": float(lt.findtext("average") or 0), "best": times, "mtime": LAP_TIMES.stat().st_mtime}
-    return {"average": None, "best": [], "mtime": LAP_TIMES.stat().st_mtime}
+            avg = lt.findtext("average")
+            return [float(t.text) for t in lt.iter("Time")], float(avg) if avg else None
+    return None
+
+
+def _mtime():
+    return max((f.stat().st_mtime for f in (LAP_TIMES, RACE_TIMES) if f.exists()), default=0)
+
+
+def lap_record(race_id):
+    """(average, best times, file mtime) for a race: laps (lapTimes.xml) and point-to-point race times
+    (raceTimes.xml) together, or None when Liftoff has written neither file yet."""
+    if not LAP_TIMES.exists() and not RACE_TIMES.exists():
+        return None
+    best, avgs = [], []
+    for path, tag in ((LAP_TIMES, "lapTime"), (RACE_TIMES, "raceTime")):
+        got = _times(path, tag, race_id)
+        if got:
+            best += got[0]
+            avgs.append(got[1])
+    avg = next((a for a in avgs if a is not None), None)
+    return {"average": avg, "averages": avgs, "best": sorted(best), "mtime": _mtime()}
 
 
 def flush_laps(race_id, joy=None, timeout=4.0):
@@ -231,11 +283,11 @@ def flush_laps(race_id, joy=None, timeout=4.0):
     if own:
         joy = VJoy()
         time.sleep(0.5)
-    m0 = LAP_TIMES.stat().st_mtime if LAP_TIMES.exists() else 0
+    m0 = _mtime()
     try:
         joy.tap(BTN_RESET, 0.15)
         end = time.time() + timeout
-        while time.time() < end and (LAP_TIMES.stat().st_mtime if LAP_TIMES.exists() else 0) == m0:
+        while time.time() < end and _mtime() == m0:
             time.sleep(0.1)
         time.sleep(0.2)
     finally:
@@ -250,7 +302,8 @@ def lap_counted(before, after):
         return False
     if before is None or before["average"] is None:
         return after["average"] is not None
-    return after["mtime"] != before["mtime"] and (after["average"] != before["average"] or after["best"] != before["best"])
+    return after["mtime"] != before["mtime"] and (after.get("averages") != before.get("averages")
+                                                  or after["best"] != before["best"])
 
 
 if __name__ == "__main__":
