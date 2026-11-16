@@ -202,7 +202,15 @@ class Studio:
     # ---------------------------------------------------------------- runs
     def _reset(self, joy, settle):
         from .vjoy import BTN_RESET
-        for _ in range(3):
+        for attempt in range(3):
+            if attempt:
+                # Liftoff in front is not enough: after the Studio page had the focus (click on
+                # Start) Unity ignored the vJoy reset until it got a real activation (16.11.)
+                try:
+                    window.focus_liftoff(hard=True)
+                    arrange_liftoff(self.settings.get("layout", "quarter"))
+                except RuntimeError:
+                    pass
             joy.idle()
             before = self.tel.resets
             joy.tap(BTN_RESET, 0.15)

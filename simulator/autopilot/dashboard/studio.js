@@ -177,14 +177,17 @@ function render(s) {
 
   // split screen right half
   const human = s.kind === "human" && s.phase !== "idle";
+  // autopilot runs too: live on the left, the stored best run of the same stage on the right -
+  // the split screen works without any controller (remote demo via Parsec)
+  const running = (s.kind === "human" || s.kind === "bot") && s.phase !== "idle";
   $("leftTag").textContent = s.pilot ? (s.kind === "bot" ? "AUTOPILOT LIVE" : "LIVE · " + s.pilot.toUpperCase()) : "LIVE";
   $("slotHint").style.display = $("streamLeft").checked ? "none" : "flex";
-  const showVideo = human && !!s.video;
+  const showVideo = running && !!s.video;
   const v = $("botVideo");
   v.style.display = showVideo ? "block" : "none";
   $("bigMap").style.display = showVideo ? "none" : "block";
   $("halfEmpty").classList.toggle("hidden", !(human && !s.video));
-  $("rightTag").textContent = showVideo ? `AUTOPILOT · STUFE ${s.stage}` : "STRECKE";
+  $("rightTag").textContent = showVideo ? (s.kind === "bot" ? `BESTZEIT · STUFE ${s.stage}` : `AUTOPILOT · STUFE ${s.stage}`) : "STRECKE";
   if (showVideo && videoSrc !== s.video) { videoSrc = s.video; v.src = s.video; v.load(); }
   if (showVideo) {
     if (s.phase === "countdown" || s.phase === "ready") { v.pause(); if (v.currentTime > 0.05) v.currentTime = 0; }
@@ -215,7 +218,7 @@ function frame() {
     const t = EP.fmt(EP.elapsed());
     $("clock").textContent = t;
     const s = EP.state;
-    const showVideo = s.kind === "human" && s.video && s.phase !== "idle";
+    const showVideo = (s.kind === "human" || s.kind === "bot") && s.video && s.phase !== "idle";
     $("rightClock").textContent = showVideo && s.bot_time ? EP.fmt(Math.min(EP.elapsed(), s.bot_time)) : "";
     EP.drawMap($("map"), trail);
     if ($("bigMap").style.display !== "none") EP.drawMap($("bigMap"), trail);
