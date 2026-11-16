@@ -47,7 +47,15 @@ def done_before():
 
 
 def reset(sess, settle=4.5):
-    for _ in range(3):
+    from . import window
+    for attempt in range(3):
+        if attempt:
+            # another window took the focus (browser, screenshot tool): Unity ignores vJoy until it gets
+            # a real activation - the stage-2 recording on BardwellsYard01 failed like that (16.11.)
+            try:
+                window.focus_liftoff(hard=True)
+            except RuntimeError:
+                pass
         if sess.reset_drone(settle=settle):
             return True
         time.sleep(0.5)
