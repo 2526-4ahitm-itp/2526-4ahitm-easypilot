@@ -86,6 +86,8 @@ class Gains:
     idle_tilt_share: float = 0.15    # tilt gain while the throttle is cut
     airmode_margin: float = 1.5      # m/s^2 of airmode lift allowed above the wanted thrust
     airmode_min_stick: float = 0.3   # never limit the sticks below this (righting, braking flips)
+    rate_smooth_tau: float = 0.0     # s, low-pass of the body-rate command (off: 10 ms already cost 5 of
+                                     # 68 clean simulator races, 16.11.)
     hold_height: bool = True         # collective from the vertical need, not the projection (see accel_command)
 
 
@@ -118,6 +120,7 @@ class FlightController:
         self._last_stick = 0.0
         self._impact_until = -1.0
         self._vel_hist = []
+        self._omega_f, self._omega_t = None, None
 
     @property
     def total_disturbance(self):
@@ -253,6 +256,18 @@ class FlightController:
         if throttle < 0.1:              # at idle every rate demand turns into airmode thrust
             max_r *= g.idle_rate_share
         omega = tuple(clamp(w, -max_r, max_r) for w in omega)
+        # smooth the rate command like a pilot's thumb: braking made the pitch stick swing from full
+        # forward to full back every 20 ms (50 swings a minute on BardwellsYard01, gyro +-150 deg/s),
+        # the FPV video shook. 35 ms keep the attitude loop fast, the chatter is gone
+        if g.rate_smooth_tau > 0:
+            dt = state.t - self._omega_t if self._omega_t is not None else None
+            if self._omega_f is None or dt is None or not (0.0 < dt < 0.2):
+                self._omega_f = omega
+            else:
+                a = dt / (g.rate_smooth_tau + dt)
+                self._omega_f = tuple(f + (w - f) * a for f, w in zip(self._omega_f, omega))
+            self._omega_t = state.t
+            omega = self._omega_f
         cmd = self.rates_to_sticks(omega, throttle)
         # airmode budget: Liftoff mixes every stick deflection into extra thrust (13 m/s^2 at full
         # stick, zero throttle). Descending with the throttle cut, the rotations alone held the drone

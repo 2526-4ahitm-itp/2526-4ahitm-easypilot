@@ -342,6 +342,16 @@ class VisionAssist(threading.Thread):
         self.running = False
 
 
+def race_gains():
+    """Controller gains for racing. EASYPILOT_GAINS="tilt=12,rate_smooth_tau=0.01" overrides single values
+    for tuning runs in Liftoff without editing code."""
+    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
+    for item in filter(None, os.environ.get("EASYPILOT_GAINS", "").split(",")):
+        key, value = item.split("=")
+        setattr(gains, key.strip(), type(getattr(gains, key.strip()))(float(value)))
+    return gains
+
+
 def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max_time=None, colliders=None):
     """Fly the race from where the drone stands now (after reset/countdown). Returns the result dict.
 
@@ -349,7 +359,7 @@ def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max
     telemetry receiver with a lap timer.
     """
     rates, thrust = load_model()
-    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
+    gains = race_gains()
     s0 = sess.tel.wait()
     start, start_dir = launch(gates[0], s0.pos)
     line = build_line(gates, start, start_dir, laps, k, colliders=colliders)

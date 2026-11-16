@@ -244,6 +244,29 @@ class RacingLine:
     def index_at(self, s):
         return min(len(self.s) - 1, bisect.bisect_left(self.s, s))
 
+    def project(self, p, i):
+        """Continuous arc length of position p next to point i (between the neighbouring points)."""
+        t = self.tangent[i]
+        s = self.s[i] + dot(sub(p, self.points[i]), t)
+        lo, hi = self.s[max(0, i - 1)], self.s[min(len(self.s) - 1, i + 1)]
+        return min(hi, max(lo, s))
+
+    def reference_s(self, s):
+        """Reference position, velocity, acceleration and tangent at arc length s, interpolated between
+        the 0.25 m points. Stepping from point to point made the target speed jump up to 0.5 m/s and the
+        target point 0.25 m at every point, ~40 times a second at speed: through the PD gains a 3 m/s^2
+        sawtooth, the pitch stick swung from forward to back every 20 ms (Liftoff videos, 16.11.)."""
+        n = len(self.s)
+        s = min(self.s[-1], max(0.0, s))
+        j = min(n - 1, max(1, bisect.bisect_right(self.s, s)))
+        i = j - 1
+        ds = self.s[j] - self.s[i]
+        f = (s - self.s[i]) / ds if ds > 1e-9 else 0.0
+        lerp = lambda a, b: tuple(x + (y - x) * f for x, y in zip(a, b))
+        t = unit(lerp(self.tangent[i], self.tangent[j]), self.tangent[i])
+        v = self.speed[i] + (self.speed[j] - self.speed[i]) * f
+        return lerp(self.points[i], self.points[j]), mul(t, v), lerp(self.accel[i], self.accel[j]), t
+
     def reference(self, i, lookahead_s=0.0):
         """Reference position, velocity and acceleration at path index i (+ lookahead)."""
         j = self.index_at(self.s[i] + lookahead_s)

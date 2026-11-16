@@ -56,11 +56,13 @@ class Racer:
         self.off_time = self.off_time + dt if (off > 3.0 and prog.gate_index >= 1) else 0.0
         self.crashed = self.crashed or self.off_time > 1.5
         speed_here = line.speed[self.idx]
-        p_ref, v_ref, a_ref, tangent = line.reference(self.idx, self.lookahead * max(2.0, speed_here) * 0.3)
+        # continuous position along the line, the reference interpolated between the line points
+        s_here = line.project(state.pos, self.idx)
+        p_ref, v_ref, a_ref, tangent = line.reference_s(s_here + self.lookahead * max(2.0, speed_here) * 0.3)
         cross_track = norm(sub(state.pos, line.points[self.idx]))
         self.max_cross_track = max(self.max_cross_track, cross_track)
         # look where we are going: ahead along the line
-        _, _, _, ahead = line.reference(self.idx, max(3.0, 0.4 * speed_here))
+        _, _, _, ahead = line.reference_s(s_here + max(3.0, 0.4 * speed_here))
         cmd = self.ctl.track(state, p_ref, v_ref, a_ref, ahead)
         self._score(state)
         return cmd
