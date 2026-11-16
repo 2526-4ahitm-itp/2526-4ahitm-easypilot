@@ -68,3 +68,14 @@ einmal nach jedem Liftoff-Update), deshalb funktionieren alle Tortypen ohne Nach
 Zum Herzeigen über WireGuard + Parsec: Parsec zeigt den ganzen Bildschirm, die Oberfläche wird
 normal bedient. Alternativ ist die Seite im lokalen Netz unter `http://<pc>:8765/` erreichbar
 (`--key <geheim>` schützt die Bedienung).
+
+## Gestaltung
+
+Die Oberfläche folgt einer Zeitnahme bei Nacht: ruhige graue Flächen, ein Bernstein-Akzent für
+Auswahl, nächstes Tor und Pilot, die Farbe steckt in der Uhr (Tor-Segmente wie Sektoren, Abstand
+grün oder rot) und in der Streckenkarte. Erkennungszeichen ist die Startampel: Der Countdown läuft
+über Lichter, und die Tempostufe 1–5 zeigt sich als Zahl leuchtender Lichter. Bei niedrigen
+Bildschirmhöhen (1280×720, kleines Parsec-Fenster) wird das Bedienfeld kompakter.
+
+Der Design-Durchgang (16.11.2026) entstand mit [unslop](https://github.com/heydamir/unslop) von
+Damir Sokolovsky (@heydamir), lizenziert unter CC BY 4.0.
