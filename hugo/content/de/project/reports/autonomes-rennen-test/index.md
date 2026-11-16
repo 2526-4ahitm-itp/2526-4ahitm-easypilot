@@ -91,6 +91,51 @@ Bewertet wird mit `verify.py` gegen die **echten** Torpositionen und mit Liftoff
 
 ![Overlay im Rennen: erkannte Tore grün, Kartentore rot, korrigierte gelb](overlay.jpg)
 
+## Alle offiziellen Strecken, Stufe 3 (Testreihen 7–9, 16.11.2026)
+
+Jede Testreihe fliegt alle offiziellen Liftoff-Rennen einmal automatisch (`python -m autopilot.matrix
+--stages 3 --again`, ca. 2,5 h). Bestanden heißt: **Liftoff selbst** hat die Runde oder – bei
+Punkt-zu-Punkt-Rennen – die Rennzeit gewertet.
+
+| Testreihe | Bestanden | Wichtigste Änderungen davor |
+|---|---|---|
+| 7 | 24/92 | Ausgangsstand |
+| 8 | 44/91 | Reset nach dem Laden (Drohne blieb sonst am Start stehen), Lage halten bei Gas 0, sanfter Start, Checkpoint-Volumen korrigiert (Ziel galt 12 m zu früh als erreicht) |
+| 9 | **53/90** | Airmode-Budget (Drohne hing beim Sinkflug 1 m über der Linie), Treffer-Erkennung, geglättete Vorsteuerung; Punkt-zu-Punkt-Zeiten aus `raceTimes.xml` |
+
+Zwei Rennen (PineValley 05, ShortCircuit 03) starten auf diesem PC nicht: Liftoff meldet
+„Missing data“ (Inhalt nicht installiert). Sie werden gemerkt und im Studio ausgeblendet.
+
+**Absturzursachen in Testreihe 8** (aus den Flugprotokollen klassifiziert):
+
+| Ursache | Anteil | Lösung |
+|---|---|---|
+| Sinkflug mit Gas ~0: jede Drehung macht im Airmode Schub (bis 13 m/s²), Drohne steigt statt zu sinken, trifft Rahmen/Schienen | größte Gruppe | Stickausschlag auf den gewünschten Schub begrenzt |
+| Soll-Lage kippt beim Wechsel Beschleunigen → Bremsen um 90° auf einmal | häufig | Vorsteuerung über ±60 ms gemittelt |
+| Nach einem Streifer laufen die Schätzwerte an ihre Grenzen, Drohne fliegt mit Vollgas seitwärts | einzeln | Aufprall (> 95 m/s² in 20 ms) setzt die Schätzung zurück |
+| Linie selbst berührt ein bekanntes Objekt (46 von 92 geplanten Linien!) | viele | elastisches Band statt Einzel-Hilfspunkte, siehe unten |
+| Objekt fehlt in der Level-Geometrie (MarinaBay 01, Hall26 01) | einzeln | offen |
+
+**Ausweichen – drei Strategien im Vergleich** (alle 92 Strecken, eigener Simulator mit 30 ms
+Telemetrie-Verzögerung, Stufe 3):
+
+| | Linien mit Kontakt | Kontaktpunkte | saubere Flüge | Planungszeit |
+|---|---|---|---|---|
+| bisher (Hilfspunkte) | 46 | 356 | 49 | 1× |
+| iterative Hilfspunkte | 32 | 174 | 63 | 0,44× |
+| Korridorsuche | 31 | 169 | 64 | 0,34× |
+| **elastisches Band** | **28** | **156** | **68** | **0,36×** |
+
+Das Band gewinnt 19 Strecken und verliert keine; auch Stufe 1 (53 → 74) und Stufe 5 (27 → 39)
+profitieren. Die Linien haben weniger Hilfspunkte (1607 → 1174) und weniger Krümmung. Die
+verbleibenden Kontakte liegen größtenteils in Toröffnungen selbst (z. B. Lichttore, deren
+Kollisionsquader die ganze Öffnung umschließt) oder am Startplatz.
+
+**Studio Ende-zu-Ende (16.11.):** Strecke über die Oberfläche geladen, Autopilot Stufe 3 auf
+BardwellsYard 01 dreimal im Ziel (42,4–42,6 s), Splitscreen mit synchron laufender Bestzeit.
+Dabei gefunden und behoben: ein Syntaxfehler in `studio.js` legte die gesamte Oberfläche lahm;
+der Reset kam nach einem Klick im Browser nicht bei Liftoff an (braucht echte Fensteraktivierung).
+
 ## Nächste Schritte
 
 - Weitere Strecken und Tortypen (aufblasbare Bögen, Checkpoint-Boxen allein).

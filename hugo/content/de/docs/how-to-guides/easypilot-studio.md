@@ -49,7 +49,13 @@ am entfernten Rechner genauso. Ohne Controller geht „Autopilot fliegt“.
 **Splitscreen:** Rechts läuft die beste aufgezeichnete Runde des Autopiloten auf derselben
 Strecke und Stufe, gestartet mit demselben GO – beide fliegen „gleichzeitig“. Gibt es noch keine,
 erst einmal „Autopilot fliegt“ in dieser Stufe starten. (Echt gleichzeitig mit zwei Drohnen ginge nur
-mit zwei PCs im Liftoff-Multiplayer.)
+mit zwei PCs im Liftoff-Multiplayer.) Auch bei „Autopilot fliegt“ läuft rechts die bisherige
+Bestzeit derselben Stufe mit – so lässt sich der Splitscreen ganz ohne Controller vorführen, etwa
+über Parsec.
+
+Strecken, deren Inhalte auf dem PC fehlen (Liftoff meldet „Missing data“), merkt sich das Studio
+nach dem ersten Ladeversuch und blendet sie in der Streckenliste aus
+(`%LOCALAPPDATA%\EasyPilot\runs\unavailable_races.json`, Eintrag löschen zum erneuten Versuch).
 
 ## Eigene Strecken
 

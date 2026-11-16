@@ -66,9 +66,16 @@ Strecken aus dem Liftoff-Editor.
 - **Wende-Tore:** Wird ein Tor schräg oder von hinten angeflogen (Turmfenster übereinander, Tor in
   Gegenrichtung), setzt der Planer einen Anflugpunkt vor und einen Abflugpunkt hinter das Tor – die
   Wende liegt dann außerhalb, wie bei einem menschlichen Piloten.
-- **Hindernisse:** Berührt die Linie ein festes Objekt, das Gelände oder Level-Geometrie, setzt der
-  Planer einen Hilfspunkt auf den kürzesten freien Weg daneben (seitlich, oben, unten, diagonal) und
-  plant neu. Nach unten bleibt mehr Abstand, weil die Drohne bei Tempo durchsackt.
+- **Hindernisse (elastisches Band, `avoid.py`):** Berührt die Linie ein festes Objekt, das Gelände
+  oder Level-Geometrie, wird der berührende Abschnitt wie ein Gummiband aus allen Objekten
+  herausgedrückt: Für jeden Punkt gibt es den nötigen Versatz in der günstigsten Richtung (exakter
+  Strahltest gegen die Quader in 16 Richtungen), Steifigkeit und Spannung halten das Band glatt, die
+  echten Tore bleiben fest. Auf das Band werden wenige, weit auseinander liegende Hilfspunkte gelegt
+  und die fertige Linie noch einmal geprüft. Reicht das nicht, folgen ein weiterer Durchgang mit
+  weiter außen liegenden Punkten und ein freies 3D-Band. Vorher gab es nur einzelne Hilfspunkte
+  neben dem Objekt – 46 von 92 geplanten Linien berührten danach noch etwas, jetzt 28 (die meisten
+  davon in Toröffnungen selbst). Böden zählen nur von oben als Boden, darunter (Decke) gilt der
+  normale Abstand.
 - **Steile Abstiege:** Bei Tempo drückt der Luftwiderstand die Drohne nach oben; ohne Rückenflug kommt
   sie nur so schnell herunter, wie Schwerkraft minus Restschub erlaubt – das Tempo wird dort begrenzt.
 
