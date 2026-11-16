@@ -123,7 +123,8 @@ def main(argv):
     tel.start()
     import shutil
     for race_name in races:
-        if shutil.disk_usage(RUNS).free < 3e9:
+        # recordings need a few GB; without them only the flight logs are written (~5 MB per race)
+        if shutil.disk_usage(RUNS).free < (3e9 if not no_record else 0.4e9):
             print("less than 3 GB free on the disk - stopping (recordings need space)", flush=True)
             break
         info = race_info(race_name)

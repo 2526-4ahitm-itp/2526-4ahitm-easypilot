@@ -60,13 +60,13 @@ const EP = {
     const P = (x, z) => [ox + (x - x0) * sc, H - oy - (z - z0) * sc];   // north up
 
     // course line through the gates
-    c.strokeStyle = "#2d3540"; c.lineWidth = 3; c.setLineDash([6, 8]); c.beginPath();
+    c.strokeStyle = "#3a3a3e"; c.lineWidth = 2; c.setLineDash([4, 8]); c.beginPath();
     tr.sequence.forEach((gi, i) => { const g = tr.gates[gi], p = P(g.x, g.z); i ? c.lineTo(...p) : c.moveTo(...p); });
     c.stroke(); c.setLineDash([]);
     // ghost path of the selected stage
     const level = s && s.stage, ghost = level ? tr.ghosts[String(level)] : null, st = level ? EP.stage(level) : null;
     if (ghost) {
-      c.strokeStyle = (st ? st.color : "#888") + "55"; c.lineWidth = 2; c.beginPath();
+      c.strokeStyle = "rgba(161, 161, 166, 0.45)"; c.lineWidth = 2; c.beginPath();
       ghost.forEach((p, i) => { const q = P(p[1], p[2]); i ? c.lineTo(...q) : c.moveTo(...q); }); c.stroke();
     }
     // gates: short bar across the course, next gate highlighted
@@ -74,22 +74,22 @@ const EP = {
     tr.gates.forEach((g, i) => {
       const half = g.w / 2, px = -g.nz, pz = g.nx;
       const a = P(g.x - px * half, g.z - pz * half), b = P(g.x + px * half, g.z + pz * half);
-      c.strokeStyle = i === next ? "#ffcc33" : "#8b96a3"; c.lineWidth = i === next ? 6 : 4;
+      c.strokeStyle = i === next ? "#f2b33d" : "#6b6b70"; c.lineWidth = i === next ? 5 : 3; c.lineCap = "round";
       c.beginPath(); c.moveTo(...a); c.lineTo(...b); c.stroke();
     });
     // pilot trail + dot, ghost dot
     if (trail && trail.length > 1) {
-      c.strokeStyle = "#39c5ff"; c.lineWidth = 2.5; c.beginPath();
+      c.strokeStyle = "#f2b33d"; c.lineWidth = 2; c.beginPath();
       trail.forEach((p, i) => { const q = P(p[0], p[1]); i ? c.lineTo(...q) : c.moveTo(...q); }); c.stroke();
     }
     if (ghost && s && (s.phase === "racing" || s.phase === "finished")) {
       const g = EP.ghostAt(ghost, EP.elapsed());
-      if (g) { const q = P(g[1], g[2]); c.fillStyle = st ? st.color : "#aaa"; c.beginPath(); c.arc(...q, 8, 0, 7); c.fill(); }
+      if (g) { const q = P(g[1], g[2]); c.fillStyle = "#a1a1a6"; c.beginPath(); c.arc(...q, 6, 0, 7); c.fill(); c.strokeStyle = "#141415"; c.lineWidth = 2; c.stroke(); }
     }
     if (s && s.pos) {
       const q = P(s.pos[0], s.pos[1]);
-      c.fillStyle = "#39c5ff"; c.beginPath(); c.arc(...q, 9, 0, 7); c.fill();
-      c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+      c.fillStyle = "#f2b33d"; c.beginPath(); c.arc(...q, 7, 0, 7); c.fill();
+      c.strokeStyle = "#141415"; c.lineWidth = 2; c.stroke();
     }
   },
 };

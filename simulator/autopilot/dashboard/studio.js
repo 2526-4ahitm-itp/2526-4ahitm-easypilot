@@ -10,6 +10,11 @@ const ENV_NAMES = {StrawBale: "Straw Bale", AutumnFields: "Autumn Fields", Bando
   TheRussianWoodpecker: "The Russian Woodpecker"};
 const envName = e => ENV_NAMES[e] || e;
 
+// signature: a row of start lights - n of 5 lit for speed stage n
+const lights = (n, total = 5, cls = "") => `<span class="lights ${cls}">${Array.from({length: total},
+  (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</span>`;
+const icon = name => `<svg class="ic"><use href="#i-${name}"/></svg>`;
+
 let mode = "bot", stage = 3, trail = [], maps = [], lastPhase = null, trackRace = null, videoSrc = null;
 
 async function cmd(c) {
@@ -31,13 +36,16 @@ document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
   mode = b.dataset.mode;
   document.querySelectorAll("#modeSeg button").forEach(x => x.classList.toggle("on", x === b));
   $("humanBox").classList.toggle("hidden", mode !== "human");
+  document.querySelector(".start").classList.toggle("human", mode === "human");
   $("customOn").disabled = mode === "human";
   if (mode === "human") { $("customOn").checked = false; $("customSpeed").disabled = true; }
 });
 function renderStagePills() {
   $("stagePills").innerHTML = EP.track.stages.map(s =>
-    `<button style="--c:${s.color}" data-l="${s.level}" class="${s.level === stage ? "on" : ""}">
-       <b>${s.level}</b>${esc(s.name)}<br><small>${Math.round(s.aggressiveness * 100)} %</small></button>`).join("");
+    `<button data-l="${s.level}" class="${s.level === stage ? "on" : ""}" title="Stufe ${s.level} · ${esc(s.name)}">
+       <b>${s.level}</b>${lights(s.level)}</button>`).join("");
+  const cur = EP.stage(stage);
+  $("stageName").innerHTML = cur ? `Stufe ${cur.level} · ${esc(cur.name)} <span class="num">${Math.round(cur.aggressiveness * 100)} %</span>` : "";
   $("stagePills").querySelectorAll("button").forEach(b => b.onclick = () => {
     stage = +b.dataset.l;
     cmd({action: "settings", stage});
@@ -92,12 +100,11 @@ function renderMaps() {
   const cur = EP.state && EP.state.race;
   $("maps").innerHTML = list.map(m => `
     <div class="mapc ${m.key === cur ? "current" : ""}" data-k="${esc(m.key)}">
-      <div class="env">${esc(envName(m.env))}</div>
+      <div class="env">${esc(envName(m.env))}${m.custom ? ' · <span class="custom-badge">eigene Strecke</span>' : ""}</div>
       <div class="t">${esc(m.title)}</div>
-      ${m.custom ? '<span class="custom-badge">eigene Strecke</span>' : ""}
-      <div class="muted" style="font-size:13px">${m.gates} Tore</div>
-      <div class="refs">${EP.track.stages.map(s => `<i class="${m.refs[s.level] ? "ok" : ""}" style="--c:${s.color}"
-         title="Stufe ${s.level}: ${m.refs[s.level] ? EP.fmt(m.refs[s.level]) + " s" : "noch nicht geflogen"}"></i>`).join("")}</div>
+      <div class="meta"><span class="num">${m.gates} Tore</span>
+        <span class="refs" title="Autopilot-Zeiten je Stufe">${EP.track.stages.map(s => `<i class="${m.refs[s.level] ? "ok" : ""}"
+         title="Stufe ${s.level}: ${m.refs[s.level] ? EP.fmt(m.refs[s.level]) + " s" : "noch nicht geflogen"}"></i>`).join("")}</span></div>
     </div>`).join("");
   $("maps").querySelectorAll(".mapc").forEach(c => c.onclick = () => {
     if (confirm(`Strecke „${c.querySelector(".t").textContent}“ laden? Liftoff startet dafür neu (ca. 1 Minute).`))
@@ -111,7 +118,7 @@ function renderCoverage() {
   const rows = maps.filter(m => Object.values(m.refs).some(v => v)).map(m => `<tr><td>${esc(m.title)}</td>
     ${EP.track.stages.map(s => `<td class="num">${m.refs[s.level] ? EP.fmt(m.refs[s.level]) : "–"}</td>`).join("")}</tr>`).join("");
   $("coverage").innerHTML = `<p class="muted">${done} von ${maps.length} Strecken mit Autopilot-Zeit</p>
-    <table><tr><td></td>${EP.track.stages.map(s => `<td><i style="background:${s.color}"></i> ${s.level}</td>`).join("")}</tr>${rows}</table>`;
+    <table><tr><td></td>${EP.track.stages.map(s => `<td class="num muted">S${s.level}</td>`).join("")}</tr>${rows}</table>`;
 }
 
 // ---------------------------------------------------------------- live state
@@ -143,10 +150,15 @@ function render(s) {
   // timing card
   const st = s.stage ? EP.stage(s.stage) : null;
   $("pilot").textContent = s.pilot || "Bereit";
-  $("stageBadge").innerHTML = st ? `<span class="badge" style="background:${st.color}">Stufe ${st.level} · ${esc(st.name)}</span>`
-    : (s.speed_pct ? `<span class="badge" style="background:#8b96a3">${s.speed_pct} %</span>` : "");
+  $("stageBadge").innerHTML = st ? `${lights(st.level)}<span>Stufe ${st.level} · ${esc(st.name)}</span>`
+    : (s.speed_pct ? `<span class="num">${s.speed_pct} %</span>` : "");
   $("gate").textContent = s.phase === "idle" ? "–" : `${s.gate}/${s.gates_total}`;
-  $("bar").style.width = (100 * s.gate / Math.max(1, s.gates_total)) + "%";
+  // one segment per gate, like the sectors on a timing screen: passed, next, still to come
+  const sec = $("sectors"), n = Math.max(1, s.gates_total);
+  if (sec.querySelectorAll("i").length !== n) sec.innerHTML = '<div id="bar"></div>' + "<i></i>".repeat(n);
+  sec.querySelectorAll("i").forEach((el, i) => {
+    el.className = s.phase === "idle" ? "" : i < s.gate ? "done" : (i === s.gate && s.phase === "racing" ? "next" : "");
+  });
   $("botTime").textContent = s.bot_time ? EP.fmt(s.bot_time) + " s" : "–";
   $("speed").textContent = s.phase === "racing" ? Math.round(s.speed) : "–";
   const d = $("delta");
@@ -154,7 +166,8 @@ function render(s) {
   d.className = "big-stat num " + (s.delta === null || s.kind !== "human" ? "" : s.delta < 0 ? "good" : "bad");
   const cd = $("countdown");
   cd.style.display = s.phase === "countdown" ? "flex" : "none";
-  cd.textContent = s.countdown || "";
+  $("cdNum").textContent = s.countdown || "";
+  $("cdLights").innerHTML = Array.from({length: 3}, (_, i) => `<i class="${s.countdown && i < 4 - s.countdown ? "on" : ""}"></i>`).join("");
   if (s.phase === "ready" || s.phase === "countdown") trail = [];
   if (s.phase === "racing" && s.pos) {
     const l = trail[trail.length - 1];
@@ -162,32 +175,32 @@ function render(s) {
   }
   const b = $("banner"), r = s.last_result;
   b.className = "banner";
-  if (s.phase === "loading") b.textContent = "⏳ " + s.message;
-  else if (s.phase === "racing") b.textContent = s.kind === "bot" ? "Der Autopilot fliegt …" : "Los, los, los!";
-  else if (s.phase === "countdown") b.textContent = "Achtung …";
-  else if (s.phase === "ready") b.textContent = s.message || "Drohne an den Start …";
-  else if (s.phase === "error") b.textContent = "⚠ " + s.message;
+  if (s.phase === "loading") b.textContent = s.message;
+  else if (s.phase === "racing") b.textContent = s.kind === "bot" ? "Der Autopilot fliegt" : `${s.pilot} fliegt gegen Stufe ${s.stage}`;
+  else if (s.phase === "countdown") b.textContent = "Gleich geht es los";
+  else if (s.phase === "ready") b.textContent = s.message || "Drohne geht an den Start";
+  else if (s.phase === "error") { b.className = "banner err"; b.textContent = s.message; }
   else if ((s.phase === "finished" || s.phase === "dnf") && r) {
-    if (r.time === null) b.textContent = `Nicht gewertet: ${r.reason} (${r.gates}/${r.gates_total} Tore)`;
-    else if (r.kind === "bot") b.textContent = `${r.name}: ${EP.fmt(r.time)} s` + (r.new_reference ? " – neue Bestzeit" : "");
-    else if (r.beat_bot) { b.className = "banner win"; b.textContent = `🏆 ${r.name}: ${EP.fmt(r.time)} s – Autopilot geschlagen!`; }
-    else { b.className = "banner lose"; b.textContent = `${r.name}: ${EP.fmt(r.time)} s` + (r.bot_time ? ` – Autopilot war ${EP.fmt(r.time - r.bot_time)} s schneller` : ""); }
-  } else b.textContent = "Wer schlägt den Autopiloten?";
-  $("queue").innerHTML = s.waiting.length ? "Warteschlange: " + s.waiting.map(q => esc(q.name)).join(" → ") : "";
+    if (r.time === null) b.textContent = `Nicht gewertet: ${r.reason}, ${r.gates} von ${r.gates_total} Toren`;
+    else if (r.kind === "bot") b.textContent = `${r.name}: ${EP.fmt(r.time)} s` + (r.new_reference ? ", neue Bestzeit" : "");
+    else if (r.beat_bot) { b.className = "banner win"; b.innerHTML = `${icon("trophy")}${esc(r.name)}: ${EP.fmt(r.time)} s, ${EP.fmt(r.bot_time - r.time)} s schneller als der Autopilot`; }
+    else { b.className = "banner lose"; b.textContent = `${r.name}: ${EP.fmt(r.time)} s` + (r.bot_time ? `, der Autopilot war ${EP.fmt(r.time - r.bot_time)} s schneller` : ""); }
+  } else b.textContent = "Wer schlägt den Autopiloten";
+  $("queue").innerHTML = s.waiting.length ? "Als Nächstes: " + s.waiting.map(q => esc(q.name)).join(", ") : "";
 
   // split screen right half
   const human = s.kind === "human" && s.phase !== "idle";
   // autopilot runs too: live on the left, the stored best run of the same stage on the right -
   // the split screen works without any controller (remote demo via Parsec)
   const running = (s.kind === "human" || s.kind === "bot") && s.phase !== "idle";
-  $("leftTag").textContent = s.pilot ? (s.kind === "bot" ? "AUTOPILOT LIVE" : "LIVE · " + s.pilot.toUpperCase()) : "LIVE";
+  $("leftTag").textContent = s.pilot ? (s.kind === "bot" ? "Autopilot live" : "Live · " + s.pilot) : "Live";
   $("slotHint").style.display = $("streamLeft").checked ? "none" : "flex";
   const showVideo = running && !!s.video;
   const v = $("botVideo");
   v.style.display = showVideo ? "block" : "none";
   $("bigMap").style.display = showVideo ? "none" : "block";
   $("halfEmpty").classList.toggle("hidden", !(human && !s.video));
-  $("rightTag").textContent = showVideo ? (s.kind === "bot" ? `BESTZEIT · STUFE ${s.stage}` : `AUTOPILOT · STUFE ${s.stage}`) : "STRECKE";
+  $("rightTag").textContent = showVideo ? (s.kind === "bot" ? `Bestzeit · Stufe ${s.stage}` : `Autopilot · Stufe ${s.stage}`) : "Strecke";
   if (showVideo && videoSrc !== s.video) { videoSrc = s.video; v.src = s.video; v.load(); }
   if (showVideo) {
     if (s.phase === "countdown" || s.phase === "ready") { v.pause(); if (v.currentTime > 0.05) v.currentTime = 0; }
@@ -199,17 +212,19 @@ function render(s) {
   }
 
   // board
-  const rk = s.board.ranking.length ? s.board.ranking.map((x, i) => `<tr class="${i === 0 ? "gold" : ""}"><td>${i + 1}.</td>
-     <td>${esc(x.name)}</td><td><span class="badge" style="background:${(EP.stage(x.stage) || {}).color}">${x.stage}</span>${x.beat_bot ? " 🏆" : ""}</td>
-     <td class="t num">${EP.fmt(x.time)} s</td></tr>`).join("") : `<tr><td></td><td class="muted">Noch keine Zeiten</td></tr>`;
+  const rk = s.board.ranking.length ? s.board.ranking.map((x, i) => `<tr class="${i === 0 ? "gold" : ""}"><td>${i + 1}</td>
+     <td>${esc(x.name)}${x.beat_bot ? `<span title="schneller als der Autopilot">${icon("trophy")}</span>` : ""}</td>
+     <td class="s">S${x.stage}</td><td class="t">${EP.fmt(x.time)} s</td></tr>`).join("")
+     : `<tr><td></td><td class="muted">Noch keine Zeiten</td></tr>`;
   $("ranking").innerHTML = rk;
   $("ranking2").innerHTML = rk;
-  $("ladder").innerHTML = s.board.stages.map(x => `<div style="--c:${x.color}"><b>${x.level}</b>
-     <span>${esc(x.name)}${x.beaten_by.length ? ` · 🏆 ${x.beaten_by.length}` : ""}</span>
+  $("ladder").innerHTML = s.board.stages.map(x => `<div>${lights(x.level, 5, x.level === s.stage ? "" : "dim")}
+     <span>${esc(x.name)}${x.beaten_by.length ? ` <span class="muted">· ${x.beaten_by.length}× geschlagen</span>` : ""}</span>
      <span class="num">${x.bot_time === null ? "–" : EP.fmt(x.bot_time) + " s"}</span></div>`).join("");
-  $("recent").innerHTML = s.board.recent.map(x => `<tr><td>${x.stage}</td><td>${esc(x.name)}</td>
-     <td class="t num">${x.time === null ? "–" : EP.fmt(x.time) + " s"}${x.beat_bot ? " 🏆" : ""}</td>
+  $("recent").innerHTML = s.board.recent.map(x => `<tr><td>S${x.stage}</td><td>${esc(x.name)}${x.beat_bot ? icon("trophy") : ""}</td>
+     <td class="t">${x.time === null ? "–" : EP.fmt(x.time) + " s"}</td>
      <td><button class="small" onclick="if(confirm('Lauf löschen?')) cmd({action:'delete', id:'${x.id}'})">löschen</button></td></tr>`).join("");
+  if (!s.board.recent.length) $("recent").innerHTML = `<tr><td></td><td class="muted">Noch keine Läufe</td></tr>`;
   lastPhase = s.phase;
 }
 

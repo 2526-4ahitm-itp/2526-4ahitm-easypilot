@@ -8,7 +8,21 @@
 <link rel="stylesheet" href="/static/studio.css">
 </head>
 <body class="studio">
-<div class="countdown" id="countdown"></div>
+<!-- Design pass with unslop by Damir Sokolovsky (@heydamir), CC BY 4.0, https://github.com/heydamir/unslop -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- line icons from lucide (ISC), 24px grid, drawn with stroke: currentColor -->
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9V3z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></symbol>
+</svg>
+
+<div class="countdown" id="countdown">
+  <div class="lights big" id="cdLights"><i></i><i></i><i></i></div>
+  <div class="cd-num num" id="cdNum"></div>
+</div>
 
 <!-- top row: left = real Liftoff window (always on top), right = autopilot half of the split screen -->
 <section class="top">
@@ -16,18 +30,18 @@
     <img id="liveImg" alt="">
     <div class="slot-hint" id="slotHint">
       <b>Liftoff-Fenster</b>
-      <span>wird hier platziert – Einstellungen → „Liftoff anordnen“</span>
+      <span>Wird hier platziert – Einstellungen, Liftoff anordnen</span>
     </div>
-    <div class="tag left"><i class="dot live"></i><span id="leftTag">LIVE</span></div>
+    <div class="tag left"><i class="dot live"></i><span id="leftTag">Live</span></div>
   </div>
   <div class="half" id="half">
     <video id="botVideo" muted playsinline preload="auto"></video>
     <canvas id="bigMap"></canvas>
     <div class="half-empty" id="halfEmpty">
       <b>Noch kein Autopilot-Lauf</b>
-      <span id="halfEmptyText">für diese Strecke und Stufe – einmal „Autopilot fliegt“ starten.</span>
+      <span id="halfEmptyText">Für diese Strecke und Stufe einmal „Autopilot fliegt“ starten</span>
     </div>
-    <div class="tag right"><i class="dot bot"></i><span id="rightTag">AUTOPILOT</span></div>
+    <div class="tag right"><i class="dot bot"></i><span id="rightTag">Autopilot</span></div>
     <div class="mini-clock num" id="rightClock"></div>
   </div>
 </section>
@@ -38,9 +52,9 @@
     <div class="brand">EasyPilot <span>Studio</span></div>
     <div class="map-title"><b id="mapTitle">–</b><span id="mapEnv"></span></div>
     <div class="chips">
-      <span class="chip" id="chipLiftoff">Liftoff</span>
-      <span class="chip" id="chipTel">Telemetrie</span>
-      <span class="chip" id="chipCtl">Controller</span>
+      <span class="chip" id="chipLiftoff"><i></i>Liftoff</span>
+      <span class="chip" id="chipTel"><i></i>Telemetrie</span>
+      <span class="chip" id="chipCtl"><i></i>Controller</span>
     </div>
     <nav class="tabs">
       <button data-tab="live" class="on">Rennen</button>
@@ -54,39 +68,42 @@
   <div class="tab on" id="tab-live">
     <div class="race-grid">
       <div class="card start">
-        <h3>Wer fliegt?</h3>
+        <h3>Wer fliegt</h3>
         <div class="seg" id="modeSeg">
-          <button data-mode="bot" class="on">🤖 Autopilot fliegt</button>
-          <button data-mode="human">🧑 Mensch vs. Autopilot</button>
+          <button data-mode="bot" class="on"><svg class="ic"><use href="#i-bot"/></svg>Autopilot fliegt</button>
+          <button data-mode="human"><svg class="ic"><use href="#i-user"/></svg>Mensch fliegt</button>
         </div>
         <div id="humanBox" class="hidden">
-          <input id="pilotName" maxlength="24" placeholder="Name der Pilotin / des Piloten" autocomplete="off">
+          <input id="pilotName" maxlength="24" placeholder="Name" autocomplete="off">
           <div class="hint" id="ctlHint"></div>
         </div>
         <h3>Tempo</h3>
         <div class="stages" id="stagePills"></div>
-        <label class="custom"><input type="checkbox" id="customOn"> frei wählen
+        <div class="stage-name" id="stageName"></div>
+        <label class="custom"><input type="checkbox" id="customOn"> Frei wählen
           <input type="range" id="customSpeed" min="10" max="100" step="5" value="70" disabled>
           <b class="num" id="customVal">70 %</b></label>
         <div class="row-buttons">
-          <button class="go" id="startBtn">Start</button>
-          <button class="stop" id="stopBtn">Stopp</button>
+          <button class="go" id="startBtn"><svg class="ic"><use href="#i-play"/></svg>Start</button>
+          <button class="stop" id="stopBtn"><svg class="ic"><use href="#i-stop"/></svg>Stopp</button>
         </div>
         <div class="queue" id="queue"></div>
       </div>
 
       <div class="card timing">
-        <div class="pilot" id="pilot">Bereit</div>
-        <div id="stageBadge"></div>
+        <div class="timing-head">
+          <div class="pilot" id="pilot">Bereit</div>
+          <div id="stageBadge"></div>
+        </div>
         <div class="clock num" id="clock">0,00</div>
-        <div class="progress"><div id="bar"></div></div>
+        <div class="progress" id="sectors"><div id="bar"></div></div>
         <div class="stats">
           <div><div class="label">Tor</div><div class="big-stat num" id="gate">–</div></div>
-          <div><div class="label">zum Autopiloten</div><div class="big-stat num" id="delta">–</div></div>
+          <div><div class="label">Abstand</div><div class="big-stat num" id="delta">–</div></div>
           <div><div class="label">Autopilot</div><div class="big-stat num" id="botTime">–</div></div>
           <div><div class="label">km/h</div><div class="big-stat num" id="speed">–</div></div>
         </div>
-        <div class="banner" id="banner">Wer schlägt den Autopiloten?</div>
+        <div class="banner" id="banner">Wer schlägt den Autopiloten</div>
       </div>
 
       <div class="card mapcard"><canvas id="map"></canvas></div>
@@ -94,7 +111,7 @@
       <div class="card board">
         <h3>Bestenliste <span class="muted" id="boardMap"></span></h3>
         <table id="ranking"></table>
-        <h3 style="margin-top:12px">Autopilot je Stufe</h3>
+        <h3 class="sub">Autopilot je Stufe</h3>
         <div class="ladder" id="ladder"></div>
       </div>
     </div>
@@ -103,9 +120,9 @@
   <!-- MAPS -->
   <div class="tab" id="tab-maps">
     <div class="maps-head">
-      <input id="mapSearch" placeholder="Strecke oder Umgebung suchen …">
-      <label><input type="checkbox" id="onlyCustom"> nur eigene Strecken</label>
-      <span class="muted" id="mapCount"></span>
+      <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="mapSearch" placeholder="Suchen"></label>
+      <label class="check"><input type="checkbox" id="onlyCustom"> Nur eigene Strecken</label>
+      <span class="muted num" id="mapCount"></span>
     </div>
     <div class="maps" id="maps"></div>
   </div>
@@ -115,7 +132,7 @@
     <div class="results-grid">
       <div class="card"><h3>Bestenliste dieser Strecke</h3><table id="ranking2"></table></div>
       <div class="card"><h3>Letzte Läufe</h3><table id="recent"></table></div>
-      <div class="card"><h3>Autopilot-Referenzen auf allen Strecken</h3><div id="coverage"></div></div>
+      <div class="card"><h3>Autopilot-Zeiten auf allen Strecken</h3><div id="coverage"></div></div>
     </div>
   </div>
 
@@ -124,23 +141,23 @@
     <div class="settings-grid">
       <div class="card">
         <h3>Bildschirm</h3>
-        <p class="muted">Liftoff wird randlos oben links platziert und bleibt im Vordergrund. Diese Seite im Vollbild (F11) daneben.</p>
+        <p class="muted">Liftoff liegt randlos oben links und bleibt im Vordergrund. Diese Seite im Vollbild (F11) daneben.</p>
         <div class="row-buttons">
           <button onclick="cmd({action:'layout', mode:'quarter'})">Liftoff anordnen</button>
-          <button onclick="cmd({action:'layout', mode:'full'})">Liftoff Vollbild</button>
+          <button onclick="cmd({action:'layout', mode:'full'})">Liftoff im Vollbild</button>
         </div>
-        <label class="opt"><input type="checkbox" id="streamLeft"> Live-Bild als Stream in der Seite anzeigen (wenn Liftoff auf einem anderen Bildschirm ist)</label>
+        <label class="opt"><input type="checkbox" id="streamLeft"> Live-Bild als Stream zeigen, wenn Liftoff auf einem anderen Bildschirm läuft</label>
       </div>
       <div class="card">
         <h3>Rennen</h3>
         <label class="opt">Runden <select id="lapsSel"><option>1</option><option>2</option><option>3</option></select></label>
         <label class="opt">Zeitlimit Mensch <select id="timeoutSel"><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
-        <label class="opt"><input type="checkbox" id="visionOn"> Kamera-Korrektur der Tore (KI) beim Autopiloten</label>
+        <label class="opt"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
       </div>
       <div class="card">
         <h3>Controller</h3>
         <div id="ctlInfo" class="muted"></div>
-        <p class="muted">Neuer Controller: einmal <code>python -m autopilot.pilot calibrate</code>. Über Parsec wird ein Gamepad des entfernten Rechners wie ein angesteckter Controller durchgereicht. Ohne Controller geht „Autopilot fliegt“.</p>
+        <p class="muted">Neuer Controller: einmal <code>python -m autopilot.pilot calibrate</code>. Über Parsec kommt ein Gamepad des entfernten Rechners wie ein angesteckter Controller an. Ohne Controller geht „Autopilot fliegt“.</p>
       </div>
     </div>
   </div>
