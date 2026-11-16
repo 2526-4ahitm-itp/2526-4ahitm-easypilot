@@ -46,5 +46,35 @@ class CheckpointVolumeTest(unittest.TestCase):
         self.assertTrue(g.passed(a, b))
 
 
+def _have_env():
+    try:
+        from autopilot.envdb import for_track
+        from autopilot.session import race_info
+        return len(for_track(race_info("HannoverRace02")["track"])) > 0
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_have_db() and _have_env(), "no gate / level database")
+class AvoidTest(unittest.TestCase):
+    def test_line_clears_the_osb_wall(self):
+        """HannoverRace02: the old via search left the line 0.1 m from a diagonal OSB board wall for
+        2 m, the drone hit it at 15 m/s on the line (Liftoff, 16.11.). The band repair clears it."""
+        from autopilot.envdb import for_track
+        from autopilot.matrix import line_hits, spawn_point
+        from autopilot.race import build_line, launch
+        from autopilot.session import race_info
+        from autopilot.track import race_gates
+        info = race_info("HannoverRace02")
+        gates = race_gates(info["race"], info["track"])
+        obs = for_track(info["track"])
+        start, d = launch(gates[0], spawn_point(info["track"], gates[0]))
+        line = build_line(gates, start, d, 1, 0.6, colliders=obs)
+        self.assertFalse([h for h in line_hits(line, obs) if h[1] == "OSB22001"])
+        # every real gate is still passed exactly
+        for g in (g for g in line.gates if not getattr(g, "via", False)):
+            self.assertLess(min(math.dist(p, g.center) for p in line.points), 0.01, g.name)
+
+
 if __name__ == "__main__":
     unittest.main()

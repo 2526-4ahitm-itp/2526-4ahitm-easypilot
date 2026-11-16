@@ -11,6 +11,7 @@ checkpoints, `laps` times, and ends behind the finish gate.
 """
 import json
 import math
+import os
 import sys
 import threading
 import time
@@ -57,6 +58,15 @@ SAG = 0.0                   # extra room below the line
 
 
 def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
+    """Racing line through all gates, around the solid items in `colliders` (avoid.py, elastic band).
+    EASYPILOT_PLANNER=vias uses the older via search (build_line_vias) instead."""
+    if os.environ.get("EASYPILOT_PLANNER") == "vias":
+        return build_line_vias(gates, start, start_dir, laps, aggressiveness, max_speed, colliders, iterations)
+    from .avoid import build_line as band
+    return band(gates, start, start_dir, laps, aggressiveness, max_speed, colliders)
+
+
+def build_line_vias(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
     """Racing line through all gates. With `colliders` (gatedb.track_colliders) the line is pushed
     around solid track items: where it touches one, a via point is put beside the item and the
     line is planned again."""
