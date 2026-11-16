@@ -54,6 +54,9 @@ def reset(sess, settle=4.5):
     return False
 
 
+REPLACE_REFS = "--replace-refs" in sys.argv     # newest passed run becomes the reference, not only a faster one
+
+
 def run_one(tel, timer, race_name, info, gates, level, record=True):
     st = next(s for s in STAGES if s.level == level)
     sess = Session(f"matrix-{race_name}-{level}", tel=tel)
@@ -86,7 +89,7 @@ def run_one(tel, timer, race_name, info, gates, level, record=True):
     mp4 = rec.finish(keep_video=passed and timer.time is not None) if rec else None
     if passed and timer.time is not None:
         board = Leaderboard(TDOT_DATA / f"{race_name}-1lap.json")
-        if board.add_bot(level, timer.time, timer.splits, timer.path):
+        if board.add_bot(level, timer.time, timer.splits, timer.path, replace=REPLACE_REFS):
             out["new_reference"] = True
             if mp4:
                 keep_as_reference(mp4, race_name, level)

@@ -123,10 +123,12 @@ class Leaderboard:
     def bot(self, level):
         return self.data["bot"].get(str(level))
 
-    def add_bot(self, level, time_s, splits, path):
+    def add_bot(self, level, time_s, splits, path, replace=False):
+        """Keep the run as the stage's reference if it is faster - or always with replace=True (a new
+        controller flies smoother but not always faster, its video should still become the reference)."""
         with self.lock:
             best = self.bot(level)
-            if best is None or time_s < best["time"]:
+            if best is None or replace or time_s < best["time"]:
                 self.data["bot"][str(level)] = {"time": time_s, "splits": splits, "path": path,
                                                 "date": time.strftime("%Y-%m-%d %H:%M")}
                 self.save()
