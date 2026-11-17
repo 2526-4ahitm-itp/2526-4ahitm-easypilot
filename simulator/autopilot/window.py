@@ -1,13 +1,17 @@
 """Find and focus the Liftoff window. Liftoff only reads joystick input while focused."""
 import ctypes
 import ctypes.wintypes as wt
+import sys
 import time
 
-user32 = ctypes.windll.user32
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except (AttributeError, OSError):
-    user32.SetProcessDPIAware()
+# Windows only; elsewhere the module still imports (for tests), but its functions fail.
+user32 = None
+if sys.platform == "win32":
+    user32 = ctypes.windll.user32
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except (AttributeError, OSError):
+        user32.SetProcessDPIAware()
 
 
 def find_window(title="liftoff"):

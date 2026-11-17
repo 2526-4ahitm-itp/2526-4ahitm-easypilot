@@ -8,6 +8,7 @@ import csv
 import ctypes
 import math
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from .vjoy import BTN_RESET, VJoy
 # logs, recordings, dataset and results: big and machine-local, so outside the repo / OneDrive
 # (EASYPILOT_RUNS overrides, e.g. a second disk)
 RUNS = Path(os.environ.get("EASYPILOT_RUNS") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EasyPilot" / "runs")
-user32 = ctypes.windll.user32
+user32 = ctypes.windll.user32 if sys.platform == "win32" else None  # Windows only, see window.py
 VK_F9 = 0x78
 
 
