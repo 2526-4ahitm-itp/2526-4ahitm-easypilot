@@ -90,6 +90,12 @@ Korrekturen in Minuten statt Stunden prüfen. Die Abnahme macht aber Liftoff sel
 Der Hover-Regler aus dem Prototyp ist auf 25° Neigung begrenzt. Beim Rennen fliegt die Drohne
 mit 60–75° Neigung, deshalb ein eigener Regler:
 
+0. **Bezugspunkt auf der Linie:** Die aktuelle Position wird stetig auf die Linie projiziert
+   (Bogenlänge), Sollposition, -tempo und -beschleunigung werden zwischen den Linienpunkten
+   interpoliert. Vorher sprang der Bezugspunkt von Punkt zu Punkt; jeder Sprung war ein kleiner
+   Stoß im Positionsfehler, und der Nick-Stick wechselte bis zu 53-mal pro Minute die Richtung –
+   die Drohne flog sichtbar ruckelig. Jetzt sind es 6 (Stufe 3) bzw. 18 statt 74 (Stufe 5),
+   bei gleichen Rundenzeiten.
 1. **Soll-Beschleunigung** = Vorsteuerung aus der Rennlinie + PD auf Position und Geschwindigkeit.
    Die Vorsteuerung ist über ±60 ms Flugweg gemittelt: Das Geschwindigkeitsprofil springt sonst von
    voller Beschleunigung auf volles Bremsen (bis 37 m/s² in 0,1 s), die Soll-Lage kippte um 90° auf
@@ -151,6 +157,9 @@ Das Drohnenmodell (Schwebegas, Schubkurve, Raten, Kamera) wird automatisch verme
   - Die Rennlinie wird in einem eigenen Thread neu geplant (~60 ms für 3 Runden) und im Flug
     getauscht; der Regeltakt (100 Hz) bleibt davon unberührt.
 - **Live-Overlay** für die Zuschauer:innen: erkannte Tore grün, Kartentore rot, korrigierte gelb.
+- **Live-Debug-Ansicht im Studio:** Kamerabild mit KI-Erkennungen und eingeblendeter Rennlinie,
+  3D-Plan mit Hindernissen und Ausweichpunkten, Telemetrie (Tempo, Sticks, Abstand zur Linie) –
+  siehe [EasyPilot Studio](../../how-to-guides/easypilot-studio/#live-debug-ansicht-was-der-autopilot-sieht-und-tut).
 
 ## 5. Was Liftoff schwierig macht
 

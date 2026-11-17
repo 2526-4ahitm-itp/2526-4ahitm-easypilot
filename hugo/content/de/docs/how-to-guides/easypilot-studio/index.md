@@ -28,6 +28,9 @@ Liftoff mit diesem Rennen neu (ca. 1 Minute).
 └─────────────────────────────────────────────────────┘
 ```
 
+Fliegt der Autopilot, zeigen rechte Hälfte, Kartenfeld und Bestenlisten-Feld stattdessen die
+[Live-Debug-Ansicht](#live-debug-ansicht-was-der-autopilot-sieht-und-tut).
+
 **Einstellungen → „Liftoff anordnen“** setzt das Liftoff-Fenster randlos in das obere linke Viertel
 und hält es im Vordergrund; die Seite im Vollbild (F11) lässt genau diesen Bereich frei. Das
 funktioniert auf 1080p- und 4K-Bildschirmen. Ist Liftoff auf einem zweiten Bildschirm, zeigt
@@ -40,7 +43,7 @@ funktioniert auf 1080p- und 4K-Bildschirmen. Ist Liftoff auf einem zweiten Bilds
 | **Rennen** | „Autopilot fliegt“ oder „Mensch vs. Autopilot“, Tempo als Stufe 1–5 oder frei 10–100 %, Start/Stopp, Live-Zeit, Abstand zum Autopiloten an jedem Tor, Karte mit Geist, Bestenliste |
 | **Strecken** | alle offiziellen Liftoff-Rennen und eigene Rennen aus dem Liftoff-Editor; Balken zeigen, für welche Stufen es schon eine Autopilot-Zeit gibt |
 | **Ergebnisse** | Bestenliste der Strecke, letzte Läufe (löschbar), Autopilot-Zeiten aller Strecken |
-| **Einstellungen** | Fenster-Anordnung, Runden, Zeitlimit, Kamera-Korrektur (KI), Controller-Status |
+| **Einstellungen** | Fenster-Anordnung, Runden, Zeitlimit, Kamera-Korrektur (KI), Debug-Ansicht, Controller-Status |
 
 **Mensch vs. Autopilot:** Der Controller wird durchgeleitet (Liftoff bleibt auf vJoy). Einmal pro
 Controller kalibrieren: `python -m autopilot.pilot calibrate`. Über Parsec funktioniert ein Gamepad
@@ -56,6 +59,40 @@ Bestzeit derselben Stufe mit – so lässt sich der Splitscreen ganz ohne Contro
 Strecken, deren Inhalte auf dem PC fehlen (Liftoff meldet „Missing data“), merkt sich das Studio
 nach dem ersten Ladeversuch und blendet sie in der Streckenliste aus
 (`%LOCALAPPDATA%\EasyPilot\runs\unavailable_races.json`, Eintrag löschen zum erneuten Versuch).
+
+## Live-Debug-Ansicht: was der Autopilot sieht und tut
+
+Bei jedem Lauf von „Autopilot fliegt“ zeigt das Studio live, was im Algorithmus passiert –
+gedacht zum Erklären bei Vorführungen. Ein- und ausschalten unter **Einstellungen →
+„Debug-Ansicht beim Autopiloten“** (standardmäßig an, wird im Browser gemerkt). Läufe von
+Menschen zeigen weiter den Splitscreen.
+
+![Studio während eines Autopilot-Laufs: KI-Sicht oben rechts, Plan und Telemetrie unten](studio-debug.jpg)
+
+| Feld | Inhalt |
+|---|---|
+| **KI-Sicht** (rechte Hälfte) | Das Live-Bild aus Liftoff. Jedes Tor, das die KI erkennt (YOLOv8-Pose auf der Grafikkarte, ~15 Bilder/s), bekommt einen grünen Rahmen mit den vier erkannten Ecken und der Sicherheit („Tor 81 %“). Mit dem kalibrierten Kameramodell (125° FOV, 42° Uptilt) und der Lage aus der Telemetrie werden darüber gelegt: die geplante Rennlinie (Farbe = geplantes Tempo, grün langsam → rot schnell), das nächste Tor laut Karte (gestrichelt) und der Zielpunkt, auf den der Regler gerade steuert. |
+| **Plan** (Kartenfeld) | 3D-Ansicht, die der Drohne folgt: Rennlinie mit Tempo-Farben, Toröffnungen, die bekannten Hindernisse als Drahtgitter-Quader, die Ausweichpunkte des elastischen Bands (blaue Rauten), der tatsächlich geflogene Weg (weiß) und der Zielpunkt. Ziehen dreht die Ansicht, Doppelklick setzt sie zurück. |
+| **Telemetrie** (Bestenlisten-Feld) | Die letzten 10 Sekunden: geflogenes gegen geplantes Tempo, die vier Steuerknüppel (Gas, Gier, Nick, Roll), Abstand zur Linie in cm und Lagefehler. |
+
+![KI-Sicht: erkanntes Tor mit Ecken, Rennlinie und Kartentor im Live-Bild](ki-sicht.jpg)
+
+Technisch: `studio.py` liefert die Daten des laufenden Fluges in `/api/state` (`debug`: Pose,
+Zielpunkt, Sticks, Erkennungen) und die geplante Linie einmal pro Linie über `/api/plan`
+(Punkte alle 0,5 m, Tore, Hindernisse bis 3 m neben der Linie, Kameramodell). Gezeichnet wird
+in `dashboard/techview.js`. Die Erkennung läuft in einem eigenen Thread nur während eines
+Laufs; die Steuerung (100 Hz) wird davon nicht gebremst.
+
+**Hinweise für die Vorführung:**
+
+- Strecken mit echten Torrahmen wählen, z. B. *Liftoff Arena 03 – Grandstand* oder
+  *Minus Two 02*. Auf Strecken, die nur unsichtbare Checkpoints haben (Autumn Fields 01,
+  Bardwell's Yard 01), findet die KI nichts – Linie und Plan funktionieren dort trotzdem.
+- Linie, Kartentor und Zielpunkt liegen nur in der **FPV-Kamera** (Ego-Sicht) genau auf dem Bild,
+  weil das Kameramodell für sie kalibriert ist. In der Verfolgerkamera (Drohne von hinten
+  sichtbar, wie in den Bildern oben) sind sie versetzt; die Torerkennung funktioniert in beiden.
+- Während eines Laufs keine anderen Fenster anklicken, sonst verliert Liftoff den Fokus
+  („Reset kommt nicht an“); dann einfach noch einmal starten.
 
 ## Eigene Strecken
 

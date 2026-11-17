@@ -136,6 +136,27 @@ BardwellsYard 01 dreimal im Ziel (42,4–42,6 s), Splitscreen mit synchron laufe
 Dabei gefunden und behoben: ein Syntaxfehler in `studio.js` legte die gesamte Oberfläche lahm;
 der Reset kam nach einem Klick im Browser nicht bei Liftoff an (braucht echte Fensteraktivierung).
 
+## Ruckeln beseitigt (16.11.2026)
+
+Die Flüge sahen trotz guter Zeiten unruhig aus: Der Nick-Stick wechselte ständig die Richtung.
+Ursache war nicht der Regler, sondern der Bezugspunkt – er sprang von Linienpunkt zu Linienpunkt.
+Seit er stetig entlang der Linie interpoliert wird:
+
+| Stufe | Richtungswechsel Nick-Stick pro Minute vorher | nachher | Rundenzeit |
+|---|---|---|---|
+| 3 | 53 | 6 | unverändert |
+| 5 | 74 | 18 | unverändert |
+
+Ein zusätzlicher Tiefpass auf die Drehraten wurde getestet und wieder verworfen: Er glättete
+zwar, kostete im Simulator aber bestandene Strecken (68 → 63), weil er nur das Symptom dämpfte.
+
+## Live-Debug-Ansicht im Studio (17.11.2026)
+
+Echter Lauf in Liftoff, *Liftoff Arena 03 – Grandstand*, Stufe 3: KI-Sicht mit Torerkennung
+(1–2 Tore pro Bild, 41–87 % Sicherheit), eingeblendeter Linie und 3D-Plan (744 Linienpunkte,
+295 Hindernis-Quader, 12 Ausweichpunkte); Abstand zur Linie im Flug 3–12 cm. Der Lauf kam ins
+Ziel, die Erkennung bremste die Steuerung nicht.
+
 ## Nächste Schritte
 
 - Weitere Strecken und Tortypen (aufblasbare Bögen, Checkpoint-Boxen allein).
