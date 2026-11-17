@@ -20,6 +20,8 @@ class SimParams:
     rate_tau: float = 0.03      # s, Liftoff PID tracking lag
     motor_tau: float = 0.03     # s
     drag: float = 0.025         # 1/m, a_drag = -drag * |v| * v
+    inflow: float = 0.0         # m/s^2 per m/s axial air speed at full throttle (Liftoff: 1.37)
+    airmode: float = 0.0        # m/s^2 thrust at full stick deflection even at zero throttle (Liftoff: 13)
     wind: tuple = (0.0, 0.0, 0.0)
 
 
@@ -31,6 +33,7 @@ class SimDrone:
         self.omega = (0.0, 0.0, 0.0)
         self.thrust = G
         self.t = 0.0
+        self.ground = 0.0
         self.sticks = (0.0, 0.0, 0.0, 0.0)
 
     def step(self, throttle, yaw, pitch, roll, dt):
@@ -40,7 +43,11 @@ class SimDrone:
         a = min(1.0, dt / p.rate_tau)
         self.omega = tuple(w + a * (tw - w) for w, tw in zip(self.omega, target))
         k = G / p.hover_throttle ** p.thrust_exponent
-        thrust_target = k * max(0.0, throttle) ** p.thrust_exponent
+        up = qrot(self.quat, (0.0, 1.0, 0.0))
+        v_axial = sum(a_ * b_ for a_, b_ in zip(sub(self.vel, p.wind), up))
+        thrust_target = max(0.0, k * max(0.0, throttle) ** p.thrust_exponent - p.inflow * max(0.0, throttle) * v_axial)
+        stick = max(abs(pitch), abs(roll), abs(yaw))
+        thrust_target = max(thrust_target, p.airmode * stick * stick)
         self.thrust += min(1.0, dt / p.motor_tau) * (thrust_target - self.thrust)
         up = qrot(self.quat, (0.0, 1.0, 0.0))
         air = sub(self.vel, p.wind)
@@ -48,8 +55,8 @@ class SimDrone:
         acc = add(acc, mul(air, -p.drag * norm(air)))
         self.vel = add(self.vel, mul(acc, dt))
         self.pos = add(self.pos, mul(self.vel, dt))
-        if self.pos[1] < 0.0:  # ground
-            self.pos = (self.pos[0], 0.0, self.pos[2])
+        if self.pos[1] < self.ground:  # flat ground plane
+            self.pos = (self.pos[0], self.ground, self.pos[2])
             self.vel = (self.vel[0] * 0.5, max(0.0, self.vel[1]), self.vel[2] * 0.5)
         self.quat = integrate(self.quat, self.omega, dt)
         self.t += dt

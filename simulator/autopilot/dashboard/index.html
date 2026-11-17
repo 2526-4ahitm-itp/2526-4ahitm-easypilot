@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasyPilot Challenge</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="countdown" id="countdown"></div>
+<div class="dash">
+  <header>
+    <h1>EasyPilot <span>Challenge</span> – Mensch gegen Autopilot</h1>
+    <div class="muted" id="track"></div>
+  </header>
+
+  <section class="panel live">
+    <h2>Jetzt am Start</h2>
+    <div class="pilot" id="pilot">Bereit für die nächste Runde</div>
+    <div id="stageBadge"></div>
+    <div class="clock num" id="clock">0,00</div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="row">
+      <div><div class="label">Tor</div><div class="big-stat num" id="gate">–</div></div>
+      <div><div class="label">Abstand zum Bot</div><div class="big-stat num" id="delta">–</div></div>
+      <div><div class="label">Bot-Zeit</div><div class="big-stat num" id="botTime">–</div></div>
+      <div><div class="label">km/h</div><div class="big-stat num" id="speed">–</div></div>
+    </div>
+    <div class="banner" id="banner"></div>
+    <div class="next" id="next"></div>
+  </section>
+
+  <section class="panel map">
+    <canvas id="map"></canvas>
+    <div class="legend"><i style="background:#39c5ff"></i>Pilot:in <i id="ghostDot" style="background:#888"></i>Autopilot (Geist)
+      <i style="background:#ffcc33"></i>nächstes Tor</div>
+  </section>
+
+  <section class="side">
+    <div class="panel">
+      <h2>Stufen – schlag den Autopiloten</h2>
+      <div class="stages" id="stages"></div>
+    </div>
+    <div class="panel" style="flex:1; min-height:0; overflow:hidden">
+      <h2>Bestenliste</h2>
+      <table id="ranking"></table>
+    </div>
+  </section>
+</div>
+<script src="/static/app.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+let trail = [], lastPhase = null;
+
+function render(s) {
+  if (!EP.track) return;
+  $("track").textContent = `${s.track} · ${s.laps} Runde${s.laps > 1 ? "n" : ""} · ${s.gates_total} Tore`;
+  const st = s.stage ? EP.stage(s.stage) : null;
+  $("pilot").textContent = s.pilot || "Bereit für die nächste Runde";
+  $("stageBadge").innerHTML = st ? `<span class="badge" style="background:${st.color}">Stufe ${st.level} · ${st.name}</span>` : "";
+  $("ghostDot").style.background = st ? st.color : "#888";
+  $("gate").textContent = s.phase === "idle" ? "–" : `${s.gate}/${s.gates_total}`;
+  $("bar").style.width = (100 * s.gate / s.gates_total) + "%";
+  $("botTime").textContent = EP.fmt(s.bot_time);
+  $("speed").textContent = s.phase === "racing" ? Math.round(s.speed) : "–";
+  const d = $("delta");
+  d.textContent = s.delta === null ? "–" : EP.fmtDelta(s.delta);
+  d.className = "big-stat num " + (s.delta === null ? "" : s.delta < 0 ? "good" : "bad");
+
+  const cd = $("countdown");
+  cd.style.display = s.phase === "countdown" ? "flex" : "none";
+  cd.textContent = s.countdown || "";
+
+  if (s.phase === "ready" || s.phase === "countdown") trail = [];
+  if (s.phase === "racing" && s.pos) {
+    const l = trail[trail.length - 1];
+    if (!l || Math.hypot(l[0] - s.pos[0], l[1] - s.pos[1]) > 0.3) trail.push(s.pos);
+  }
+  const b = $("banner"), r = s.last_result;
+  b.className = "banner";
+  if (s.phase === "racing") b.textContent = s.kind === "bot" ? "Der Autopilot fliegt …" : "Los, los, los!";
+  else if (s.phase === "countdown") b.textContent = "Achtung …";
+  else if (s.phase === "ready") b.textContent = s.message || "Gleich geht's los";
+  else if (s.phase === "error") b.textContent = "⚠ " + s.message;
+  else if ((s.phase === "finished" || s.phase === "dnf") && r) {
+    if (r.time === null) b.textContent = `Nicht gewertet: ${r.reason} (${r.gates}/${r.gates_total} Tore)`;
+    else if (r.kind === "bot") b.textContent = `Autopilot Stufe ${r.stage}: ${EP.fmt(r.time)} s` + (r.new_reference ? " – neue Referenzzeit" : "");
+    else if (r.beat_bot) { b.className = "banner win"; b.textContent = `🏆 ${r.name}: ${EP.fmt(r.time)} s – Stufe ${r.stage} geschlagen!`; }
+    else { b.className = "banner lose"; b.textContent = `${r.name}: ${EP.fmt(r.time)} s` + (r.bot_time ? ` – Bot war ${EP.fmt(r.time - r.bot_time)} s schneller` : ""); }
+  } else b.textContent = "Wer schlägt den Autopiloten?";
+
+  $("next").innerHTML = s.waiting.length ? "Als Nächstes: " + s.waiting.slice(0, 4).map(q =>
+    `<b>${esc(q.name)}</b> (Stufe ${q.stage})`).join(", ") : "";
+
+  $("stages").innerHTML = s.board.stages.map(x => `
+    <div class="stage ${s.stage === x.level ? "active" : ""}" style="--c:${x.color}">
+      <div class="lvl">${x.level}</div>
+      <div><div>${x.name}</div><div class="who">${x.beaten_by.length ? "geschlagen von " + x.beaten_by.map(esc).join(", ") : x.attempts + " Versuche"}</div></div>
+      <div class="t num">${x.bot_time === null ? "–" : EP.fmt(x.bot_time) + " s"}</div>
+    </div>`).join("");
+  $("ranking").innerHTML = s.board.ranking.length ? s.board.ranking.map((r, i) => `
+    <tr class="${i === 0 ? "gold" : ""}"><td>${i + 1}.</td><td>${esc(r.name)}</td>
+    <td><span class="badge" style="background:${(EP.stage(r.stage) || {}).color}">${r.stage}</span>${r.beat_bot ? " 🏆" : ""}</td>
+    <td class="t num">${EP.fmt(r.time)} s</td></tr>`).join("")
+    : `<tr><td></td><td class="muted">Noch keine Zeiten – sei die/der Erste!</td></tr>`;
+  if (lastPhase !== s.phase && (s.phase === "finished" || s.phase === "idle")) EP.loadTrack();   // new ghost
+  lastPhase = s.phase;
+}
+
+function frame() {
+  if (EP.state) {
+    $("clock").textContent = EP.fmt(EP.elapsed());
+    EP.drawMap($("map"), trail);
+  }
+  requestAnimationFrame(frame);
+}
+EP.loadTrack().then(() => { EP.poll(render); frame(); });
+</script>
+</body>
+</html>

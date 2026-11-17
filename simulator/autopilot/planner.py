@@ -33,6 +33,25 @@ class Gate:
         up = cross(self.normal, side)
         return abs(dot(rel, side)) <= self.width / 2 - margin and abs(dot(rel, up)) <= self.height / 2 - margin
 
+    def passed(self, p0, p1):
+        """Did the segment p0->p1 count for this checkpoint? With Liftoff's trigger volume (gatedb) like
+        Liftoff: entering the volume - for flat gates in travel direction; else the opening rectangle."""
+        vol = getattr(self, "volume", None)
+        if vol is None or getattr(self, "thin", True):
+            return self.crossed(p0, p1)
+        from .gatedb import pp_contains
+        if not getattr(self, "omni", False) and dot(sub(p1, p0), self.normal) <= 0:
+            return False
+        n = max(1, int(norm(sub(p1, p0)) / 0.1) + 1)
+        return any(pp_contains(vol, add(p0, mul(sub(p1, p0), k / n)), 0.0) for k in range(1, n + 1))
+
+
+BRAKE_SHARE = 0.35
+REORIENT_TIME = 0.3     # s the drone needs to swing its thrust around (attitude change before braking)
+LAUNCH_ACCEL = 4.0      # m/s^2 along the path right at the start (tilt ~22 deg) ...
+LAUNCH_RAMP = 6.0       # ... rising to the full limit over the first metres
+ACCEL_BLEND = 0.06      # s of travel before and after: feed-forward acceleration averaged over it
+
 
 @dataclass
 class Limits:
@@ -49,8 +68,9 @@ class Limits:
     def from_thrust(max_accel, max_speed=45.0, lateral_share=0.6, longitudinal_share=0.55, drag=0.0):
         """Limits that leave the controller a reserve: shares of the horizontal thrust at level height."""
         horizontal = (max(0.0, max_accel ** 2 - 9.81 ** 2)) ** 0.5
+        # braking needs the drone to turn its thrust around first (~0.3 s at full rate): plan it softer
         return Limits(max_speed, horizontal * lateral_share, horizontal * longitudinal_share,
-                      horizontal * longitudinal_share, drag)
+                      horizontal * BRAKE_SHARE, drag)
 
 
 def hermite(p0, m0, p1, m1, t):
@@ -71,6 +91,12 @@ class RacingLine:
             knots.append((start, unit(start_dir or sub(first, start))))
         for _ in range(laps):
             knots += [(g.center, unit(g.normal)) for g in self.gates]
+        # via points (obstacle / turn helpers) have no own direction: follow the course through them
+        # (Catmull-Rom), a fixed direction there made kinks
+        flags = ([False] if start is not None else []) + [getattr(g, "via", False) for _ in range(laps) for g in self.gates]
+        for i, is_via in enumerate(flags):
+            if is_via and 0 < i < len(knots) - 1:
+                knots[i] = (knots[i][0], unit(sub(knots[i + 1][0], knots[i - 1][0]), knots[i][1]))
         last_c, last_n = knots[-1]
         knots.append((add(last_c, mul(last_n, finish_extra)), last_n))
         self.launch_speed = launch_speed
@@ -82,8 +108,10 @@ class RacingLine:
         self._arc_length()
         self._curvature()
         self._speed_profile()
+        self._accel_profile()
         # gate order along the line (index into points), used for progress/timing
-        self.gate_sequence = [g for _ in range(laps) for g in self.gates]
+        # via points (obstacle avoidance) shape the line but are no gates to pass
+        self.gate_sequence = [g for _ in range(laps) for g in self.gates if not getattr(g, "via", False)]
 
     def _sample(self, knots, step, tangent_scale):
         pts = [knots[0][0]]
@@ -129,21 +157,77 @@ class RacingLine:
         for i, kv in enumerate(self.kappa_vec):
             if kv[1] < -1e-6:
                 v[i] = min(v[i], math.sqrt(self.down_accel / -kv[1]))
+        # steep descents: the drag pushes up by drag*v^2*|slope|, gravity minus the minimum thrust
+        # (no inverted flight) must still pull the drone down along the line
+        if lim.drag > 0:
+            for i, t in enumerate(self.tangent):
+                if t[1] < -0.05:
+                    v[i] = min(v[i], math.sqrt((9.81 - 1.5) / (lim.drag * -t[1])))
         v[-1] = min(v[-1], lim.max_speed)
         if self.launch_speed:
             v = [min(x, self.launch_speed) if self.s[i] < self.launch_dist else x for i, x in enumerate(v)]
+            v[0] = 0.0          # the drone stands at the start: accelerate from rest, not with a jump to 9 m/s
         for i in range(1, len(v)):
             ds = self.s[i] - self.s[i - 1]
             # thrust left for accelerating after drag and climbing
             climb = 9.81 * max(0.0, self.tangent[i][1])
             a = max(0.5, lim.accel - lim.drag * v[i - 1] ** 2 - climb)
+            if self.launch_speed and self.s[i] < LAUNCH_RAMP:
+                # lift off gently: full acceleration from rest tilts the drone 66 deg on the pad or a
+                # ledge, it touched the ground or the structure and started to tumble (Rustline02, 16.11.)
+                a = min(a, LAUNCH_ACCEL + (lim.accel - LAUNCH_ACCEL) * self.s[i] / LAUNCH_RAMP)
             v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * a * ds))
         for i in range(len(v) - 2, -1, -1):
             ds = self.s[i + 1] - self.s[i]
             v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * (lim.brake + 0.5 * lim.drag * v[i + 1] ** 2) * ds))
+        # start slowing down early: the speed limit of the next REORIENT_TIME of flight applies now
+        n = len(v)
+        out = list(v)
+        j = 0
+        for i in range(n):
+            reach = self.s[i] + max(v[i], 1.0) * REORIENT_TIME
+            j = max(j, i)
+            while j + 1 < n and self.s[j + 1] <= reach:
+                j += 1
+            out[i] = min(v[i:j + 1]) if j > i else v[i]
+        v = out
         self.speed = v
         self.lap_time_estimate = sum((self.s[i + 1] - self.s[i]) / max(0.5, 0.5 * (v[i] + v[i + 1]))
                                      for i in range(len(v) - 1))
+
+    def _accel_profile(self):
+        """Feed-forward acceleration per point, averaged over ACCEL_BLEND s before and after.
+
+        The speed profile switches from full acceleration to full braking from one point to the
+        next: the target attitude flipped by up to 90 deg in one step (37 m/s^2 within 0.1 s on
+        Hall26-01), the drone swung through with full sticks and left the line (Liftoff, 16.11.).
+        Averaged around the point (no lag), the flip becomes a short ramp."""
+        n = len(self.points)
+        raw = []
+        for j in range(n):
+            k = min(n - 1, j + 1)
+            ds = max(1e-6, self.s[k] - self.s[j])
+            a_long = (self.speed[k] ** 2 - self.speed[j] ** 2) / (2 * ds) if k > j else 0.0
+            raw.append(add(mul(self.tangent[j], a_long), mul(self.kappa_vec[j], self.speed[j] ** 2)))
+        pre = [(0.0, 0.0, 0.0)]
+        for a in raw:
+            pre.append(add(pre[-1], a))
+        self.accel = []
+        for j in range(n):
+            h = max(0.3, ACCEL_BLEND * self.speed[j])
+            lo = bisect.bisect_left(self.s, self.s[j] - h)
+            hi = min(n - 1, bisect.bisect_right(self.s, self.s[j] + h) - 1)
+            hi = max(hi, j)
+            self.accel.append(mul(sub(pre[hi + 1], pre[lo]), 1.0 / (hi + 1 - lo)))
+
+    def gate_positions(self):
+        """Arc length of every gate of gate_sequence along the line (monotonic)."""
+        out, j = [], 0
+        for g in self.gate_sequence:
+            best = min(range(j, min(len(self.points), j + 4000)), key=lambda i: norm(sub(self.points[i], g.center)))
+            out.append(self.s[best])
+            j = best
+        return out
 
     def closest(self, p, hint=0, window=400):
         """Index of the closest point, searched forward from `hint` (progress is monotonic)."""
@@ -160,13 +244,31 @@ class RacingLine:
     def index_at(self, s):
         return min(len(self.s) - 1, bisect.bisect_left(self.s, s))
 
+    def project(self, p, i):
+        """Continuous arc length of position p next to point i (between the neighbouring points)."""
+        t = self.tangent[i]
+        s = self.s[i] + dot(sub(p, self.points[i]), t)
+        lo, hi = self.s[max(0, i - 1)], self.s[min(len(self.s) - 1, i + 1)]
+        return min(hi, max(lo, s))
+
+    def reference_s(self, s):
+        """Reference position, velocity, acceleration and tangent at arc length s, interpolated between
+        the 0.25 m points. Stepping from point to point made the target speed jump up to 0.5 m/s and the
+        target point 0.25 m at every point, ~40 times a second at speed: through the PD gains a 3 m/s^2
+        sawtooth, the pitch stick swung from forward to back every 20 ms (Liftoff videos, 16.11.)."""
+        n = len(self.s)
+        s = min(self.s[-1], max(0.0, s))
+        j = min(n - 1, max(1, bisect.bisect_right(self.s, s)))
+        i = j - 1
+        ds = self.s[j] - self.s[i]
+        f = (s - self.s[i]) / ds if ds > 1e-9 else 0.0
+        lerp = lambda a, b: tuple(x + (y - x) * f for x, y in zip(a, b))
+        t = unit(lerp(self.tangent[i], self.tangent[j]), self.tangent[i])
+        v = self.speed[i] + (self.speed[j] - self.speed[i]) * f
+        return lerp(self.points[i], self.points[j]), mul(t, v), lerp(self.accel[i], self.accel[j]), t
+
     def reference(self, i, lookahead_s=0.0):
         """Reference position, velocity and acceleration at path index i (+ lookahead)."""
         j = self.index_at(self.s[i] + lookahead_s)
         t, v = self.tangent[j], self.speed[j]
-        # longitudinal acceleration from the profile
-        k = min(len(self.s) - 1, j + 1)
-        ds = max(1e-6, self.s[k] - self.s[j])
-        a_long = (self.speed[k] ** 2 - v ** 2) / (2 * ds)
-        a = add(mul(t, a_long), mul(self.kappa_vec[j], v * v))
-        return self.points[j], mul(t, v), a, t
+        return self.points[j], mul(t, v), self.accel[j], t

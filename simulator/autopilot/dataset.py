@@ -20,12 +20,14 @@ import cv2
 import numpy as np
 
 from .camera import Camera
+from .liftoff import RUNS
 from .geometry import cross, unit
 from .sysid import load_camera
 from .track import PIVOT_AT_CENTER, center_lift, gate_size, load_race_with_track, load_track, race_gates
 
-DATA = Path(__file__).resolve().parent / "runs" / "dataset"
+DATA = RUNS / "dataset"
 IMG_W = 640
+WHITE_CHECK = False      # the white-pixel occlusion test only works for white arches (first two tracks)
 
 
 def opening_corners(g):
@@ -37,7 +39,7 @@ def opening_corners(g):
     return pts
 
 
-def frame_pose_ok(cam, quat, pos, g, max_dist=70.0):
+def frame_pose_ok(cam, quat, pos, g, max_dist=45.0):
     d = math.dist(pos, g.center)
     return 0.8 < d < max_dist
 
@@ -91,27 +93,32 @@ def label_frame(cam, quat, pos, gates, margin=0.25, img=None, max_area=0.5):
                (x1 - x0) / cam.width, (y1 - y0) / cam.height] + kps
         if row[3] * row[4] > max_area:          # flying through: only a fragment is visible
             continue
-        if img is not None and not visible(img, row):
+        if img is not None and WHITE_CHECK and not visible(img, row):
             continue
         rows.append(row)
     return rows
 
 
 def all_gates(track):
-    """Every gate blueprint of a track (not only race checkpoints), oriented arbitrarily."""
-    from .planner import Gate
-    from .geometry import qrot
+    """Every visible gate of a track (not only race checkpoints), geometry from the prefab database.
+    Invisible checkpoint volumes (Checkpoint*) are no gates to see."""
+    from .track import gate_from_db
     out = []
     for b in track["blueprints"]:
-        size = gate_size(b.item, b.extra.get("scale"))
-        if not size or b.item.startswith(PIVOT_AT_CENTER):   # invisible trigger volumes are no gates to see
+        if b.item.startswith("Checkpoint"):
             continue
-        w, h = size
-        q = b.quat
-        up = qrot(q, (0.0, 1.0, 0.0))
-        n = qrot(q, (0.0, 0.0, 1.0))
-        c = tuple(b.pos[i] + up[i] * center_lift(b.item, h) for i in range(3))
-        out.append(Gate(c, n, w, h, b.item))
+        g = gate_from_db(b, b.item)
+        if g is None:
+            size = gate_size(b.item, b.extra.get("scale"))
+            if not size or b.item.startswith(PIVOT_AT_CENTER):
+                continue
+            from .geometry import qrot
+            from .planner import Gate
+            w, h = size
+            up = qrot(b.quat, (0.0, 1.0, 0.0))
+            n = qrot(b.quat, (0.0, 0.0, 1.0))
+            g = Gate(tuple(b.pos[i] + up[i] * center_lift(b.item, h) for i in range(3)), n, w, h, b.item)
+        out.append(g)
     return out
 
 
@@ -161,14 +168,21 @@ def collect(race_name, ks, laps=1):
         print(k, ok, sess.reason, len(meta), "frames,", len(racer.progress.gate_times), "gates ->", out)
 
 
-def label(val_every=7):
+def label(val_every=7, holdout=()):
+    """Write YOLO images/labels. Runs of the `holdout` environments go to the test split only: the
+    model never sees these worlds in training, so test = how well it works on unknown maps."""
+    import shutil
     cam_full = load_camera(IMG_W)
-    images = {"train": DATA / "images" / "train", "val": DATA / "images" / "val"}
-    labels = {"train": DATA / "labels" / "train", "val": DATA / "labels" / "val"}
+    for sub in ("images", "labels"):
+        shutil.rmtree(DATA / sub, ignore_errors=True)
+    images = {k: DATA / "images" / k for k in ("train", "val", "test")}
+    labels = {k: DATA / "labels" / k for k in ("train", "val", "test")}
+    envs = {}
     for p in list(images.values()) + list(labels.values()):
         p.mkdir(parents=True, exist_ok=True)
     tracks = {}
     n_img = n_obj = 0
+    skipped = 0
     for run in sorted((DATA / "raw").glob("*")):
         meta_file = run / "meta.json"
         if not meta_file.exists():
@@ -176,12 +190,22 @@ def label(val_every=7):
         meta = json.loads(meta_file.read_text())
         if meta["race"] not in tracks:
             _, track = load_race_with_track(meta["race"])
+            if track is None:
+                continue
             tracks[meta["race"]] = all_gates(track)
         gates = tracks[meta["race"]]
-        split = "val" if zlib.crc32(run.name.encode()) % val_every == 0 else "train"
+        if meta["race"] not in envs:
+            envs[meta["race"]] = load_race_with_track(meta["race"])[1]["environment"]
+        if envs[meta["race"]] in holdout:
+            split = "test"
+        else:
+            split = "val" if zlib.crc32(run.name.encode()) % val_every == 0 else "train"
         for f in meta["frames"]:
             img = run / f["file"]
             pic = cv2.imread(str(img))
+            if pic is None:
+                skipped += 1           # thinned out earlier to save disk space (StrawBale01 from 18.10.)
+                continue
             cam = Camera(pic.shape[1], pic.shape[0], cam_full.hfov_deg, cam_full.tilt_deg)
             rows = label_frame(cam, tuple(f["quat"]), tuple(f["pos"]), gates, img=pic)
             stem = f"{run.name}_{Path(f['file']).stem}"
@@ -192,9 +216,9 @@ def label(val_every=7):
             n_img += 1
             n_obj += len(rows)
     (DATA / "gates.yaml").write_text(
-        f"path: {DATA.as_posix()}\ntrain: images/train\nval: images/val\nkpt_shape: [4, 3]\n"
+        f"path: {DATA.as_posix()}\ntrain: images/train\nval: images/val\ntest: images/test\nkpt_shape: [4, 3]\n"
         "flip_idx: [3, 2, 1, 0]\nnames:\n  0: gate\n")
-    print(n_img, "images,", n_obj, "gates labelled ->", DATA / "gates.yaml")
+    print(n_img, "images,", n_obj, "gates labelled,", skipped, "missing frames skipped ->", DATA / "gates.yaml")
 
 
 def preview(run_name, n=12):
@@ -227,6 +251,8 @@ if __name__ == "__main__":
     if cmd == "collect":
         collect(sys.argv[2], [float(k) for k in sys.argv[3:]] or [0.6])
     elif cmd == "label":
-        label()
+        # python -m autopilot.dataset label [--holdout Hannover,PineValley]
+        hold = sys.argv[sys.argv.index("--holdout") + 1].split(",") if "--holdout" in sys.argv else ()
+        label(holdout=set(hold))
     elif cmd == "preview":
         preview(sys.argv[2])

@@ -11,6 +11,7 @@ checkpoints, `laps` times, and ends behind the finish gate.
 """
 import json
 import math
+import os
 import sys
 import threading
 import time
@@ -19,13 +20,14 @@ from . import window
 from .control import FlightController, Gains, ThrustModel
 from .geometry import body_axes, sub, unit
 from .liftoff import RUNS, Session, state_row
-from .planner import Limits, RacingLine
+from .geometry import add, mul
+from .planner import Gate, Limits, RacingLine
 from .racer import Racer
 from .sysid import load_model
 from .track import load_race_with_track, race_gates
 
 # usable acceleration at racing speed (the static 12.7 g drop a lot with airspeed)
-USABLE_ACCEL = 60.0
+USABLE_ACCEL = 45.0
 DRAG = 0.033          # 1/m, from the disturbance estimate at 27 m/s (~25 m/s^2)
 
 
@@ -50,10 +52,208 @@ def launch(first_gate, spawn):
     return start, unit((d[0], 0.0, d[2]))
 
 
-def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0):
+CLEARANCE = 0.4             # drone radius: avoid only real contact - every via is a bend the real drone
+                            # turns into big stick moves (Liftoff 15.11.), the designed course is flyable
+SAG = 0.0                   # extra room below the line
+
+
+def build_line(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
+    """Racing line through all gates, around the solid items in `colliders` (avoid.py, elastic band).
+    EASYPILOT_PLANNER=vias uses the older via search (build_line_vias) instead."""
+    if os.environ.get("EASYPILOT_PLANNER") == "vias":
+        return build_line_vias(gates, start, start_dir, laps, aggressiveness, max_speed, colliders, iterations)
+    from .avoid import build_line as band
+    return band(gates, start, start_dir, laps, aggressiveness, max_speed, colliders)
+
+
+def build_line_vias(gates, start, start_dir, laps, aggressiveness, max_speed=40.0, colliders=None, iterations=10):
+    """Racing line through all gates. With `colliders` (gatedb.track_colliders) the line is pushed
+    around solid track items: where it touches one, a via point is put beside the item and the
+    line is planned again."""
     limits = Limits.from_thrust(USABLE_ACCEL, max_speed=max_speed, drag=DRAG)
-    return RacingLine(course(gates, laps), start=start, start_dir=start_dir, laps=1, limits=limits,
-                      aggressiveness=aggressiveness, finish_extra=4.0, launch_speed=9.0)
+    # Liftoff's guide points give the passage direction (race_gates); as extra knots right next to the
+    # gate they made kinks the real drone turned into wild stick moves - so only align / avoid vias
+    seq = align_vias(course(gates, laps))
+
+    def plan(sq):
+        return RacingLine(sq, start=start, start_dir=start_dir, laps=1, limits=limits,
+                          aggressiveness=aggressiveness, finish_extra=4.0, launch_speed=9.0)
+    line = plan(seq)
+    if not colliders:
+        return line
+    from .envdb import ObstacleSet
+    if not isinstance(colliders, ObstacleSet):
+        colliders = ObstacleSet(colliders)
+    vias, n_hits = _avoid(line, seq, colliders)
+    best = (n_hits, line)
+    stale = 0
+    for _ in range(iterations):
+        if not vias or best[0] == 0:
+            break
+        # insert in order along the line: several vias can fall into the same stretch
+        trial = []
+        for k, g in enumerate(seq + [None]):
+            trial += [v for _, _, v in sorted((x for x in vias if x[0] == k), key=lambda x: x[1])]
+            if g is not None:
+                trial.append(g)
+        cand = plan(trial)
+        new_vias, new_hits = _avoid(cand, trial, colliders)
+        seq, vias = trial, new_vias            # keep going from here, remember the best line
+        if new_hits < best[0]:
+            best, stale = (new_hits, cand), 0
+        else:
+            stale += 1
+            if stale >= 2:
+                break
+    line = best[1]
+    line.vias = sum(1 for g in line.gates if getattr(g, "via", False))
+    line.touching = best[0]
+    return line
+
+
+def _via(center, direction):
+    g = Gate(tuple(center), tuple(direction), 6.0, 6.0, "via")
+    g.via = True
+    return g
+
+
+def guide_vias(seq):
+    """Liftoff's guide points around each gate (entry before, exit behind) as via points."""
+    out = []
+    for g in seq:
+        entry, exit_ = getattr(g, "entry", None), getattr(g, "exit", None)
+        if entry is not None and math.dist(entry, g.center) > 0.3:
+            v = _via(entry, g.normal)
+            v.role = "entry"
+            out.append(v)
+        out.append(g)
+        if exit_ is not None and math.dist(exit_, g.center) > 0.3:
+            v = _via(exit_, g.normal)
+            v.role = "exit"
+            out.append(v)
+    return out
+
+
+def align_vias(seq, max_angle=50.0):
+    """Approach / exit points for gates that are entered at a steep angle or from behind (turn-around
+    gates, stacked tower windows): the turn then happens in front of / behind the gate, not inside it.
+    Angles are judged against the previous / next real gate (guide points next to a gate do not count),
+    the approach point goes outside the guide point."""
+    from .geometry import cross, dot, norm, sub, unit
+    real = [i for i, g in enumerate(seq) if not getattr(g, "via", False)]
+    before, after = {}, {}
+    cos_max = math.cos(math.radians(max_angle))
+    for k, i in enumerate(real):
+        g = seq[i]
+        n = unit(g.normal)
+        guide_in = math.dist(g.entry, g.center) if getattr(g, "entry", None) is not None else 0.0
+        guide_out = math.dist(g.exit, g.center) if getattr(g, "exit", None) is not None else 0.0
+        if k > 0:
+            chord = sub(g.center, seq[real[k - 1]].center)
+            dist = norm(chord)
+            if dist > 1e-3 and dot(unit(chord), n) < cos_max:
+                ra = max(guide_in + 2.0, min(8.0, max(3.0, 0.3 * dist)))
+                before[i] = [_via(sub(g.center, mul(n, ra)), n)]
+                if dot(unit(chord), n) < -0.3:
+                    # entered from behind: first pass beside the gate (half width + 2.5 m) on the side we
+                    # come from, then turn in front of it - not tight around its posts
+                    side = unit(cross((0.0, 1.0, 0.0), n), (1.0, 0.0, 0.0))
+                    if dot(side, sub(seq[real[k - 1]].center, g.center)) < 0:
+                        side = mul(side, -1.0)
+                    beside = add(g.center, mul(side, getattr(g, "outer", g.width / 2) + 2.5))
+                    before[i].insert(0, _via(beside, n))
+        if k + 1 < len(real):
+            chord = sub(seq[real[k + 1]].center, g.center)
+            dist = norm(chord)
+            if dist > 1e-3 and dot(unit(chord), n) < cos_max:
+                re = max(guide_out + 2.0, min(8.0, max(3.0, 0.3 * dist)))
+                after[i] = _via(add(g.center, mul(n, re)), n)
+    out = []
+    for k, i in enumerate(real):
+        lo = real[k - 1] + 1 if k > 0 else 0
+        hi = real[k + 1] if k + 1 < len(real) else len(seq)
+        # elements between the previous real gate and this one: exit vias of the previous gate were
+        # already placed; here come the entry guide via(s) - the approach point goes before them
+        pre = [g for g in seq[lo:i] if getattr(g, "role", "") != "exit"]
+        if i in before:
+            out += before[i]
+        out += pre
+        out.append(seq[i])
+        post = [g for g in seq[i + 1:hi] if getattr(g, "role", "") == "exit"]
+        out += post
+        if i in after:
+            out.append(after[i])
+    head = [g for g in seq[:real[0]] if getattr(g, "role", "") == "exit"] if real else list(seq)
+    return out if real else list(seq)
+
+
+def _avoid(line, seq, colliders, step=0.5):
+    """Via points for the stretches where the line touches a solid item: [(insert index, Gate)]."""
+    from . import gatedb
+    from .geometry import cross, dot, norm, sub, unit
+    # where along the line each knot of the sequence lies (monotonic search)
+    knot_s, j = [], 0
+    for g in seq:
+        while j + 1 < len(line.points) and math.dist(line.points[j + 1], g.center) <= math.dist(line.points[j], g.center) + 1e-9:
+            j += 1
+        best = min(range(j, min(len(line.points), j + 400)), key=lambda i: math.dist(line.points[i], g.center))
+        knot_s.append(line.s[best])
+        j = best
+    real_s = [sk for sk, g in zip(knot_s, seq) if not getattr(g, "via", False)]
+    hits, last = [], -1e9
+    for i, p in enumerate(line.points):
+        if line.s[i] - last < step:
+            continue
+        last = line.s[i]
+        if line.s[i] < 8.0:
+            continue                          # lift-off: obstacles next to the start pad are not in the way
+        # in and right at a gate opening the frame is close by design: only the drone itself counts
+        margin = 0.2 if any(abs(line.s[i] - sk) < 1.5 for sk in real_s) else CLEARANCE
+        # below the line keep more room: at speed the drone sags (thrust drops with airspeed in
+        # Liftoff) and scraped a row of lane lights 1.3 m under the line (Autumn Fields 04)
+        name = colliders.blocked(p, margin, SAG if margin > 0.2 else 0.0)
+        if name:
+            hits.append((i, name))
+    if not hits:
+        return [], 0
+    # one via point per touching stretch (hits closer than 3 m belong together)
+    groups, cur = [], [hits[0]]
+    for h in hits[1:]:
+        if line.s[h[0]] - line.s[cur[-1][0]] < 3.0:
+            cur.append(h)
+        else:
+            groups.append(cur)
+            cur = [h]
+    groups.append(cur)
+    vias = []
+    for grp in groups:
+        i, _ = grp[len(grp) // 2]
+        p, t = line.points[i], line.tangent[i]
+        side = unit(cross((0.0, 1.0, 0.0), t), (1.0, 0.0, 0.0))
+        up = unit(cross(t, side), (0.0, 1.0, 0.0))
+        def blocked(q):
+            return colliders.blocked(q, CLEARANCE + 0.15, SAG) is not None
+        # the shortest way out of all items: sideways, up, down or diagonal
+        best_q, best_d = None, 1e9
+        for a in range(8):
+            ang = a * math.pi / 4
+            d = add(mul(side, math.cos(ang)), mul(up, math.sin(ang)))
+            dist = 0.25
+            while dist < 10.0 and blocked(add(p, mul(d, dist))):
+                dist += 0.25
+            if dist < best_d and dist < 10.0:
+                best_q, best_d = add(p, mul(d, dist + 0.2)), dist
+        if best_q is None:
+            continue
+        s_hit = line.s[i]
+        # keep vias apart from gates and from each other: close knots make kinks
+        if any(abs(s_hit - sk) < 2.5 for sk in real_s) or any(abs(s_hit - v[1]) < 6.0 for v in vias):
+            continue
+        via = Gate(best_q, t, 6.0, 6.0, "via")
+        via.via = True
+        pos = next((k for k, sk in enumerate(knot_s) if sk > s_hit), len(seq))
+        vias.append((pos, s_hit, via))
+    return vias, len(hits)
 
 
 class VisionAssist(threading.Thread):
@@ -61,11 +261,11 @@ class VisionAssist(threading.Thread):
 
     TITLE = "EasyPilot - Torerkennung"
 
-    def __init__(self, sess, gates, laps, k, start, start_dir, racer, overlay=True):
+    def __init__(self, sess, gates, laps, k, start, start_dir, racer, overlay=True, colliders=None):
         super().__init__(daemon=True)
         from .capture import FrameStream
         self.sess, self.laps, self.k, self.line_start, self.start_dir = sess, laps, k, start, start_dir
-        self.racer, self.overlay = racer, overlay
+        self.racer, self.overlay, self.colliders = racer, overlay, colliders
         self.frames = FrameStream(640, fps=60)
         self.gates = gates
         self.gate_map = None
@@ -117,9 +317,10 @@ class VisionAssist(threading.Thread):
             if s is not None and max(abs(v) for v in s.pos) > 1e-3:
                 self.gate_map.update(cam, s.quat, s.pos, dets)
             now = time.perf_counter()
-            if self.gate_map.version != planned_version and now - last_plan > 0.15:
+            if self.running and self.gate_map.version != planned_version and now - last_plan > 0.15:
                 planned_version, last_plan = self.gate_map.version, now
-                line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k)
+                line = build_line(self.gate_map.all_corrected(), self.line_start, self.start_dir, self.laps, self.k,
+                                  colliders=self.colliders)
                 self.racer.swap_line(line)
                 self.replans += 1
             n += 1
@@ -141,6 +342,138 @@ class VisionAssist(threading.Thread):
         self.running = False
 
 
+def race_gains():
+    """Controller gains for racing. EASYPILOT_GAINS="tilt=12,rate_smooth_tau=0.01" overrides single values
+    for tuning runs in Liftoff without editing code."""
+    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
+    for item in filter(None, os.environ.get("EASYPILOT_GAINS", "").split(",")):
+        key, value = item.split("=")
+        setattr(gains, key.strip(), type(getattr(gains, key.strip()))(float(value)))
+    return gains
+
+
+def fly(sess, gates, laps, k, vision=False, true_centers=None, on_step=None, max_time=None, colliders=None):
+    """Fly the race from where the drone stands now (after reset/countdown). Returns the result dict.
+
+    `on_step(state, racer)` is called every control step (live dashboard), `sess` may share its
+    telemetry receiver with a lap timer.
+    """
+    rates, thrust = load_model()
+    gains = race_gains()
+    s0 = sess.tel.wait()
+    start, start_dir = launch(gates[0], s0.pos)
+    line = build_line(gates, start, start_dir, laps, k, colliders=colliders)
+    racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
+    assist = None
+    if vision:
+        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer, colliders=colliders)
+        assist.start()
+        assist.window_ready.wait(30)
+        window.focus_liftoff(hard=False)
+    print(f"{len(line.gate_sequence)} gate passages ({laps} laps), line {line.length:.0f} m, "
+          f"planned {line.lap_time_estimate:.2f} s, v_max {max(line.speed):.1f} m/s")
+
+    stop = {"phase": None}
+
+    def finish_command(s, dt):
+        """After the finish: brake while climbing 2 m, then land slowly. Cutting the throttle at
+        30 m/s and 1 m height slammed the drone into the ground."""
+        if stop["phase"] is None:
+            v = s.vel
+            sp = math.hypot(v[0], v[2]) or 1e-6
+            dist = sp * sp / (2 * 14.0)
+            stop.update(phase="brake", p=(s.pos[0] + v[0] / sp * dist, max(s.pos[1], 1.5) + 2.0,
+                                          s.pos[2] + v[2] / sp * dist), look=(v[0] / sp, 0.0, v[2] / sp))
+        if stop["phase"] == "brake" and s.speed < 1.0:
+            stop["phase"] = "land"
+        v_ref = (0.0, 0.0, 0.0)
+        if stop["phase"] == "land":
+            p = stop["p"]
+            stop["p"] = (p[0], p[1] - 0.8 * dt, p[2])
+            v_ref = (0.0, -0.8, 0.0)
+            if stop["p"][1] < s.pos[1] - 0.6:          # reference sinks, drone does not: on the ground
+                return None
+        return racer.ctl.track(s, stop["p"], v_ref, (0.0, 0.0, 0.0), stop["look"])
+
+    # Liftoff holds the drone after the countdown until the throttle comes up from zero. If the
+    # countdown is longer than our wait (races with a mid-air start), our throttle was already up at
+    # GO and the drone hung there for the whole time limit (6 races, 16.11.): re-arm with a short
+    # zero-throttle pulse until it moves.
+    arm = {"moved": False, "since": None, "p0": None, "pulse": 0.0, "pulses": 0}
+
+    def armed(s):
+        if arm["moved"]:
+            return True
+        if arm["since"] is None:
+            arm["since"], arm["p0"] = s.t, s.pos
+        if math.dist(s.pos, arm["p0"]) > 0.03:
+            arm["moved"] = True
+            racer.ctl.reset()                     # estimates learned while held are nonsense
+            if arm["pulses"]:
+                print(f"drone released after {arm['pulses']} re-arm pulse(s)")
+            return True
+        if s.t < arm["pulse"]:
+            return False
+        if s.t - arm["since"] > 0.8:              # not moved for 0.8 s although we fly: re-arm
+            arm["pulse"] = s.t + 0.3
+            arm["since"], arm["p0"] = s.t + 0.3, s.pos
+            arm["pulses"] += 1
+            return False
+        return True
+
+    def step(s, dt):
+        if not armed(s):
+            return (0.0, 0.0, 0.0, 0.0)
+        if stop["phase"] or (racer.done and not racer.crashed):
+            c = finish_command(s, dt)
+            return None if c is None else c.as_tuple()
+        c = racer.step(s)
+        line = racer.line
+        d = racer.ctl.debug
+        e = sub(s.pos, line.points[racer.idx])
+        dist = racer.ctl.total_disturbance
+        sess.log(idx=racer.idx, gate=racer.progress.gate_index, v_ref=line.speed[racer.idx],
+                 xt=math.dist(s.pos, line.points[racer.idx]), e_vert=e[1], e_horiz=math.hypot(e[0], e[2]),
+                 d_x=dist[0], d_y=dist[1], d_z=dist[2], d_t=racer.ctl.thrust_offset, tilt_err=d.get("tilt_err_deg", 0),
+                 cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll, **state_row(s))
+        if on_step:
+            on_step(s, racer)
+        if racer.crashed:
+            return None
+        if racer.done:
+            c = finish_command(s, dt)
+            return None if c is None else c.as_tuple()
+        return c.as_tuple()
+
+    ok = sess.loop(step, max_time=max_time or line.lap_time_estimate * 2.5 + 20)
+    if assist:
+        assist.close()
+        # a replan still running holds the planner lock: the next run would wait for it after GO
+        assist.join(timeout=60)
+    log = sess.close()
+    p = racer.progress
+    result = {"aggressiveness": k, "laps": laps, "ok": ok and not racer.crashed,
+              "reason": "crash (drone stopped)" if racer.crashed else sess.reason,
+              "gates_passed": len(p.gate_times), "gates_total": len(line.gate_sequence), "missed": p.missed,
+              "time_s": round(p.gate_times[-1], 3) if p.gate_times else None, "splits": p.gate_times,
+              "planned_s": round(line.lap_time_estimate, 2), "max_cross_track_m": round(racer.max_cross_track, 2),
+              "log": str(log)}
+    if assist:
+        gm = assist.gate_map
+        result["vision"] = {"error": assist.error, "replans": assist.replans, "fps": round(assist.fps, 1),
+                            "gates_corrected": {g.name.split()[0]: [round(v, 2) for v in gm.offsets[i]]
+                                                for i, g in enumerate(gm.gates) if i in gm.offsets} if gm else {}}
+        if gm and true_centers:
+            res = {}
+            for i, g in enumerate(gm.gates):
+                if g.name in true_centers and math.dist(g.center, true_centers[g.name]) > 1e-6:
+                    res[g.name] = {"map_error_before_m": round(math.dist(g.center, true_centers[g.name]), 2),
+                                   "after_camera_m": round(math.dist(gm.corrected(i).center, true_centers[g.name]), 2),
+                                   "detections": gm.hits.get(i, 0)}
+            result["vision"]["perturbed"] = res
+    return result
+
+
 def main(argv):
     vision = "--vision" in argv
     perturb = {}
@@ -159,64 +492,12 @@ def main(argv):
         if g.name.split()[0] in perturb:
             g.center = tuple(a + b for a, b in zip(g.center, perturb[g.name.split()[0]]))
             print(f"perturbed {g.name} by {perturb[g.name.split()[0]]} m")
-    rates, thrust = load_model()
-    gains = Gains(tilt=16, yaw=4.0, pos=6.0, vel=5.0, drag=DRAG)
     sess = Session(f"race-{name}-{k}")
     sess.reset_drone(settle=4.5)   # race mode: wait for the 3-2-1 countdown
-    s0 = sess.tel.wait()
-    _, _, fwd = body_axes(s0.quat)
-    start, start_dir = launch(gates[0], s0.pos)
-    line = build_line(gates, start, start_dir, laps, k)
-    racer = Racer(line, FlightController(rates, thrust, gains), lookahead=0.12)
-    assist = None
-    if vision:
-        assist = VisionAssist(sess, gates, laps, k, start, start_dir, racer)
-        assist.start()
-        assist.window_ready.wait(30)
-        window.focus_liftoff(hard=False)
-    print(f"{race['name']}: {len(line.gate_sequence)} gate passages ({laps} laps), line {line.length:.0f} m, "
-          f"planned {line.lap_time_estimate:.2f} s, v_max {max(line.speed):.1f} m/s")
-    t0 = time.perf_counter()
-
-    def step(s, dt):
-        c = racer.step(s)
-        line = racer.line
-        d = racer.ctl.debug
-        e = sub(s.pos, line.points[racer.idx])
-        dist = racer.ctl.disturbance
-        sess.log(idx=racer.idx, gate=racer.progress.gate_index, v_ref=line.speed[racer.idx],
-                 xt=math.dist(s.pos, line.points[racer.idx]), e_vert=e[1], e_horiz=math.hypot(e[0], e[2]),
-                 d_x=dist[0], d_y=dist[1], d_z=dist[2], tilt_err=d.get("tilt_err_deg", 0),
-                 cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll, **state_row(s))
-        if racer.done:
-            return None
-        return c.as_tuple()
-
-    ok = sess.loop(step, max_time=line.lap_time_estimate * 2.5 + 10)
-    el = time.perf_counter() - t0
-    if assist:
-        assist.close()
-    log = sess.close()
-    p = racer.progress
-    result = {"race": race["name"], "aggressiveness": k, "laps": laps, "ok": ok and not racer.crashed,
-              "reason": "crash (drone stopped)" if racer.crashed else sess.reason,
-              "gates_passed": len(p.gate_times), "gates_total": len(line.gate_sequence), "missed": p.missed,
-              "time_s": round(p.gate_times[-1], 3) if p.gate_times else None,
-              "planned_s": round(line.lap_time_estimate, 2), "max_cross_track_m": round(racer.max_cross_track, 2),
-              "log": str(log)}
-    if assist:
-        gm = assist.gate_map
-        result["vision"] = {"error": assist.error, "replans": assist.replans, "fps": round(assist.fps, 1),
-                            "gates_corrected": {g.name.split()[0]: [round(v, 2) for v in gm.offsets[i]]
-                                                for i, g in enumerate(gm.gates) if i in gm.offsets} if gm else {}}
-        if gm and perturb:
-            res = {}
-            for i, g in enumerate(gm.gates):
-                if g.name.split()[0] in perturb:
-                    res[g.name] = {"map_error_before_m": round(math.dist(g.center, true_centers[g.name]), 2),
-                                   "after_camera_m": round(math.dist(gm.corrected(i).center, true_centers[g.name]), 2),
-                                   "detections": gm.hits.get(i, 0)}
-            result["vision"]["perturbed"] = res
+    from .envdb import for_track
+    result = fly(sess, gates, laps, k, vision=vision, true_centers=true_centers if perturb else None,
+                 colliders=for_track(track))
+    result["race"] = race["name"]
     print(json.dumps(result, indent=1))
     RUNS.mkdir(exist_ok=True)
     with (RUNS / "race_results.jsonl").open("a") as f:

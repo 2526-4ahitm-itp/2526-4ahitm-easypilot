@@ -33,8 +33,8 @@ def main(argv):
         ctl.observe(s)
         c = ctl.track(s, p, (0, 0, 0), (0, 0, 0), ref["look"])
         sess.log(cmd_t=c.throttle, cmd_y=c.yaw, cmd_p=c.pitch, cmd_r=c.roll,
-                 tilt_err=ctl.debug["tilt_err_deg"], dx=ctl.disturbance[0], dy=ctl.disturbance[1],
-                 dz=ctl.disturbance[2], **state_row(s))
+                 tilt_err=ctl.debug["tilt_err_deg"], dx=ctl.total_disturbance[0], dy=ctl.total_disturbance[1],
+                 dz=ctl.total_disturbance[2], **state_row(s))
         return c.as_tuple()
 
     ok = sess.loop(step, max_time=seconds + 1)

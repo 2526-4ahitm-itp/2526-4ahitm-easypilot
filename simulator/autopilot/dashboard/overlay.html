@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>EasyPilot Overlay</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="overlay">
+<div class="ov">
+  <div>
+    <div class="pilot" id="pilot">–</div>
+    <div id="stage"></div>
+  </div>
+  <div class="clock num" id="clock">0,00</div>
+  <div><div class="label">Tor</div><div class="big-stat num" id="gate">–</div></div>
+  <div><div class="label">zum Bot</div><div class="big-stat num" id="delta">–</div></div>
+</div>
+<script src="/static/app.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+function render(s) {
+  const st = s.stage ? EP.stage(s.stage) : null;
+  $("pilot").textContent = s.pilot || "EasyPilot Challenge";
+  $("stage").innerHTML = st ? `<span class="badge" style="background:${st.color}">Stufe ${st.level} · Bot ${EP.fmt(s.bot_time)} s</span>` : "";
+  $("gate").textContent = s.phase === "idle" ? "–" : `${s.gate}/${s.gates_total}`;
+  const d = $("delta");
+  d.textContent = s.delta === null ? "–" : EP.fmtDelta(s.delta);
+  d.className = "big-stat num " + (s.delta === null ? "" : s.delta < 0 ? "good" : "bad");
+}
+function frame() { if (EP.state) $("clock").textContent = s_clock(); requestAnimationFrame(frame); }
+function s_clock() { return EP.state.phase === "countdown" ? String(EP.state.countdown) : EP.fmt(EP.elapsed()); }
+EP.loadTrack().then(() => { EP.poll(render); frame(); });
+</script>
+</body>
+</html>

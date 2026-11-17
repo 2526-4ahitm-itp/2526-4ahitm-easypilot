@@ -30,13 +30,18 @@ class Racer:
         self.stuck_time = 0.0
         self.last_t = None
         self.crashed = False
+        self.off_time = 0.0
+        self.gate_s = None
 
     def step(self, state):
         line, prog = self.line, self.progress
         if prog.start_t is None:
             prog.start_t = state.t
         self.ctl.observe(state)
-        self.idx = line.closest(state.pos, self.idx)
+        # search only a short way ahead (0.2 s of flight + 4 m): where the course crosses or comes
+        # back near itself, a long window jumped to a later part and skipped gates
+        step = line.length / max(1, len(line.points) - 1)
+        self.idx = line.closest(state.pos, self.idx, window=int((state.speed * 0.2 + 4.0) / max(step, 0.05)) + 2)
         # crash: the line wants speed but the drone stands still (caught in a gate, on the ground)
         dt = state.t - self.last_t if self.last_t is not None else 0.0
         self.last_t = state.t
@@ -45,13 +50,21 @@ class Racer:
             self.crashed = self.crashed or self.stuck_time > 0.6
         else:
             self.stuck_time = 0.0
+        # lost: far off the line for a while (hit a frame and hangs on it, or drifts away)
+        # (only after the first gate: at the start the line is at gate height, the drone climbs to it)
+        off = norm(sub(state.pos, line.points[self.idx]))
+        self.off_time = self.off_time + dt if (off > 3.0 and prog.gate_index >= 1) else 0.0
+        self.crashed = self.crashed or self.off_time > 1.5
         speed_here = line.speed[self.idx]
-        p_ref, v_ref, a_ref, tangent = line.reference(self.idx, self.lookahead * max(2.0, speed_here) * 0.3)
+        # continuous position along the line, the reference interpolated between the line points
+        s_here = line.project(state.pos, self.idx)
+        p_ref, v_ref, a_ref, tangent = line.reference_s(s_here + self.lookahead * max(2.0, speed_here) * 0.3)
         cross_track = norm(sub(state.pos, line.points[self.idx]))
         self.max_cross_track = max(self.max_cross_track, cross_track)
         # look where we are going: ahead along the line
-        _, _, _, ahead = line.reference(self.idx, max(3.0, 0.4 * speed_here))
+        _, _, _, ahead = line.reference_s(s_here + max(3.0, 0.4 * speed_here))
         cmd = self.ctl.track(state, p_ref, v_ref, a_ref, ahead)
+        self.last_ref, self.last_cmd, self.last_v_ref = p_ref, cmd, speed_here   # live debug view
         self._score(state)
         return cmd
 
@@ -61,8 +74,20 @@ class Racer:
             gate = self.line.gate_sequence[prog.gate_index]
             a = dot(sub(self.prev_pos, gate.center), gate.normal)
             b = dot(sub(state.pos, gate.center), gate.normal)
-            if a < 0 <= b and norm(sub(state.pos, gate.center)) < 3 * max(gate.width, gate.height):
-                if gate.crossed(self.prev_pos, state.pos, 0.0):
+            volume = getattr(gate, "volume", None) is not None and not getattr(gate, "thin", True)
+            done = None
+            if gate.passed(self.prev_pos, state.pos):
+                done = True
+            elif volume:
+                # volume checkpoints: missed once the drone is well past it along the line
+                if self.gate_s is None:
+                    self.gate_s = self.line.gate_positions()
+                if self.line.s[self.idx] > self.gate_s[prog.gate_index] + 15.0:
+                    done = False
+            elif a < 0 <= b and norm(sub(state.pos, gate.center)) < 3 * max(gate.width, gate.height):
+                done = False
+            if done is not None:
+                if done:
                     prog.gate_times.append(state.t - prog.start_t)
                 else:
                     prog.missed.append(prog.gate_index)
@@ -76,6 +101,7 @@ class Racer:
         s_now = self.line.s[self.idx]
         self.idx = new_line.index_at(s_now)
         self.line = new_line
+        self.gate_s = None
 
     @property
     def done(self):

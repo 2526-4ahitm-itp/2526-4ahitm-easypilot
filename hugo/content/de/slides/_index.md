@@ -6,6 +6,7 @@ weight: 6
 
 | Präsentation | Stand | Format |
 |---|---|---|
+| **[Autonomes Rennen – TDOT (reveal.js)](../presentations/autonomes-rennen/)** | 17.11.2026 | reveal.js, Tag der offenen Tür: wie der Autopilot fliegt, mit Bildern der Live-Debug-Ansicht; Sprechernotizen mit „S“ |
 | **[Projektstand (reveal.js)](../presentations/projektstand/)** | 14.10.2026 | reveal.js – die offizielle Projektpräsentation |
 | [Projektstand (Hugo-Folien)](./projektstand/) | 14.10.2026 | gleicher Inhalt, Folien-Engine der Doku |
 | [iOS-App](../presentations/ios-app/slides.html) | 12.10.2026 | reveal.js, dazu [PDF](../presentations/ios-app/EasyPilot-iOS.pdf) |

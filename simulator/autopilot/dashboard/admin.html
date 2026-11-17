@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasyPilot Bedienung</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="admin">
+  <h1>EasyPilot Challenge – Bedienung</h1>
+  <div class="panel">
+    <h2>Status</h2>
+    <div id="status" class="big-stat">–</div>
+    <div id="msg" class="muted"></div>
+    <p><button class="stop" onclick="send({action:'abort'})">Lauf abbrechen</button></p>
+  </div>
+  <div class="panel">
+    <h2>Nächste:r Pilot:in</h2>
+    <div class="grid">
+      <input id="name" placeholder="Vorname / Spitzname" maxlength="24" autocomplete="off">
+      <select id="stage"></select>
+    </div>
+    <p><button onclick="human()">In die Warteschlange</button></p>
+    <div id="queue"></div>
+  </div>
+  <div class="panel">
+    <h2>Autopilot-Referenzlauf</h2>
+    <p class="muted">Einmal pro Stufe vor dem Event fliegen lassen (beste Zeit zählt, gibt die Geist-Linie).</p>
+    <div class="bots" id="bots"></div>
+  </div>
+  <div class="panel">
+    <h2>Letzte Läufe</h2>
+    <table id="recent"></table>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const key = new URLSearchParams(location.search).get("key") || "";
+const PHASES = {idle: "frei", ready: "Vorbereitung", countdown: "Countdown", racing: "läuft", finished: "im Ziel",
+                dnf: "nicht gewertet", error: "Fehler"};
+
+async function send(cmd) {
+  const r = await fetch("/api/command?key=" + encodeURIComponent(key), {method: "POST", body: JSON.stringify(cmd)});
+  const j = await r.json();
+  if (!j.ok) alert(j.error || "Fehler");
+  return j;
+}
+function human() {
+  const name = $("name").value.trim();
+  if (!name) { $("name").focus(); return; }
+  send({action: "human", name, stage: +$("stage").value}).then(j => { if (j.ok) $("name").value = ""; });
+}
+$("name").addEventListener("keydown", e => { if (e.key === "Enter") human(); });
+
+function render(s) {
+  $("status").textContent = (PHASES[s.phase] || s.phase) + (s.pilot ? " – " + s.pilot : "") +
+    (s.phase === "racing" ? ` (${EP.fmt(s.elapsed)} s, Tor ${s.gate}/${s.gates_total})` : "");
+  $("msg").textContent = s.message || "";
+  $("queue").innerHTML = s.waiting.map(q => `<div>${esc(q.name)} · Stufe ${q.stage}
+    <button class="small" onclick="send({action:'dequeue', id:'${q.id}'})">entfernen</button></div>`).join("");
+  $("recent").innerHTML = s.board.recent.map(r => `<tr><td>${r.stage}</td><td>${esc(r.name)}</td>
+    <td class="t num">${r.time === null ? "–" : EP.fmt(r.time) + " s"}${r.beat_bot ? " 🏆" : ""}</td>
+    <td><button class="small" onclick="if(confirm('Lauf löschen?')) send({action:'delete', id:'${r.id}'})">löschen</button></td></tr>`).join("");
+}
+EP.loadTrack().then(tr => {
+  $("stage").innerHTML = tr.stages.map(s => `<option value="${s.level}">Stufe ${s.level} – ${s.name}</option>`).join("");
+  $("bots").innerHTML = tr.stages.map(s =>
+    `<button style="background:${s.color};color:#111;border:0" onclick="send({action:'bot', stage:${s.level}})">Stufe ${s.level}</button>`).join("");
+  EP.poll(render, 400);
+});
+</script>
+</body>
+</html>

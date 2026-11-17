@@ -7,6 +7,7 @@ Every autonomous mode (sysid, racing, waypoint flight) runs through `Session.loo
 import csv
 import ctypes
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -15,7 +16,9 @@ from . import window
 from .telemetry import Telemetry
 from .vjoy import BTN_RESET, VJoy
 
-RUNS = Path(__file__).resolve().parent / "runs"
+# logs, recordings, dataset and results: big and machine-local, so outside the repo / OneDrive
+# (EASYPILOT_RUNS overrides, e.g. a second disk)
+RUNS = Path(os.environ.get("EASYPILOT_RUNS") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "EasyPilot" / "runs")
 user32 = ctypes.windll.user32 if sys.platform == "win32" else None  # Windows only, see window.py
 VK_F9 = 0x78
 
@@ -25,11 +28,14 @@ def key_down(vk):
 
 
 class Session:
-    def __init__(self, name="run", rate_hz=250, focus=True, log=True):
+    def __init__(self, name="run", rate_hz=250, focus=True, log=True, tel=None):
         self.name = name
         self.period = 1.0 / rate_hz
-        self.tel = Telemetry()
-        self.tel.start()
+        # an outside receiver (e.g. the TDOT event with its lap timer) can be shared
+        self.own_tel = tel is None
+        self.tel = tel or Telemetry()
+        if self.own_tel:
+            self.tel.start()
         self.joy = VJoy()
         ctypes.windll.winmm.timeBeginPeriod(1)
         if focus:
@@ -37,6 +43,7 @@ class Session:
         self.log_rows = [] if log else None
         self.log_header = None
         self.reason = ""
+        self.refocused = 0
 
     def reset_drone(self, settle=1.5):
         """Press the Reset button (Rewired action 'Reset' on vJoy button 2) and wait for the respawn."""
@@ -60,6 +67,7 @@ class Session:
             return False
         resets0 = self.tel.resets
         t0 = last = time.perf_counter()
+        lost_since, last_refocus = None, 0.0
         last_t = s.t
         try:
             while True:
@@ -70,16 +78,34 @@ class Session:
                 if key_down(VK_F9):
                     self.reason = "F9 pressed"
                     return False
-                s = self.tel.latest(0.1)
+                s = self.tel.latest(0.3)          # Liftoff hitches (first flight after start) pause physics too
                 if s is None:
-                    self.reason = "telemetry stale"
-                    return False
+                    # streaming in a far part of the level can stall Liftoff for more than 0.3 s
+                    # (Permafrost04, MarinaBay05, Rustline03 ended here, 16.11.): wait up to 1.5 s
+                    s = self.tel.latest(1.5)
+                    if s is None:
+                        self.reason = "telemetry stale"
+                        return False
+                    time.sleep(0.002)
+                    if s.t == last_t:
+                        continue
                 if self.tel.resets != resets0:
                     self.reason = "drone reset / crash respawn"
                     return False
                 if need_focus and not window.is_focused():
-                    self.reason = "Liftoff lost focus"
-                    return False
+                    # another window jumped in front (notification, chat app): take the focus
+                    # back at once, give up only if that does not work within a second
+                    if lost_since is None:
+                        lost_since = now
+                    if now - lost_since > 1.0:
+                        self.reason = "Liftoff lost focus"
+                        return False
+                    if now - last_refocus > 0.1:
+                        window.refocus_quick()
+                        last_refocus = now
+                        self.refocused += 1
+                else:
+                    lost_since = None
                 if s.t == last_t:
                     time.sleep(0.0005)
                     continue
@@ -105,7 +131,8 @@ class Session:
 
     def close(self):
         self.joy.close()
-        self.tel.close()
+        if self.own_tel:
+            self.tel.close()
         ctypes.windll.winmm.timeEndPeriod(1)
         if self.log_rows:
             RUNS.mkdir(exist_ok=True)
