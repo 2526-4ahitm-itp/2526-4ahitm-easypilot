@@ -24,7 +24,16 @@ VK_F9 = 0x78
 
 
 def key_down(vk):
+    if sys.platform == "darwin":
+        from .window_mac import key_down_f9
+        return vk == VK_F9 and key_down_f9()
     return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+
+
+def timer_resolution(begin):
+    """1 ms sleep resolution on Windows (default 15.6 ms); macOS: see Session._idle."""
+    if sys.platform == "win32":
+        (ctypes.windll.winmm.timeBeginPeriod if begin else ctypes.windll.winmm.timeEndPeriod)(1)
 
 
 class Session:
@@ -37,7 +46,7 @@ class Session:
         if self.own_tel:
             self.tel.start()
         self.joy = VJoy()
-        ctypes.windll.winmm.timeBeginPeriod(1)
+        timer_resolution(True)
         if focus:
             window.focus_liftoff(hard=False)
         self.log_rows = [] if log else None
@@ -107,7 +116,7 @@ class Session:
                 else:
                     lost_since = None
                 if s.t == last_t:
-                    time.sleep(0.0005)
+                    self._idle()
                     continue
                 dt = now - last
                 last, last_t = now, s.t
@@ -117,10 +126,20 @@ class Session:
                     return True
                 self.joy.sticks(*cmd)
                 sleep = self.period - (time.perf_counter() - now)
-                if sleep > 0:
+                if sleep > 0 and sys.platform != "darwin":
                     time.sleep(sleep)
         finally:
             self.joy.idle()
+
+    def _idle(self):
+        """Wait for the next telemetry packet. macOS throttles short sleeps of a background
+        process while Liftoff is in front (a 4 ms sleep took ~80 ms, loop at 14 Hz on 18.11.2026),
+        so there the loop wakes on the packet itself."""
+        if sys.platform == "darwin":
+            self.tel.fresh.wait(0.05)
+            self.tel.fresh.clear()
+        else:
+            time.sleep(0.0005)
 
     def log(self, **row):
         if self.log_rows is None:
@@ -133,7 +152,7 @@ class Session:
         self.joy.close()
         if self.own_tel:
             self.tel.close()
-        ctypes.windll.winmm.timeEndPeriod(1)
+        timer_resolution(False)
         if self.log_rows:
             RUNS.mkdir(exist_ok=True)
             path = RUNS / f"{self.name}-{time.strftime('%Y%m%d-%H%M%S')}.csv"

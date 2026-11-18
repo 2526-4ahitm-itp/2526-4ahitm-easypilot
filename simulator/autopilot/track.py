@@ -18,8 +18,7 @@ from pathlib import Path
 from .geometry import axis_angle, qmul, qrot
 from .planner import Gate
 
-GAME = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Liftoff\Liftoff_Data")
-BUNDLES = GAME / "StreamingAssets/aa/StandaloneWindows64"
+from .paths import BUNDLES, GAME, LIFTOFF_USER
 TRACK_DIR = Path(__file__).resolve().parent / "tracks"
 XSI = "{http://www.w3.org/2001/XMLSchema-instance}type"
 
@@ -249,7 +248,7 @@ def obstacles(track):
 
 
 # tracks and races built in Liftoff's own editor (custom maps)
-USER_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff"
+USER_DIR = LIFTOFF_USER
 
 
 def search_dirs():

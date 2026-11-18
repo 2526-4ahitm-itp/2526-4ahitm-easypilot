@@ -22,8 +22,7 @@ from pathlib import Path
 
 from .geometry import qrot
 
-GAME = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Liftoff\Liftoff_Data")
-BUNDLES = GAME / "StreamingAssets/aa/StandaloneWindows64"
+from .paths import BUNDLES, GAME, LIFTOFF_USER
 DB_PATH = Path(__file__).resolve().parent / "tracks" / "gatedb.json"
 _DB = None
 
@@ -224,7 +223,7 @@ class _Extractor:
 def item_names():
     from .track import TRACK_DIR, load_track
     names = set()
-    for p in list(TRACK_DIR.glob("*Track*.xml")) + list((Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff/Tracks").glob("*.xml")):
+    for p in list(TRACK_DIR.glob("*Track*.xml")) + list((LIFTOFF_USER / "Tracks").glob("*.xml")):
         try:
             names.update(b.item for b in load_track(p)["blueprints"])
         except Exception:
