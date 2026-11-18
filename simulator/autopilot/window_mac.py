@@ -24,7 +24,11 @@ def _windows():
 
 
 def _liftoff_windows():
-    return [w for w in _windows() if w.get("kCGWindowOwnerName") == APP_NAME and w.get("kCGWindowLayer", 1) == 0]
+    # all windows, not only on-screen ones: a hidden or minimised Liftoff must still be found
+    # (Studio then unhides it in focus_liftoff)
+    wins = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID) or []
+    return [w for w in wins if w.get("kCGWindowOwnerName") == APP_NAME and w.get("kCGWindowLayer", 1) == 0
+            and w["kCGWindowBounds"]["Width"] > 200]
 
 
 def find_window(title="liftoff"):
@@ -32,7 +36,9 @@ def find_window(title="liftoff"):
     wins = _liftoff_windows()
     if not wins:
         return None
-    return max(wins, key=lambda w: w["kCGWindowBounds"]["Width"] * w["kCGWindowBounds"]["Height"])
+    # Liftoff also owns an invisible 500x500 helper window; prefer the titled game window
+    return max(wins, key=lambda w: (w.get("kCGWindowName") == APP_NAME, bool(w.get("kCGWindowIsOnscreen")),
+                                    w["kCGWindowBounds"]["Width"] * w["kCGWindowBounds"]["Height"]))
 
 
 def _app(win=None):
@@ -48,6 +54,8 @@ def focus_liftoff(hard=True):
     if win is None:
         raise RuntimeError("Liftoff window not found")
     app = _app(win)
+    if app.isHidden():
+        app.unhide()
     if hard:
         app.hide()
         time.sleep(0.4)
