@@ -20,9 +20,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import window
+from .paths import IS_MAC, LIFTOFF_USER
 from .track import find, load_race, load_race_with_track, load_track, TRACK_DIR, USER_DIR
 
-LIFTOFF_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff"
+LIFTOFF_DIR = LIFTOFF_USER
 USER_DATA = LIFTOFF_DIR / "Saves/Player/UserData.xml"
 LAP_TIMES = LIFTOFF_DIR / "LapTimes/lapTimes.xml"
 # point-to-point races (start and finish apart) end at the finish: Liftoff stores the race time here,
@@ -95,6 +96,8 @@ def catalog():
 
 
 def liftoff_running():
+    if IS_MAC:
+        return subprocess.run(["pgrep", "-x", "Liftoff"], capture_output=True).returncode == 0
     out = subprocess.run(["tasklist", "/fi", "imagename eq Liftoff.exe"], capture_output=True, text=True).stdout
     return "Liftoff.exe" in out
 
@@ -102,7 +105,10 @@ def liftoff_running():
 def quit_liftoff():
     """Kill, not quit: a clean quit would write UserData.xml again and undo our edit."""
     if liftoff_running():
-        subprocess.run(["taskkill", "/im", "Liftoff.exe", "/f"], capture_output=True)
+        if IS_MAC:
+            subprocess.run(["pkill", "-9", "-x", "Liftoff"], capture_output=True)
+        else:
+            subprocess.run(["taskkill", "/im", "Liftoff.exe", "/f"], capture_output=True)
         for _ in range(50):
             if not liftoff_running():
                 break
@@ -125,7 +131,10 @@ def start_and_open_last_session(tel=None, timeout=600.0):
     """Start Liftoff (if needed), Quick Play > Last Session, wait until the drone is in the level."""
     from .ui import click_capture
     if not liftoff_running():
-        subprocess.run(["cmd", "/c", "start", "", STEAM_APP])
+        if IS_MAC:
+            subprocess.run(["open", STEAM_APP])
+        else:
+            subprocess.run(["cmd", "/c", "start", "", STEAM_APP])
     end = time.time() + timeout         # Steam may update Liftoff first
     while True:
         try:

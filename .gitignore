@@ -110,3 +110,6 @@ nb-configuration.xml
 # ==========================
 .gemini/tmp/
 .gemini/memory.json
+
+# macOS autopilot Python env (simulator/mac/setup.sh)
+simulator/.venv/

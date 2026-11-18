@@ -462,6 +462,8 @@ class Studio:
 
 def arrange_liftoff(mode="quarter"):
     """Borderless Liftoff window in the top-left quarter of the main screen, always on top."""
+    if sys.platform == "darwin":
+        return arrange_liftoff_mac(mode)
     import ctypes
     user32 = ctypes.windll.user32
     hwnd = window.find_window()
@@ -478,6 +480,18 @@ def arrange_liftoff(mode="quarter"):
     HWND_TOPMOST, SWP_FRAMECHANGED, SWP_SHOWWINDOW = -1, 0x0020, 0x0040
     user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW)
     return True
+
+
+def arrange_liftoff_mac(mode="quarter"):
+    """macOS: move/resize the window (no borderless/always-on-top from outside the app)."""
+    from . import window_mac
+    if window_mac.find_window() is None:
+        return False
+    sw, sh = window_mac._screen_size()
+    if mode == "full":
+        return window_mac.arrange(0, 0, int(sw), int(sh))
+    w = int(sw) // 2
+    return window_mac.arrange(0, 25, w, w * 9 // 16 + window_mac.TITLE_BAR)
 
 
 def make_handler(studio, admin_key):
@@ -580,6 +594,11 @@ def make_handler(studio, admin_key):
 
 def open_browser(url):
     """Edge/Chrome as an app window in fullscreen (kiosk-like), else the default browser."""
+    if sys.platform == "darwin":
+        for app in ("Google Chrome", "Microsoft Edge"):
+            if Path(f"/Applications/{app}.app").exists():
+                subprocess.Popen(["open", "-na", app, "--args", f"--app={url}", "--start-fullscreen", "--new-window"])
+                return
     for exe in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe"):
         if Path(exe).exists():
