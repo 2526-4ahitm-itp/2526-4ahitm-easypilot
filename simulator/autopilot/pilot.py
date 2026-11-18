@@ -23,6 +23,11 @@ STICKS = ("throttle", "yaw", "pitch", "roll")
 
 
 def _pygame():
+    if sys.platform == "darwin":
+        # Studio reads the controller from a worker thread; SDL's Cocoa video driver may only start
+        # on the main thread (NSInternalInconsistencyException). Joysticks work without it.
+        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
     import pygame
     if not pygame.get_init():
         pygame.init()
@@ -30,14 +35,24 @@ def _pygame():
     return pygame
 
 
+def _is_virtual(joy):
+    """vJoy on Windows; on macOS the OpenJoystickDriver pad of mac/ojdpad.py. It shows up as an
+    Xbox Wireless Controller (045e:0b13, the Bluetooth product id) on the USB bus, which a real
+    pad does not: over USB a real Xbox Series pad reports 0b12, over Bluetooth bus 05."""
+    if "vjoy" in joy.get_name().lower():
+        return True
+    guid = joy.get_guid() if hasattr(joy, "get_guid") else ""
+    return sys.platform == "darwin" and guid.startswith("0300") and guid[8:20] == "5e040000130b"
+
+
 def controllers():
-    """(index, name) of all joysticks except vJoy itself."""
+    """(index, name) of all joysticks except the virtual one the autopilot drives."""
     pg = _pygame()
     out = []
     for i in range(pg.joystick.get_count()):
-        name = pg.joystick.Joystick(i).get_name()
-        if "vjoy" not in name.lower():
-            out.append((i, name))
+        joy = pg.joystick.Joystick(i)
+        if not _is_virtual(joy):
+            out.append((i, joy.get_name()))
     return out
 
 
@@ -50,7 +65,7 @@ class Controller:
         pg = _pygame()
         match = [i for i, name in controllers() if name == cfg["name"]] or [i for i, _ in controllers()]
         if not match:
-            raise RuntimeError("no controller connected (vJoy does not count)")
+            raise RuntimeError("no controller connected (the virtual pad does not count)")
         self.pg = pg
         self.joy = pg.joystick.Joystick(match[0])
         self.joy.init()

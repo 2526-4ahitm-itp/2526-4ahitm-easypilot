@@ -77,6 +77,29 @@ cd simulator
 .venv/bin/python -m unittest discover -s autopilot/tests -t . -v   # ohne Liftoff
 ```
 
+## Studio (Demo für den Tag der offenen Tür)
+
+`autopilot/studio.py` läuft auch am Mac. Vorher müssen OpenJoystickDriver und `ojdpad.py` laufen,
+und die Strecken müssen einmal extrahiert sein (`.venv/bin/python -m autopilot.track extract`).
+
+```bash
+cd simulator
+.venv/bin/python -m autopilot.studio            # http://localhost:8765/
+```
+
+Was am Mac anders ist:
+
+- **Liftoff im Fenstermodus** (Unity-Prefs, Liftoff vorher beenden):
+  `defaults write "$HOME/Library/Preferences/unity.LuGus Studios.Liftoff.plist" "Screenmanager Fullscreen mode" -int 3`.
+  Die Auflösung zählt in Pixeln, auf einem Retina-Bildschirm ergibt 2560×1440 ein Fenster mit
+  1280×720 Punkten. Im Vollbild verdeckt Liftoff alles, und man kommt nicht mehr zu anderen Apps.
+- **DJI-FPV-DLC:** Die Bedingungen einmal akzeptieren. Abgelehnt erscheint der Dialog bei jedem
+  Start wieder und blockiert das Laden der Strecke.
+- **Mensch fliegt:** Der Controller wird über pygame gelesen. Das virtuelle Gamepad wird
+  herausgefiltert (`pilot._is_virtual`), getestet ist das mit einem echten Controller noch nicht.
+- Getestet am 18.11.2026: StrawBaleRace01 wird über das Studio geladen (~50 s). Autopilot Stufe 3:
+  17/17 Tore, 34,08 s.
+
 ## Grenzen
 
 - Liftoff bleibt im Fenstermodus oder Vollbild; `studio` kann das Fenster unter macOS nur
