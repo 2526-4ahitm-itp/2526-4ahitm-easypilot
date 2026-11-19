@@ -281,3 +281,9 @@ body.studio .countdown { position: fixed; inset: 0; z-index: 5; display: none; f
 .board #dbgChart { height: 100%; }
 
 @media (prefers-reduced-motion: reduce) { body.studio * { transition: none !important; } }
+
+/* ------------------------------------------------------------------ separate windows (macOS) */
+body.studio.view-right, body.studio.view-panel { grid-template-rows: 1fr; }
+body.studio.view-right .bottom, body.studio.view-panel .top, body.studio.view-right .slot { display: none; }
+body.studio.view-right .top { grid-template-columns: 1fr; }
+body.studio.view-panel .bottom { padding-top: 0; }

@@ -2,6 +2,9 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const KEY = new URLSearchParams(location.search).get("key") || "";
+// ?view=right: only the autopilot half, ?view=panel: only the race control (separate windows on the Mac)
+const VIEW = new URLSearchParams(location.search).get("view") || "";
+if (VIEW) document.body.classList.add("view-" + VIEW);
 const ENV_NAMES = {StrawBale: "Straw Bale", AutumnFields: "Autumn Fields", BandoCity: "Bando City",
   BardwellsYard: "Bardwell's Yard", DubaiLegends: "Dubai Legends", Hall26: "Hall 26", HangarC03: "Hangar C03",
   Hannover: "Hannover", LiftoffArena: "Liftoff Arena", MarinaBay: "Marina Bay", MinusTwo: "Minus Two",
@@ -81,6 +84,8 @@ $("visionOn").onchange = () => cmd({action: "settings", vision: $("visionOn").ch
 // live debug view during autopilot runs (on by default, remembered in this browser)
 try { $("dbgOn").checked = localStorage.getItem("ep-debug") !== "0"; } catch (e) {}
 $("dbgOn").onchange = () => { try { localStorage.setItem("ep-debug", $("dbgOn").checked ? "1" : "0"); } catch (e) {} };
+// the setting is clicked in the panel window, the autopilot window has to follow
+addEventListener("storage", e => { if (e.key === "ep-debug") $("dbgOn").checked = e.newValue !== "0"; });
 TV.attachDrag($("dbgPlan"));
 let showDbg = false;
 $("streamLeft").onchange = () => {
@@ -205,13 +210,13 @@ function render(s) {
   TV.update(s.debug);
   $("dbg").classList.toggle("hidden", !showDbg);
   const dimg = $("dbgImg");
-  if (showDbg && !dimg.getAttribute("src")) dimg.src = "/api/live.mjpg";
+  if (showDbg && VIEW !== "panel" && !dimg.getAttribute("src")) dimg.src = "/api/live.mjpg";
   if (!showDbg && dimg.getAttribute("src")) dimg.removeAttribute("src");
   $("map").classList.toggle("hidden", showDbg);
   $("dbgPlanBox").classList.toggle("hidden", !showDbg);
   $("dbgChart").classList.toggle("hidden", !showDbg);
   $("boardBody").classList.toggle("hidden", showDbg);
-  const showVideo = running && !!s.video && !showDbg;
+  const showVideo = running && !!s.video && !showDbg && VIEW !== "panel";
   const v = $("botVideo");
   v.style.display = showVideo ? "block" : "none";
   $("bigMap").style.display = showVideo || showDbg ? "none" : "block";

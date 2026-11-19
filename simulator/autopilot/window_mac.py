@@ -14,6 +14,12 @@ import AppKit
 import Quartz
 
 APP_NAME = "Liftoff"
+# pyobjc resolves Quartz names lazily and that is not thread-safe: two Studio windows polling at
+# once gave KeyError: 'CGWindowListCopyWindowInfo' (19.11.). Resolve them once at import.
+for _name in ("CGWindowListCopyWindowInfo", "CGDisplayBounds", "CGMainDisplayID", "CGEventCreateMouseEvent",
+              "CGEventPost", "CGEventSourceKeyState"):
+    getattr(Quartz, _name)
+
 TITLE_BAR = 28          # windowed Liftoff has a standard title bar above the game image
 _front_cache = (0.0, None)
 

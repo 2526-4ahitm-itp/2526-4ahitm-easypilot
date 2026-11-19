@@ -152,7 +152,7 @@
         <h3>Bildschirm</h3>
         <p class="muted">Liftoff liegt randlos oben links und bleibt im Vordergrund. Diese Seite im Vollbild (F11) daneben.</p>
         <div class="row-buttons">
-          <button onclick="cmd({action:'layout', mode:'quarter'})">Liftoff anordnen</button>
+          <button onclick="cmd({action:'layout', mode:'quarter', url: location.origin + '/' + (KEY ? '?key=' + encodeURIComponent(KEY) : '')})">Liftoff anordnen</button>
           <button onclick="cmd({action:'layout', mode:'full'})">Liftoff im Vollbild</button>
         </div>
         <label class="opt"><input type="checkbox" id="streamLeft"> Live-Bild als Stream zeigen, wenn Liftoff auf einem anderen Bildschirm läuft</label>

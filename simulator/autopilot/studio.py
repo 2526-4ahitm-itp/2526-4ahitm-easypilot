@@ -251,7 +251,16 @@ class Studio:
                 self._select(self.race, self.settings["laps"])
             return {"ok": True}
         if a == "layout":
-            return {"ok": arrange_liftoff(cmd.get("mode", "quarter"))}
+            mode = cmd.get("mode", "quarter")
+            self.settings["layout"] = mode
+            self.save_settings()
+            ok = arrange_liftoff(mode)
+            if sys.platform == "darwin" and mode == "quarter" and cmd.get("url"):
+                ok = arrange_studio_windows_mac(cmd["url"]) and ok
+            if not ok and sys.platform == "darwin":
+                return {"ok": False, "error": "Liftoff-Fenster lässt sich nicht verschieben: Liftoff läuft nicht, oder "
+                        "das Terminal braucht Bedienungshilfen (Systemeinstellungen > Datenschutz & Sicherheit)."}
+            return {"ok": ok}
         if a not in ("bot", "human", "map"):
             return {"ok": False, "error": "unknown action"}
         if a == "map" and not any(m["key"] == cmd.get("race") for m in self.catalog):
@@ -278,10 +287,10 @@ class Studio:
                     self.run_bot(cmd.get("stage"), cmd.get("speed"))
                 else:
                     self.run_human(cmd["name"], int(cmd.get("stage") or 1))
-            except Exception as exc:
+            except (Exception, SystemExit) as exc:   # SystemExit: vjoy/ojdpad missing - must not kill the worker
                 import traceback
                 traceback.print_exc()
-                self.live.update(phase="error", message=repr(exc)[:200])
+                self.live.update(phase="error", message=(str(exc) if isinstance(exc, SystemExit) else repr(exc))[:200])
 
     def load_map(self, race):
         self.live.update(phase="loading", message=f"Liftoff lädt {race} …", pilot=None, stage=None)
@@ -491,7 +500,53 @@ def arrange_liftoff_mac(mode="quarter"):
     if mode == "full":
         return window_mac.arrange(0, 0, int(sw), int(sh))
     w = int(sw) // 2
-    return window_mac.arrange(0, 25, w, w * 9 // 16 + window_mac.TITLE_BAR)
+    target = (0, 25, w, w * 9 // 16 + window_mac.TITLE_BAR)
+    if window_mac.arrange(*target):
+        return True
+    # without the Accessibility permission macOS refuses the move; fine if Liftoff is already there
+    # (1920x1080 windowed in Liftoff's prefs gives exactly this window, mac/README.md)
+    b = window_mac.find_window()["kCGWindowBounds"]
+    return all(abs(a - t) <= 2 for a, t in zip((b["X"], b["Y"], b["Width"], b["Height"]), target))
+
+
+# macOS: Liftoff cannot be kept on top from outside, so one full-screen page would cover it.
+# Like on the Windows screen the three areas are separate windows instead: Liftoff top left,
+# the autopilot half top right (?view=right), the race control below (?view=panel).
+_SAFARI_WINDOW = """
+on run {u, x1, y1, x2, y2}
+  tell application "Safari"
+    set found to missing value
+    repeat with w in windows
+      try
+        if URL of current tab of w is u then set found to w
+      end try
+    end repeat
+    if found is missing value then
+      make new document with properties {URL:u}
+      set found to front window
+    end if
+    set bounds of found to {x1 as integer, y1 as integer, x2 as integer, y2 as integer}
+  end tell
+end run
+"""
+
+
+def arrange_studio_windows_mac(url):
+    """Open (or move back) the two Studio windows in Safari around the Liftoff quarter."""
+    from . import window_mac
+    import AppKit
+    sw, sh = (int(v) for v in window_mac._screen_size())
+    sh -= int(AppKit.NSScreen.mainScreen().visibleFrame().origin.y)   # stop above the Dock
+    split = 25 + (sw // 2) * 9 // 16 + window_mac.TITLE_BAR      # bottom edge of the Liftoff window
+    sep = "&" if "?" in url else "?"
+    ok = True
+    for view, box in (("right", (sw // 2, 25, sw, split)), ("panel", (0, split, sw, sh))):
+        r = subprocess.run(["osascript", "-e", _SAFARI_WINDOW, f"{url}{sep}view={view}", *map(str, box)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            print("Safari-Fenster:", r.stderr.strip(), flush=True)
+            ok = False
+    return ok
 
 
 def make_handler(studio, admin_key):
@@ -595,10 +650,8 @@ def make_handler(studio, admin_key):
 def open_browser(url):
     """Edge/Chrome as an app window in fullscreen (kiosk-like), else the default browser."""
     if sys.platform == "darwin":
-        for app in ("Google Chrome", "Microsoft Edge"):
-            if Path(f"/Applications/{app}.app").exists():
-                subprocess.Popen(["open", "-na", app, "--args", f"--app={url}", "--start-fullscreen", "--new-window"])
-                return
+        if Path("/Applications/Safari.app").exists() and arrange_studio_windows_mac(url):
+            return
     for exe in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe"):
         if Path(exe).exists():
