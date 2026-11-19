@@ -84,12 +84,16 @@ Im Finder in `simulator/mac/` (ein Alias davon auf den Schreibtisch legen reicht
 | Datei | macht |
 |---|---|
 | `Start-EasyPilot.command` | startet, was fehlt (OpenJoystickDriver, ojdpad, Studio), lädt die zuletzt gewählte Strecke, klickt ein offenes Pausenmenü weg und ordnet Liftoff + zwei Safari-Fenster an. Läuft schon alles, ordnet es nur neu an. |
-| `Praesi-EasyPilot.command` | dasselbe als Präsentationsmodus: Studio randlos über Menüleiste und Dock (`kiosk.py`), deckt auch die Titelleiste von Liftoff ab. Esc oder Stop beendet ihn. Systemeinstellungen bleiben unverändert. |
+| `Praesi-EasyPilot.command` | dasselbe als Präsentationsmodus: Studio randlos über Menüleiste und Dock (`kiosk.py`), deckt auch die Titelleiste von Liftoff ab. Raus: Knopf „Beenden ✕“ oben in der Leiste (auch über AnyDesk), Esc in einem Studio-Fenster, ctrl+Esc oder Stop. Systemeinstellungen bleiben unverändert. |
 | `Stop-EasyPilot.command` | beendet Präsentationsmodus, Studio und ojdpad. Liftoff bleibt offen. |
 | `Kalibrieren.command` | echten Controller einmal kalibrieren (für „Mensch fliegt“), danach Live-Test der Sticks. |
 
 Logs: `~/EasyPilot/logs/`. Getestet am 19.11.2026: Kaltstart in ~11 s, Autopilot Stufe 3 im
-Präsentationsmodus 33,97 s im Ziel. Im Präsentationsmodus zeigt die Seite keine `alert()`-Meldungen
+Präsentationsmodus 33,97 s im Ziel. Danach im Präsentationsmodus 6/6 im Ziel (Stufe 2: 41,11 / 40,94 s,
+Stufe 3: 33,59 / 33,59 s, Stufe 3 + Kamera: 34,84 / 34,84 s), AnyDesk und Emulator aus.
+Streckenwechsel StrawBale → AutumnFieldsRace01 → StrawBale geht. Nach dem Laden steht Liftoff am
+Mac manchmal im Pausenmenü; das Studio klickt dann selbst „Resume“ (`Studio._unpause`).
+AutumnFieldsRace01 Stufe 3: Absturz bei Tor 7/10 (dort noch keine Autopilot-Referenz). Im Präsentationsmodus zeigt die Seite keine `alert()`-Meldungen
 (WKWebView ohne UI-Delegate), der rote Controller-Hinweis im Studio bleibt sichtbar.
 
 ### DJI FPV Remote Controller 3 („Mensch fliegt“, noch ungetestet)

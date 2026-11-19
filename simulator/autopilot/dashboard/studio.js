@@ -81,6 +81,7 @@ $("stopBtn").onclick = () => cmd({action: "abort"});
 $("lapsSel").onchange = () => cmd({action: "settings", laps: +$("lapsSel").value}).then(() => EP.loadTrack());
 $("timeoutSel").onchange = () => cmd({action: "settings", timeout: +$("timeoutSel").value});
 $("visionOn").onchange = () => cmd({action: "settings", vision: $("visionOn").checked});
+$("apMode").onchange = () => cmd({action: "settings", autopilot_mode: $("apMode").value});
 // live debug view during autopilot runs (on by default, remembered in this browser)
 try { $("dbgOn").checked = localStorage.getItem("ep-debug") !== "0"; } catch (e) {}
 $("dbgOn").onchange = () => { try { localStorage.setItem("ep-debug", $("dbgOn").checked ? "1" : "0"); } catch (e) {} };
@@ -155,6 +156,13 @@ function render(s) {
   $("lapsSel").value = String(s.settings.laps);
   $("timeoutSel").value = String(s.settings.timeout);
   $("visionOn").checked = !!s.settings.vision;
+  const apm = s.settings.autopilot_mode || (s.settings.vision ? "karte_kamera" : "karte");
+  if (document.activeElement !== $("apMode")) $("apMode").value = apm;
+  const camMode = apm !== "karte";
+  $("apModeHint").textContent = camMode && s.detector ? "⚠ " + s.detector :
+    (apm === "nur_kamera" ? "Tempo-Stufe 1–5 = 2–6 m/s. Die Streckendatei misst nur die Zeit." :
+     apm === "erkunden" ? "Erst eine langsame Kamera-Runde, dann Rennen auf der selbst gebauten Karte." : "");
+  $("apModeHint").classList.toggle("bad", !!(camMode && s.detector));
   if (lastPhase === null) { stage = s.settings.stage || 3; renderStagePills(); }
 
   // timing card
