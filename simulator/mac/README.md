@@ -77,6 +77,33 @@ cd simulator
 .venv/bin/python -m unittest discover -s autopilot/tests -t . -v   # ohne Liftoff
 ```
 
+## Mit einem Doppelklick starten
+
+Im Finder in `simulator/mac/` (ein Alias davon auf den Schreibtisch legen reicht):
+
+| Datei | macht |
+|---|---|
+| `Start-EasyPilot.command` | startet, was fehlt (OpenJoystickDriver, ojdpad, Studio), lädt die zuletzt gewählte Strecke, klickt ein offenes Pausenmenü weg und ordnet Liftoff + zwei Safari-Fenster an. Läuft schon alles, ordnet es nur neu an. |
+| `Praesi-EasyPilot.command` | dasselbe als Präsentationsmodus: Studio randlos über Menüleiste und Dock (`kiosk.py`), deckt auch die Titelleiste von Liftoff ab. Esc oder Stop beendet ihn. Systemeinstellungen bleiben unverändert. |
+| `Stop-EasyPilot.command` | beendet Präsentationsmodus, Studio und ojdpad. Liftoff bleibt offen. |
+| `Kalibrieren.command` | echten Controller einmal kalibrieren (für „Mensch fliegt“), danach Live-Test der Sticks. |
+
+Logs: `~/EasyPilot/logs/`. Getestet am 19.11.2026: Kaltstart in ~11 s, Autopilot Stufe 3 im
+Präsentationsmodus 33,97 s im Ziel. Im Präsentationsmodus zeigt die Seite keine `alert()`-Meldungen
+(WKWebView ohne UI-Delegate), der rote Controller-Hinweis im Studio bleibt sichtbar.
+
+### DJI FPV Remote Controller 3 („Mensch fliegt“, noch ungetestet)
+
+1. **Erst Liftoff starten** (Start-EasyPilot), dann die Fernsteuerung per USB-C (Datenkabel)
+   anstecken und einschalten. Liftoff muss weiter das virtuelle Gamepad nutzen
+   (Options > Controls); wählt Liftoff die RC 3 selbst aus, dort zurückstellen.
+2. `Kalibrieren.command` doppelklicken und den Anweisungen folgen. Die RC 3 hat ab Werk einen
+   selbstzentrierenden Gasstick: bei „Gas ganz UNTEN“ den Stick unten halten.
+3. Im Studio muss der Chip „Controller“ grün werden, dann „Mensch fliegt“.
+
+Das Studio erkennt einen später angesteckten Controller (pygame-Events werden gepumpt) und zählt
+`controller.local.json` nur als kalibriert, wenn der Name zum angesteckten Controller passt.
+
 ## Studio (Demo für den Tag der offenen Tür)
 
 `autopilot/studio.py` läuft auch am Mac. Vorher müssen OpenJoystickDriver und `ojdpad.py` laufen,

@@ -64,7 +64,7 @@ $("startBtn").onclick = () => {
     const c = EP.state && EP.state.controllers;
     if (!c || !c.connected.length || !c.calibrated) {
       alert("Kein kalibrierter Controller. Controller anstecken (oder über Parsec verbinden) und einmal " +
-            "python -m autopilot.pilot calibrate ausführen. Ohne Controller: „Autopilot fliegt“.");
+            "am Mac simulator/mac/Kalibrieren.command doppelklicken (Windows: python -m autopilot.pilot calibrate). Ohne Controller: „Autopilot fliegt“.");
       return;
     }
     cmd({action: "human", name, stage}).then(j => { if (j.ok) $("pilotName").value = ""; });
@@ -149,7 +149,7 @@ function render(s) {
   chip($("chipCtl"), ctl.connected.length && ctl.calibrated, ctl.connected.length);
   $("chipCtl").title = ctl.connected.join(", ") || "kein Controller";
   $("ctlHint").textContent = ctl.connected.length ? (ctl.calibrated ? `Controller: ${ctl.connected[0]}` :
-    "Controller gefunden, aber noch nicht kalibriert") : "Kein Controller – anstecken oder über Parsec ein Gamepad verbinden";
+    "Controller gefunden, aber noch nicht kalibriert (mac/Kalibrieren.command)") : "Kein Controller – anstecken oder über Parsec ein Gamepad verbinden";
   $("ctlHint").classList.toggle("bad", !(ctl.connected.length && ctl.calibrated));
   $("ctlInfo").textContent = ctl.connected.length ? "Angeschlossen: " + ctl.connected.join(", ") : "Kein Controller angeschlossen.";
   $("lapsSel").value = String(s.settings.laps);
