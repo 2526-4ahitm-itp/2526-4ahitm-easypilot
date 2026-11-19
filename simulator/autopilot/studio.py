@@ -17,6 +17,7 @@ What it does
 """
 import json
 import math
+import os
 import queue
 import re
 import subprocess
@@ -42,7 +43,13 @@ WEB = Path(__file__).resolve().parent / "dashboard"
 DATA = RUNS / "studio"
 SETTINGS = DATA / "settings.json"
 DEFAULTS = {"race": "StrawBaleRace01", "laps": 1, "stage": 3, "custom_speed": None, "vision": False,
-            "liftoff_mode": "race", "timeout": 180}
+            "liftoff_mode": "race", "timeout": 180, "autopilot_mode": "karte"}
+# Autopilot modes: "karte" = gates from the track file, "karte_kamera" = plus camera correction (old
+# "vision" switch), "erkunden" = camera-only scouting lap, then race on its own map, "nur_kamera" =
+# camera only, no map (visionfly.py). The track file then only scores the run (lap timer).
+AUTOPILOT_MODES = {"karte": "Karte", "karte_kamera": "Karte + Kamera", "erkunden": "Erkunden + Rennen",
+                   "nur_kamera": "Nur Kamera"}
+VISION_SPEED = {1: 2.0, 2: 3.0, 3: 4.0, 4: 5.0, 5: 6.0}     # m/s in "nur_kamera" per stage
 
 
 def board_path(race, laps):
@@ -103,7 +110,7 @@ class Studio:
             delta = round(t.splits[-1] - bot["splits"][len(t.splits) - 1], 2)
         s = self.tel.latest(1.0)
         return {**self.live, "race": self.race, "title": self.info["name"], "env": self.info["env"],
-                "laps": self.laps, "settings": self.settings,
+                "laps": self.laps, "settings": self.settings, "detector": self.detector_status(),
                 "elapsed": round(t.t_now, 2) if (t.running or t.finished) else 0.0,
                 "gate": t.next, "gates_total": len(self.seq), "splits": t.splits, "delta": delta,
                 "bot_time": bot["time"] if bot else None,
@@ -243,9 +250,13 @@ class Studio:
             self.board.delete(cmd.get("id", ""))
             return {"ok": True}
         if a == "settings":
-            for k in ("laps", "stage", "custom_speed", "vision", "timeout"):
+            for k in ("laps", "stage", "custom_speed", "vision", "timeout", "autopilot_mode"):
                 if k in cmd:
                     self.settings[k] = cmd[k]
+            if "autopilot_mode" in cmd:          # the old checkbox follows the mode
+                self.settings["vision"] = cmd["autopilot_mode"] == "karte_kamera"
+            elif "vision" in cmd and self.settings.get("autopilot_mode") in ("karte", "karte_kamera"):
+                self.settings["autopilot_mode"] = "karte_kamera" if cmd["vision"] else "karte"
             self.save_settings()
             if int(self.settings["laps"]) != self.laps:
                 self._select(self.race, self.settings["laps"])
@@ -300,10 +311,27 @@ class Studio:
         ok, _ = load_liftoff(race, tel=self.tel, mode=self.settings.get("liftoff_mode", "race"))
         if ok:
             arrange_liftoff("quarter")
+            self._unpause()
         self.live.update(phase="idle" if ok else "error", loaded_race=race if ok else None,
                          message="" if ok else "Liftoff hat die Strecke nicht geladen")
 
     # ---------------------------------------------------------------- runs
+    def _unpause(self):
+        """macOS: after a track load Liftoff sometimes sits in its pause menu (19.11., twice in a row
+        on AutumnFieldsRace01 and StrawBaleRace01), so no telemetry comes and the reset does nothing.
+        Without telemetry click "Resume" once. Windows is left as it was (never seen there)."""
+        if sys.platform != "darwin" or self.tel.latest(0.5) is not None:
+            return
+        try:
+            from . import ui
+            window.focus_liftoff(hard=False)
+            ui.click_capture(648, 243)          # "Resume" in the pause menu, capture coordinates
+        except Exception as exc:
+            print("unpause:", repr(exc), flush=True)
+            return
+        time.sleep(1.5)
+        print("unpause:", "ok" if self.tel.latest(1.0) is not None else "still no telemetry", flush=True)
+
     def _reset(self, joy, settle):
         from .vjoy import BTN_RESET
         for attempt in range(3):
@@ -340,6 +368,7 @@ class Studio:
         self.timer.reset()
         self.live.update(phase="ready", pilot=name, kind=kind, stage=level, speed_pct=pct, countdown=0, message="")
         window.focus_liftoff(hard=False)
+        self._unpause()
         if not self._reset(joy, self._settle()):
             self.live.update(message="Reset kommt nicht an - ist Liftoff im Rennen?")
             return None
@@ -369,8 +398,99 @@ class Studio:
         print("result:", json.dumps(result, ensure_ascii=False), flush=True)
         return result
 
+    def detector_status(self):
+        if os.environ.get("EASYPILOT_TEST_DETECTOR"):
+            return "TEST-DETEKTOR aus der Streckendatei (nur Entwicklung, kein echter Kameratest)"
+        from .detector import detector_status
+        return detector_status()
+
+    def _vision_detect(self):
+        """Detector for the camera-only modes: YOLO, or (development only) the test detector."""
+        from . import visionfly
+        if os.environ.get("EASYPILOT_TEST_DETECTOR"):
+            from .sysid import load_camera
+            return visionfly.TestDetector(self.gates, load_camera(640))
+        return visionfly.yolo_detect()
+
+    def run_vision(self, mode, stage):
+        """Camera-only modes (visionfly.py). The track file is not used for flying, only the lap timer
+        (= the referee, like Liftoff's own checkpoints) and the map check afterwards."""
+        from . import visionfly
+        from .race import fly
+        level = int(stage or self.settings["stage"])
+        st = next(s for s in STAGES if s.level == level)
+        name = f"Autopilot – {AUTOPILOT_MODES[mode]}"
+        self.dbg_racer, self.dbg_plan = None, None
+        why = None if os.environ.get("EASYPILOT_TEST_DETECTOR") else self.detector_status()
+        if why:
+            self.live.update(phase="error", pilot=name, message=f"{AUTOPILOT_MODES[mode]} geht nicht: {why}")
+            return None
+        try:
+            detect = self._vision_detect()
+        except Exception as exc:
+            self.live.update(phase="error", pilot=name, message=f"Torerkennung: {exc}"[:200])
+            return None
+        stop = lambda: self.abort.is_set() or self.timer.finished      # noqa: E731
+        extra = {"mode": mode, "test_detector": bool(os.environ.get("EASYPILOT_TEST_DETECTOR"))}
+
+        def show(s, pilot):
+            self.dbg_state = s
+            t = pilot.target
+            self.live["message"] = (f"Ziel: Tor V{t.id} ({'trianguliert' if t.triangulated else 'geschätzt'})"
+                                    if t else "sucht ein Tor …")
+
+        if mode == "nur_kamera":
+            sess = Session(f"studio-vision-{self.race}-{level}", tel=self.tel)
+            time.sleep(0.5)
+            if self._prepare("bot", name, None, None, sess.joy) is None:
+                sess.close()
+                return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+            res = visionfly.fly_by_camera(sess, VISION_SPEED[level], detect, on_step=show,
+                                          max_time=float(self.settings.get("timeout", 180)) + 60, stop=stop)
+            sess.close()
+            extra["vision"] = {k: res[k] for k in ("reason", "passages", "gates_seen", "detections", "fps")}
+            why = "abgebrochen" if self.abort.is_set() else ("im Ziel" if self.timer.finished else res["reason"])
+            return self._finish("bot", name, None, why, extra)
+
+        # erkunden: scouting lap by camera, then race on the own map
+        sess = Session(f"studio-explore-{self.race}", tel=self.tel)
+        time.sleep(0.5)
+        if self._prepare("bot", f"{name}: Erkundungsrunde", None, None, sess.joy) is None:
+            sess.close()
+            return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+        res = visionfly.fly_by_camera(sess, 3.0, detect, explore=True, on_step=show,
+                                      max_time=float(self.settings.get("timeout", 180)) + 120,
+                                      stop=self.abort.is_set)
+        sess.close()
+        gmap = res.pop("map")
+        scout = {"time": self.timer.time, "gates": self.timer.next, "gates_total": len(self.seq),
+                 "reason": res["reason"], "mapped": len(gmap), "map_vs_track": visionfly.map_error(gmap, self.gates)}
+        extra["explore"] = scout
+        print("explore:", json.dumps(scout, ensure_ascii=False), flush=True)
+        if self.abort.is_set() or len(gmap) < 2:
+            return self._finish("bot", name, None, "abgebrochen" if self.abort.is_set() else
+                                f"Erkundung: nur {len(gmap)} Tor(e) gefunden ({res['reason']})", extra)
+        sess = Session(f"studio-explorerace-{self.race}-{level}", tel=self.tel)
+        time.sleep(0.5)
+        if self._prepare("bot", f"{name}: Rennen ({len(gmap)} Tore kartiert)", None, int(st.aggressiveness * 100),
+                         sess.joy) is None:
+            sess.close()
+            return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+
+        def on_step(state, racer):
+            self.dbg_racer, self.dbg_state = racer, state
+            if self.abort.is_set() or self.timer.finished:
+                racer.progress.finished = True
+        r = fly(sess, gmap, 1, st.aggressiveness, vision=False, on_step=on_step, colliders=None)
+        extra["race_on_own_map"] = {k: r[k] for k in ("reason", "gates_passed", "gates_total", "planned_s")}
+        why = "abgebrochen" if self.abort.is_set() else ("im Ziel" if self.timer.finished else r.get("reason", ""))
+        return self._finish("bot", name, None, why, extra)
+
     def run_bot(self, stage=None, speed=None):
         from .race import fly
+        mode = self.settings.get("autopilot_mode") or ("karte_kamera" if self.settings.get("vision") else "karte")
+        if mode in ("erkunden", "nur_kamera") and not speed:
+            return self.run_vision(mode, stage)
         if speed:                                      # free speed in percent
             k, level = max(0.1, min(1.0, float(speed) / 100.0)), None
             name = f"Autopilot {int(float(speed))} %"

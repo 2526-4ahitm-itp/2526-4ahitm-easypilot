@@ -161,7 +161,14 @@
         <h3>Rennen</h3>
         <label class="opt">Runden <select id="lapsSel"><option>1</option><option>2</option><option>3</option></select></label>
         <label class="opt">Zeitlimit Mensch <select id="timeoutSel"><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
-        <label class="opt"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
+        <label class="opt">Autopilot-Modus <select id="apMode">
+          <option value="karte">Karte (Tore aus der Streckendatei)</option>
+          <option value="karte_kamera">Karte + Kamera korrigiert</option>
+          <option value="erkunden">Erkunden + Rennen (erst Kamera-Runde, dann eigene Karte)</option>
+          <option value="nur_kamera">Nur Kamera (keine Karte, langsam)</option>
+        </select></label>
+        <div id="apModeHint" class="muted"></div>
+        <label class="opt hidden"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
         <label class="opt"><input type="checkbox" id="dbgOn" checked> Debug-Ansicht beim Autopiloten: KI-Sicht, Plan und Telemetrie</label>
       </div>
       <div class="card">

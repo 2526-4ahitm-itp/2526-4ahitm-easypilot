@@ -11,11 +11,12 @@ Liftoff lässt sich von außen nicht randlos machen. Die Studio-Fenster liegen d
   | Bedienung (?view=panel), bis zum unteren Rand, über dem Dock |
   +-------------------------------------+
 
-Systemeinstellungen werden nicht geändert. Beenden: Esc in einem Studio-Fenster, oder
-mac/Stop-EasyPilot.command.
+Systemeinstellungen werden nicht geändert. Beenden: Knopf „Beenden ✕“ oben in der Leiste,
+Esc in einem Studio-Fenster, ctrl+Esc von überall, oder mac/Stop-EasyPilot.command.
 
   .venv/bin/python mac/kiosk.py [http://localhost:8765/]
 """
+import os
 import sys
 from pathlib import Path
 
@@ -45,11 +46,43 @@ class KioskWindow(AppKit.NSWindow):
     def canBecomeMainWindow(self):
         return True
 
-    def keyDown_(self, event):
-        if event.keyCode() == 53:            # Esc
-            AppKit.NSApp().terminate_(None)
-        else:
-            objc.super(KioskWindow, self).keyDown_(event)
+
+class Quitter(Foundation.NSObject):
+    def quit_(self, sender):
+        AppKit.NSApp().terminate_(None)
+
+
+ESC = 53
+
+
+def exit_ways(app, bar, top, half):
+    """Raus aus dem Präsentationsmodus (19.11.: Esc allein ging nicht - die Webansicht schluckt die
+    Taste, und hat Liftoff den Fokus, kommt sie gar nicht hier an):
+      - Knopf „Beenden ✕“ oben rechts in der Leiste, auch mit der Maus über AnyDesk
+      - Esc, solange ein Studio-Fenster aktiv ist (lokaler Monitor, vor der Webansicht)
+      - ctrl+Esc von überall (globaler Monitor, braucht Bedienungshilfen für das Terminal)
+      - mac/Stop-EasyPilot.command"""
+    quitter = Quitter.alloc().init()
+    btn = AppKit.NSButton.buttonWithTitle_target_action_("Beenden ✕", quitter, "quit:")
+    btn.sizeToFit()
+    bw, bh = btn.frame().size.width, btn.frame().size.height
+    btn.setFrameOrigin_(Foundation.NSMakePoint(half - bw - 12, (top - bh) / 2))
+    bar.contentView().addSubview_(btn)
+
+    def local(event):
+        if event.keyCode() == ESC:
+            app.terminate_(None)
+            return None
+        return event
+
+    def glob(event):
+        if event.keyCode() == ESC and event.modifierFlags() & AppKit.NSEventModifierFlagControl:
+            app.terminate_(None)
+
+    mask = AppKit.NSEventMaskKeyDown
+    monitors = (AppKit.NSEvent.addLocalMonitorForEventsMatchingMask_handler_(mask, local),
+                AppKit.NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(mask, glob))
+    return quitter, btn, monitors
 
 
 def make_window(x, y, w, h, sh):
@@ -98,7 +131,11 @@ def main(url):
     panel = make_window(0, split, sw, sh - split, sh)
     web(panel, f"{url}{sep}view=panel")
 
+    keep = exit_ways(app, bar, top, half)          # Referenzen halten
     wins = (bar, right, panel)                     # Referenzen halten
+    if os.environ.get("KIOSK_SELFTEST"):           # Test: der Knopf beendet den Kiosk
+        Foundation.NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
+            1.5, False, lambda t: keep[1].performClick_(None))
     for w in wins:
         w.orderFrontRegardless()
     panel.makeKeyWindow()

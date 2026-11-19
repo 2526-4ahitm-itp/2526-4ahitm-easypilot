@@ -84,6 +84,9 @@ else
   api "{\"action\": \"layout\", \"mode\": \"quarter\", \"url\": \"$URL\"}"
 fi
 
+# Liftoff nach vorne, sonst verdecken andere Fenster (Terminal, Finder) das Liftoff-Bild
+"$PY" -c 'from autopilot import window; window.focus_liftoff(hard=False)' 2>/dev/null
+
 say_step "Controller für „Mensch fliegt“"
 curl -s -m 5 "$URL"api/state | "$PY" -c '
 import json, sys
