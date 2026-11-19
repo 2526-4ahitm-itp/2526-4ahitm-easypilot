@@ -33,7 +33,14 @@ def main():
                     pad.idle()
                     idle = True
                 if pad.proc.poll() is not None:
-                    sys.exit("ojdpad: ojd virtual feed ended - is OpenJoystickDriver running?")
+                    # the ojd feed ended twice during a Studio session (19.11.) and every run after it
+                    # failed: start a new feed instead of quitting (Liftoff picks the gamepad up again)
+                    err = (pad.proc.stderr.read() or "").strip()
+                    print(f"ojdpad: ojd feed ended ({err or pad.proc.returncode}), restarting", flush=True)
+                    pad.close()
+                    time.sleep(1.0)
+                    pad = OjdGamepad()
+                    print("ojdpad: gamepad up again", flush=True)
                 continue
             if data == b"PING":
                 sock.sendto(b"PONG", addr)
