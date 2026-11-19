@@ -48,12 +48,23 @@ def _is_virtual(joy):
 def controllers():
     """(index, name) of all joysticks except the virtual one the autopilot drives."""
     pg = _pygame()
+    pg.event.pump()        # SDL only sees a controller plugged in after start when events are pumped
     out = []
     for i in range(pg.joystick.get_count()):
         joy = pg.joystick.Joystick(i)
         if not _is_virtual(joy):
             out.append((i, joy.get_name()))
     return out
+
+
+def calibrated():
+    """True if controller.local.json belongs to a connected controller. A config of another
+    controller would map the wrong axes (Controller() falls back to the first one)."""
+    try:
+        name = json.loads(CONFIG.read_text(encoding="utf-8"))["name"]
+    except (OSError, ValueError, KeyError):
+        return False
+    return any(n == name for _, n in controllers())
 
 
 class Controller:

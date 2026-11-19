@@ -207,8 +207,8 @@ class Studio:
 
     def controllers(self):
         try:
-            from .pilot import CONFIG, controllers
-            return {"connected": [n for _, n in controllers()], "calibrated": CONFIG.exists()}
+            from .pilot import calibrated, controllers
+            return {"connected": [n for _, n in controllers()], "calibrated": calibrated()}
         except Exception as exc:
             return {"connected": [], "calibrated": False, "error": repr(exc)}
 
