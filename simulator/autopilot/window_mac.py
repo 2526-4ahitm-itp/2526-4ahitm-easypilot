@@ -97,6 +97,8 @@ def _screen_size():
 def client_rect(hwnd=None):
     """(left, top, width, height) of the game image in screen points."""
     win = hwnd or find_window()
+    if win is None:
+        raise RuntimeError("Liftoff window not found")
     b = win["kCGWindowBounds"]
     left, top, w, h = b["X"], b["Y"], b["Width"], b["Height"]
     sw, sh = _screen_size()

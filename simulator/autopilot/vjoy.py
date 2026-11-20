@@ -142,7 +142,9 @@ class OjdGamepad(VJoy):
         self.buttons = 0
         self.lock = threading.Lock()
         profile = os.environ.get("EASYPILOT_OJD_PROFILE", "game-controller-compatible")
-        self.proc = subprocess.Popen([exe, "--no-input", "virtual", "feed", "--as", profile],
+        # --timeout 5: plugging in the DJI RC 3 kept the OJD service busy > 0.5 s, the feed quit with
+        # E2005 and Liftoff never took the restarted gamepad back (20.11.2026)
+        self.proc = subprocess.Popen([exe, "--no-input", "--timeout", "5", "virtual", "feed", "--as", profile],
                                      stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                      text=True, bufsize=1)
         self.running = True

@@ -88,6 +88,12 @@ fi
 "$PY" -c 'from autopilot import window; window.focus_liftoff(hard=False)' 2>/dev/null
 
 say_step "Controller für „Mensch fliegt“"
+# OJD hält die DJI FPV RC 3 exklusiv. Profil "generic" reicht alle Achsen an ein virtuelles Pad
+# weiter, das autopilot/hid_mac.py per IOKit liest (+0,5 ms). Gilt pro Modell, bleibt gespeichert.
+OJD=/Applications/OpenJoystickDriver.app/Contents/MacOS/OpenJoystickDriver
+if "$OJD" virtual show 2>/dev/null | grep -q "DJI Virtual Joystick.*sdl-compatible"; then
+  "$OJD" --no-input --timeout 5 virtual set generic 2CA3:1021 >/dev/null 2>&1 && sleep 2
+fi
 curl -s -m 5 "$URL"api/state | "$PY" -c '
 import json, sys
 c = json.load(sys.stdin)["controllers"]
