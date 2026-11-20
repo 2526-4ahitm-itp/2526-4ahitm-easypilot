@@ -308,7 +308,7 @@ class Renderer:
         self.line_prog = ctx.program(vertex_shader=LINE_VS, fragment_shader=LINE_FS)
         self.line_vao = None
         shadow_prog = ctx.program(vertex_shader=SHADOW_VS, fragment_shader=SHADOW_FS)
-        vbo = ctx.buffer(world.vertices.tobytes())
+        vbo = self.vbo = ctx.buffer(world.vertices.tobytes())
         self.obj_vao = ctx.vertex_array(self.obj, [(vbo, "3f 3f 3f 2f 1f", "in_pos", "in_norm", "in_col", "in_uv", "in_mat")])
         shadow_vao = ctx.vertex_array(shadow_prog, [(vbo, "3f 36x", "in_pos")])
         g = 3000.0
@@ -342,6 +342,21 @@ class Renderer:
         self.inst["mark"].value = 0
         self.set_craters([])
         self.resize(size)
+
+    def set_world(self, world):
+        """Andere Strecke (world.World(track=...)): neue Geometrie, gleiche Shader und Texturen."""
+        ctx = self.ctx
+        for obj in (self.obj_vao, self.shadow_vao, self.vbo):
+            obj.release()
+        self.world = world
+        vbo = self.vbo = ctx.buffer(world.vertices.tobytes())
+        self.obj_vao = ctx.vertex_array(self.obj, [(vbo, "3f 3f 3f 2f 1f", "in_pos", "in_norm", "in_col", "in_uv", "in_mat")])
+        self.shadow_vao = ctx.vertex_array(self.shadow_prog, [(vbo, "3f 36x", "in_pos")])
+        self.light_mvp = self._light_matrix(world.vertices[:, :3])
+        for prog in (self.shadow_prog, self.obj, self.ground, self.inst):
+            prog["light_mvp"].write(gl(self.light_mvp))
+        self.hidden = []
+        self.set_craters([])                      # zeichnet auch die Schattenkarte neu
 
     def segments(self):
         """Sichtbare Vertex-Bereiche (ohne zerstörte Ziele)."""

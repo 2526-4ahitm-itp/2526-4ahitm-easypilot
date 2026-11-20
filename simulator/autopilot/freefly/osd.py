@@ -209,7 +209,8 @@ class LiftoffOsd:
                 lap = 0.0 if flight.lap_start is None else flight.flight_time - flight.lap_start
                 txt(self._txt("clock", now, clock(lap), 30), W / 2, 55 * S, 32 * S)
                 n = len(flight.world.gates)
-                txt(f"RUNDE {lap_n + 1}   TOR {flight.next_gate + 1} / {n}", W / 2, 100 * S, 21 * S)
+                name = getattr(flight.world, "track_info", {}).get("name", "")      # Strecke (tracks.py)
+                txt(f"{name.upper()}   RUNDE {lap_n + 1}   TOR {flight.next_gate + 1} / {n}".strip(), W / 2, 100 * S, 21 * S)
             if big:
                 txt("Rundenzeit" if not bomb else "Zeit für dieses Ziel", W / 2, 20 * S, 15 * S,
                     tint=(1, 1, 1, 0.7), bold=False)
@@ -279,11 +280,16 @@ class LiftoffOsd:
             xl, xv = W - 262 * S, W - 236 * S
             rows = (("HÖHE" if big else "ALT", "m", f"{d.pos[1]:.0f}", 55),
                     ("TEMPO" if big else "GES", "km/h", f"{L['speed']:.0f}", 113))
+            if hasattr(d, "volts"):                  # Physik „Realistisch“: Akkuspannung unter Last (physics_real)
+                rows += (("AKKU" if big else "BAT", f"V  {d.volts / d.p.cells:.2f}/Z", f"{d.volts:.1f}", 171),)
             for i, (lab, unit, val, y) in enumerate(rows):
                 y *= S
-                txt(lab, xl, y - 6 * S, 26 * S, "right")
-                txt(unit, xl, y + 17 * S, 15 * S, "right", bold=False)
-                txt(self._txt("v%d" % i, now, val), xv, y, 34 * S, "left")
+                low = i == 2 and d.volts / d.p.cells < 3.5        # unter 3,5 V je Zelle: rot (landen)
+                tint = (1, 0.35, 0.3, W_A) if low else (1, 1, 1, W_A)
+                txt(lab, xl, y - 6 * S, 26 * S, "right", tint=tint)
+                txt(self._txt("u%d" % i, now, unit) if i == 2 else unit, xl, y + 17 * S, 15 * S, "right", bold=False,
+                    tint=tint)
+                txt(self._txt("v%d" % i, now, val), xv, y, 34 * S, "left", tint=tint)
 
         # ---- unten Mitte: Gas-Balken und Stick-Kreuz
         gy = H - (100 if big else 84) * S

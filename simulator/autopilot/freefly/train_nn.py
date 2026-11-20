@@ -96,7 +96,7 @@ def yaw_quat(dx, dz):
 
 
 class Variant:
-    def __init__(self, ctx, rates, thrust, seed, shift, rng):
+    def __init__(self, ctx, rates, thrust, seed, shift, rng, track="dorfrunde"):
         from . import world as W
         from .auto import Autopilot
         from .vision import CameraView
@@ -105,7 +105,7 @@ class Variant:
             W.COURSE = [(x + rng.uniform(-0.7, 0.7), z + rng.uniform(-0.7, 0.7),
                          lift + rng.uniform(-0.4, 0.4) if lift > 0.5 else lift) for x, z, lift in orig]
         try:
-            self.world = W.World(seed=seed)
+            self.world = W.World(seed=seed, track=track)      # Strecke (tracks.py); shift wirkt nur auf die Dorfrunde
         finally:
             W.COURSE = orig
         self.line = Autopilot(self.world, rates, thrust, 0.6, laps=3).line
@@ -293,7 +293,7 @@ def fast_sticks():
     AxisRate.stick = stick
 
 
-def worker(conn, wid, n_envs, n_variants, seed):
+def worker(conn, wid, n_envs, n_variants, seed, strecken=()):
     try:
         os.nice(3)                     # etwas unter normal: Simons Spiel und der Mac bleiben flüssig
     except OSError:
@@ -308,6 +308,9 @@ def worker(conn, wid, n_envs, n_variants, seed):
     variants = [Variant(ctx, rates, thrust, 11, False, rng)]
     for k in range(1, n_variants):
         variants.append(Variant(ctx, rates, thrust, 11 if k == 1 else 100 + seed + k, True, rng))
+    for t in strecken:                 # --strecken: weitere Strecken zum Üben (bewertet wird auf der Dorfrunde)
+        if t != "dorfrunde":
+            variants.append(Variant(ctx, rates, thrust, 11, False, rng, track=t))
     envs = [Env(variants, rates, thrust, random.Random(seed * 100 + i)) for i in range(n_envs)]
     conn.send(("ready", [v.line.length for v in variants]))
     while True:
@@ -334,12 +337,12 @@ def worker(conn, wid, n_envs, n_variants, seed):
 
 
 class VecEnv:
-    def __init__(self, n_workers, n_envs, n_variants=3, seed=0):
+    def __init__(self, n_workers, n_envs, n_variants=3, seed=0, strecken=()):
         ctx = mp.get_context("spawn")
         self.pipes, self.procs = [], []
         for w in range(n_workers):
             a, b = ctx.Pipe()
-            p = ctx.Process(target=worker, args=(b, w, n_envs, n_variants, seed * 1000 + w + 1), daemon=True)
+            p = ctx.Process(target=worker, args=(b, w, n_envs, n_variants, seed * 1000 + w + 1, tuple(strecken)), daemon=True)
             p.start()
             self.pipes.append(a)
             self.procs.append(p)
@@ -772,10 +775,12 @@ def main(argv):
     p.add_argument("--critic-warmup", type=int, default=30)
     p.add_argument("--eval-every", type=float, default=6.0, help="Minuten zwischen Bewertungen (PPO)")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--strecken", default="", help="weitere Strecken zum Üben, z. B. anfaenger,scheunen (tracks.py)")
     a = p.parse_args(argv)
     tr = Trainer(a)
     print(f"Lernen auf {tr.dev}, {a.workers} Prozesse x {a.envs} Umgebungen, Ziel {a.minutes:.0f} min", flush=True)
-    env = VecEnv(a.workers, a.envs, a.variants, a.seed)
+    from .tracks import key as track_key
+    env = VecEnv(a.workers, a.envs, a.variants, a.seed, [track_key(t) for t in a.strecken.split(",") if t.strip()])
     try:
         if a.dagger_min > 0 and not a.resume:
             tr.dagger(env, a.dagger_min)

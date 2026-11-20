@@ -5,6 +5,7 @@ Dieselbe Kette wie im Liftoff-Rennen (race.py): Rennlinie durch die Tore um die 
 Unterschied: Welt, Tore und Kollisionen kommen aus world.py, die Physik aus sim.py.
 
   python -m autopilot.freefly.auto [k] [runden]    # ohne Fenster fliegen und auswerten
+  python -m autopilot.freefly.auto 0.6 2 --strecke profi    # andere Strecke (tracks.py), auch für kamera/bomben
 """
 import collections
 import math
@@ -20,13 +21,15 @@ from ..planner import Gate as PGate
 from ..race import build_line, launch, race_gains
 from ..racer import Racer
 from .world import GATE_H, GATE_W, SPAWN
+from .physics_real import ap_thrust, gains_for
 
 CONTROL_EVERY = 4        # Physik 500 Hz / 4 = Regler 125 Hz wie die Liftoff-Schleife
 
 
 def planner_gates(world):
-    return [PGate(g.center, (math.sin(g.yaw), 0.0, math.cos(g.yaw)), GATE_W, GATE_H, name=f"T{i + 1}")
-            for i, g in enumerate(world.gates)]
+    """Tore für den Planer; Torart-Größen aus world.Gate.plan_size (Standardtor: GATE_W x GATE_H)."""
+    return [PGate(g.center, (math.sin(g.yaw), 0.0, math.cos(g.yaw)), *getattr(g, "plan_size", (GATE_W, GATE_H)),
+                  name=f"T{i + 1}") for i, g in enumerate(world.gates)]
 
 
 def obstacles(world):
@@ -55,7 +58,7 @@ class Autopilot:
         self.reset()
 
     def reset(self):
-        self.racer = Racer(self.line, FlightController(self.rates, self.thrust, race_gains()), lookahead=0.12)
+        self.racer = Racer(self.line, FlightController(self.rates, self.thrust, gains_for(self.thrust, race_gains())), lookahead=0.12)
         self.cmd = None
         self.n = 0
         self.seen = collections.deque()
@@ -76,6 +79,11 @@ class Autopilot:
 
 
 def main(argv):
+    if "--strecke" in argv:                       # World() liest FREEFLY_STRECKE (tracks.key)
+        i = argv.index("--strecke")
+        import os
+        os.environ["FREEFLY_STRECKE"] = argv[i + 1]
+        argv = argv[:i] + argv[i + 2:]
     if argv and argv[0] == "bomben":
         return main_bomb(argv[1:])
     if argv and argv[0] == "kamera":
@@ -86,9 +94,11 @@ def main(argv):
     k = float(argv[0]) if argv else 0.6
     laps = int(argv[1]) if len(argv) > 1 else 2
     rates, thrust = load_model()
+    thrust = ap_thrust(thrust)                # Physik „Realistisch“: vermessenes Schubmodell (physics_real)
     world = World()
     ap = Autopilot(world, rates, thrust, k, laps)
     line = ap.line
+    print(f"Strecke {world.track_info['name']}: {len(world.gates)} Tore")
     print(f"Rennlinie: {line.length:.0f} m, {len(line.gate_sequence)} Tore, Vias {getattr(line, 'vias', 0)}, "
           f"berührt Hindernisse {getattr(line, 'touching', 0)}, geplant in {ap.plan_time:.1f} s")
     flight = Flight(world, rates, thrust)
@@ -119,6 +129,7 @@ def main_bomb(argv):
     from .world import World
     n_targets = int(argv[0]) if argv else 8
     rates, thrust = load_model()
+    thrust = ap_thrust(thrust)                # Physik „Realistisch“: vermessenes Schubmodell (physics_real)
     world = World()
     ent = Entities(world)
     flight = Flight(world, rates, thrust)
@@ -164,6 +175,7 @@ def main_camera(argv):
     from .world import World
     speed = float(argv[0]) if argv else 6.0
     rates, thrust = load_model()
+    thrust = ap_thrust(thrust)                # Physik „Realistisch“: vermessenes Schubmodell (physics_real)
     world = World()
     flight = Flight(world, rates, thrust)
     flight.armed = True
@@ -239,7 +251,7 @@ class BombAutopilot:
 
     def reset(self):
         g = race_gains()
-        self.ctl = FlightController(self.rates, self.thrust, g)
+        self.ctl = FlightController(self.rates, self.thrust, gains_for(self.thrust, g))
         self.phase = "climb"
         self.cmd = None
         self.n = 0
@@ -462,7 +474,7 @@ class CameraAutopilot:
 
     def reset(self):
         from ..visionfly import VisionPilot
-        ctl = FlightController(self.rates, self.thrust, self._Gains(tilt=12, yaw=3.0, pos=2.5, vel=3.0))
+        ctl = FlightController(self.rates, self.thrust, gains_for(self.thrust, self._Gains(tilt=12, yaw=3.0, pos=2.5, vel=3.0)))
         self.ctl = self._GuardedController(ctl, self.guard)
         self.per = self._ns(tracker=self._GateTracker())
         self.pilot = VisionPilot(self.ctl, self.per, speed=self.speed)

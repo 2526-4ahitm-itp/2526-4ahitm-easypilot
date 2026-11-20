@@ -198,6 +198,7 @@ class Recorder:
         if ep["t0"] is None:
             ep["t0"] = ep["t_gate"] = flight.flight_time
             ep["gate"] = flight.next_gate
+            ep["track"] = getattr(flight.world, "track", "dorfrunde")      # Strecke (tracks.py)
             ep["dprev"] = gate_dist(flight.world, flight.next_gate, flight.drone.pos)
         elif ep["img"] or not ep["keep"]:
             r = self._reward(ep, flight)
@@ -243,7 +244,8 @@ class Recorder:
         while len(ep["rew"]) < n:
             ep["rew"].append(0.0)
         ep["rew"] = ep["rew"][:n]
-        meta = {**summary, "source": self.source, "physics": self.physics, "std": ep["std"], "terminal": flight is not None,
+        meta = {**summary, "source": self.source, "physics": self.physics, "track": ep.get("track", "dorfrunde"),
+                "std": ep["std"], "terminal": flight is not None,
                 "explore": ep["explore"], "date": ep["date"], "steps": n}
         try:
             self.q.put_nowait((ep, meta))

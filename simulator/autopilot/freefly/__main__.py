@@ -9,6 +9,8 @@ Controller mit der Tastatur (W/S Gas, A/D Gieren, Pfeile Nicken/Rollen).
   python -m autopilot.freefly              # Vollbild, startet im Menü
   python -m autopilot.freefly --window     # Fenster 1280x800
   python -m autopilot.freefly --physik klassisch   # alte Physik (sim.py); Standard ist Liftoff-nah (physics.py)
+  python -m autopilot.freefly --physik real --wind leicht   # echte 5"-Drohne mit Betaflight (physics_real.py)
+  python -m autopilot.freefly --strecke profi      # Strecke (tracks.py: anfaenger, dorfrunde, scheunen, turm, profi)
   python -m autopilot.freefly --bench 10   # sofort fliegen, nach 10 s Latenz/Frame-Rate ausgeben
   python -m autopilot.freefly --window --bench 25 --autopilot --bomb     # Auto-Bomben
   python -m autopilot.freefly --window --bench 25 --autopilot --camera   # Autopilot nur aus dem Kamerabild
@@ -47,6 +49,7 @@ from . import fx
 from .game import Flight
 from .gfx import Renderer
 from .physics import PHYSICS as PHYSICS_NAMES
+from .physics_real import WIND_LABEL, WIND_ORDER, ap_thrust   # Wind/Böen, Regler-Schubmodell für „Realistisch“
 from .entities import Entities, bus_mesh, car_mesh, person_mesh
 from .controls import CTL_LABEL, CTL_MODES, Controls, open_controller
 from .restart import RestartSeq
@@ -54,6 +57,7 @@ from .ui import Hud, Menu
 from . import osd as osd_ui                   # Liftoff-OSD, Elemente und Presets (Menü „Anzeige / OSD …“)
 from . import nn_show                         # KI-Showcase: Lernen zuschauen, Zeitraffer, Aufzeichnung (Menü „KI-Showcase …“)
 from .world import World
+from . import tracks                          # Strecken (Menü „Strecke“, --strecke), Bestzeit je Strecke
 
 DT = 0.002              # s, Physik-Schritt (500 Hz)
 SETTINGS = Path(__file__).resolve().parent.parent / "freefly.local.json"
@@ -90,6 +94,10 @@ def load_settings(cam_tilt, hfov):
         s.update(json.loads(SETTINGS.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         pass
+    s["strecke"] = tracks.key(s.get("strecke") or tracks.DEFAULT)
+    if not isinstance(s.get("best_laps"), dict):      # Bestzeit je Strecke; die alte gilt für die Dorfrunde
+        s["best_laps"] = {"dorfrunde": s.get("best_lap")} if s.get("best_lap") else {}
+    s["best_lap"] = s["best_laps"].get(s["strecke"])
     osd_ui.ensure(s)                   # "osd": Elemente; alte "lage"/"karte" werden übernommen
     nn_show.ensure(s)                  # "nnshow": KI-Einblendungen, "nn_learn": Netz lernt mit (nn_show.py)
     s["auto"] = False                 # Autopilot nie von selbst einschalten
@@ -110,9 +118,11 @@ MENU = [{"label": "Fliegen", "kind": "action", "key": "resume"},
         {"label": "Neustart am Startplatz", "kind": "action", "key": "restart"},
         {"label": "Zerstörung zurücksetzen (Z)", "kind": "action", "key": "repair"},
         {"label": "Modus", "kind": "value", "key": "mode"},
+        {"label": "Strecke", "kind": "value", "key": "strecke"},
         {"label": "Kamera-Uptilt", "kind": "value", "key": "tilt"},
         {"label": "Sichtfeld", "kind": "value", "key": "fov"},
         {"label": "Physik", "kind": "value", "key": "physik"},
+        {"label": "Wind", "kind": "value", "key": "wind"},
         {"label": "Autopilot fliegt", "kind": "toggle", "key": "auto"},
         {"label": "Autopilot-Modus", "kind": "value", "key": "ap_mode"},
         {"label": "Autopilot-Tempo (k)", "kind": "value", "key": "ap_k"},
@@ -140,6 +150,8 @@ def menu_values(s):
             "kb_sens": f"{round(s['kb_sens'] * 100)} %", "kb_gas": f"{s['kb_gas']:.1f}x",
             "ctl": CTL_LABEL.get(s.get("ctl"), "Automatisch"),
             "physik": PHYSICS_NAMES.get(s.get("physik"), "Klassisch"),
+            "wind": WIND_LABEL.get(s.get("wind"), "aus") if s.get("physik") == "real" else "nur bei Realistisch",
+            "strecke": tracks.label(s.get("strecke")),
             **osd_ui.menu_values(s), **nn_show.menu_values(s)}
 
 
@@ -152,6 +164,10 @@ def change(s, key, direction):
         s["fov"] = max(80, min(150, s["fov"] + 5 * direction))
     elif key == "mode":
         s["mode"] = "race" if s["mode"] == "bomb" else "bomb"
+    elif key == "strecke":
+        order = tracks.ORDER
+        i = order.index(s["strecke"]) if s.get("strecke") in order else 0
+        s["strecke"] = order[(i + (direction or 1)) % len(order)]
     elif key == "ap_mode":
         order = list(AP_MODES)
         s["ap_mode"] = order[(order.index(s["ap_mode"]) + (direction or 1)) % len(order)] if s["ap_mode"] in order else "line"
@@ -164,8 +180,13 @@ def change(s, key, direction):
     elif key == "ctl":
         i = CTL_MODES.index(s["ctl"]) if s.get("ctl") in CTL_MODES else 0
         s["ctl"] = CTL_MODES[(i + direction) % len(CTL_MODES)]
-    elif key == "physik":
-        s["physik"] = "liftoff" if s.get("physik") != "liftoff" else "classic"
+    elif key == "physik":                  # Klassisch -> Liftoff-nah -> Realistisch (physics_real.py)
+        order = list(PHYSICS_NAMES)
+        i = order.index(s["physik"]) if s.get("physik") in order else 0
+        s["physik"] = order[(i + (direction or 1)) % len(order)]
+    elif key == "wind":
+        i = WIND_ORDER.index(s["wind"]) if s.get("wind") in WIND_ORDER else 0
+        s["wind"] = WIND_ORDER[(i + (direction or 1)) % len(WIND_ORDER)]
     elif key == "ap_k":
         s["ap_k"] = round(max(0.2, min(1.2, s["ap_k"] + 0.1 * direction)), 1)
     else:
@@ -210,21 +231,27 @@ def main():
     ap.add_argument("--autopilot", action="store_true", help="Autopilot fliegt von Anfang an")
     ap.add_argument("--bomb", action="store_true", help="im Bomben-Modus starten")
     ap.add_argument("--camera", action="store_true", help="Autopilot-Modus 'nur Kamera'")
+    ap.add_argument("--line", action="store_true", help="Autopilot-Modus 'Rennlinie' (unabhängig vom gespeicherten Modus)")
     ap.add_argument("--nn", action="store_true", help="Autopilot-Modus 'Neuronales Netz' (nn.py)")
     ap.add_argument("--nn-show", choices=("lernen", "zeitraffer"), help="KI-Showcase: Lernen zuschauen / Zeitraffer (nn_show.py)")
     ap.add_argument("--boom-test", type=float, default=0.0, help="nach so vielen s ins Ziel stürzen (Test)")
     ap.add_argument("--remote", type=int, default=0, help="Fernsteuerung für EasyPilot Studio auf diesem Port (remote.py)")
-    ap.add_argument("--physik", choices=("klassisch", "liftoff"),
-                    help="Flugphysik: klassisch (sim.py) oder liftoff (physics.py, Liftoff-nah); sonst aus dem Menü")
+    ap.add_argument("--physik", choices=("klassisch", "liftoff", "real"),
+                    help="Flugphysik: klassisch (sim.py), liftoff (physics.py, Liftoff-nah) oder real "
+                         "(physics_real.py, echte 5\"-Drohne mit Betaflight); sonst aus dem Menü / FREEFLY_PHYSIK")
+    ap.add_argument("--wind", choices=WIND_ORDER, help="Wind und Böen (nur Physik real); sonst Menü / FREEFLY_WIND")
+    ap.add_argument("--strecke", help="Strecke: " + ", ".join(tracks.ORDER) + " (oder 1-5); sonst aus dem Menü")
     args = ap.parse_args()
 
     rates, thrust = load_model()
     cam = load_camera()
     t0 = time.perf_counter()
-    world = World()
-    print(f"Welt: {len(world.vertices) // 3} Dreiecke, {len(world.boxes)} Kollisionsboxen, "
-          f"{len(world.gates)} Tore ({time.perf_counter() - t0:.1f} s)")
     settings = load_settings(rates.camera_angle_deg, cam.hfov_deg)
+    if args.strecke:
+        settings["strecke"] = tracks.key(args.strecke)
+    world = World(track=settings["strecke"])
+    print(f"Welt: {len(world.vertices) // 3} Dreiecke, {len(world.boxes)} Kollisionsboxen, "
+          f"Strecke {world.track_info['name']}, {len(world.gates)} Tore ({time.perf_counter() - t0:.1f} s)")
 
     pygame.init()
     for attr, val in ((pygame.GL_CONTEXT_MAJOR_VERSION, 3), (pygame.GL_CONTEXT_MINOR_VERSION, 3),
@@ -280,7 +307,7 @@ def main():
 
     def line_pilot():
         if pilot["line"] is None or pilot["line"].k != settings["ap_k"]:
-            pilot["line"] = Autopilot(world, rates, thrust, settings["ap_k"], laps=3)
+            pilot["line"] = Autopilot(world, rates, ap_thrust(thrust, settings["physik"]), settings["ap_k"], laps=3)
             line = pilot["line"].line
             print(f"Autopilot: Rennlinie {line.length:.0f} m, k={settings['ap_k']}, "
                   f"Vias {getattr(line, 'vias', 0)}, geplant in {pilot['line'].plan_time:.2f} s")
@@ -294,7 +321,7 @@ def main():
         if kind == "camera":
             if pilot["camera"] is None:
                 t0 = time.perf_counter()
-                pilot["camera"] = CameraAutopilot(world, rates, thrust, ctx=ctx, speed=10 * settings["ap_k"])
+                pilot["camera"] = CameraAutopilot(world, rates, ap_thrust(thrust, settings["physik"]), ctx=ctx, speed=10 * settings["ap_k"])
                 print(f"Kamera-Autopilot: {pilot['camera'].cam.width} px, {time.perf_counter() - t0:.2f} s")
             pilot["camera"].speed = 10 * settings["ap_k"]       # k=0,6 -> 6 m/s (so getestet)
             return pilot["camera"]
@@ -307,7 +334,7 @@ def main():
                 print(f"Netz-Pilot: {pilot['nn'].label()}")
             return pilot["nn"]
         if pilot["bomb"] is None:
-            pilot["bomb"] = BombAutopilot(world, rates, thrust, entities)
+            pilot["bomb"] = BombAutopilot(world, rates, ap_thrust(thrust, settings["physik"]), entities)
         return pilot["bomb"]
 
     def ap_label():
@@ -333,7 +360,31 @@ def main():
             flight.next_target()
         flight.say("Zerstörung zurückgesetzt", "alles wieder heil", 2.0)
 
+    def switch_track():
+        """Andere Strecke: Welt neu bauen (gleiches Dorf, andere Tore) und alles, was an ihr hängt."""
+        nonlocal world, entities, lage
+        t0 = time.perf_counter()
+        world = World(track=settings["strecke"])
+        settings["strecke"] = world.track
+        renderer.set_world(world)
+        lage = Lage(renderer, world)
+        entities = Entities(world)
+        flight.world, flight.entities = world, entities
+        flight.target = None
+        for k in pilot:
+            pilot[k] = None                         # Autopiloten planen für die neue Strecke neu
+        explosions.clear()
+        settings["best_lap"] = settings["best_laps"].get(world.track)
+        if remote is not None:
+            remote.world = world
+            remote.send({"hello": remote.hello()})
+        print(f"Strecke {world.track_info['name']}: {len(world.gates)} Tore, "
+              f"{getattr(world, 'removed_deco', 0)} Bäume/Laternen geräumt ({time.perf_counter() - t0:.1f} s)")
+        flight.say(world.track_info["name"], f"Schwierigkeit {world.track_info['stars']}/5", 3.0)
+
     def restart():
+        if settings.get("strecke") != world.track:
+            switch_track()
         flight.mode = settings["mode"]
         if flight.mode == "bomb":
             timed_out = flight.target is not None and time.perf_counter() - flight.target_since > BOMB_TIMEOUT
@@ -344,6 +395,10 @@ def main():
                     flight.say("Alle Ziele erwischt!", "alles wieder auf Anfang", 3.0)
                 flight.next_target()
         flight.physics = settings.get("physik", "classic")
+        if pilot.get("physik", flight.physics) != flight.physics:   # Regler-Schubmodell je Physik (ap_thrust): neu bauen
+            pilot.update(line=None, camera=None, bomb=None)
+        pilot["physik"] = flight.physics
+        flight.wind = settings.get("wind", "aus")          # nur „Realistisch“ (physics_real.WIND)
         flight.respawn()
         pad.kb.throttle = 0.0                    # nach jedem Neustart Gas auf 0 (Fernsteuerung: erst Gas runter = scharf)
         if settings["auto"]:
@@ -362,11 +417,19 @@ def main():
         settings["osd"].update({k: os.environ["FREEFLY_LAGE"] == "1" for k in osd_ui.LAGE})
     if os.environ.get("FREEFLY_OSD") in osd_ui.PRESETS:  # Messung/Bild: OSD-Voreinstellung (liftoff/minimal/zuschauer/aus)
         osd_ui.apply_preset(settings, os.environ["FREEFLY_OSD"])
+    if os.environ.get("FREEFLY_PHYSIK") in PHYSICS_NAMES:   # wie in den Tests ohne Fenster (game.PHYSICS)
+        settings["physik"] = os.environ["FREEFLY_PHYSIK"]
+    if os.environ.get("FREEFLY_WIND") in WIND_ORDER:
+        settings["wind"] = os.environ["FREEFLY_WIND"]
     if args.physik:
-        settings["physik"] = "liftoff" if args.physik == "liftoff" else "classic"
+        settings["physik"] = {"liftoff": "liftoff", "real": "real"}.get(args.physik, "classic")
+    if args.wind:
+        settings["wind"] = args.wind
     settings["no_save"] = bool(args.bench)
     if args.bomb:
         settings["mode"] = "bomb"
+    if args.line:
+        settings["ap_mode"] = "line"
     if args.camera:
         settings["ap_mode"] = "camera"
     if args.nn:
@@ -472,7 +535,7 @@ def main():
                     if act[1] == "ctl":
                         pad.set_mode(settings["ctl"])
                         pad.notice = None
-                    if act[1] in ("auto", "ap_k", "show_line", "mode", "ap_mode", "physik"):
+                    if act[1] in ("auto", "ap_k", "show_line", "mode", "ap_mode", "physik", "wind", "strecke"):
                         skip_or_restart()
                     renderer.tilt = settings["tilt"]
                     renderer.set_fov(settings["fov"])
@@ -604,6 +667,7 @@ def main():
                 print(f"Runde {flight.new_best:.2f} s{' (Autopilot k=%.1f)' % settings['ap_k'] if ap else ''}")
                 if not settings["auto"] and (settings["best_lap"] is None or flight.new_best < settings["best_lap"]):
                     settings["best_lap"] = flight.new_best
+                    settings["best_laps"][world.track] = flight.new_best       # Bestzeit je Strecke
                     flight.say(f"Runde {flight.new_best:.2f} s", "neuer Rekord!", 3.0)
                     save_settings(settings)
                 flight.new_best = None
@@ -657,7 +721,9 @@ def main():
                 nn_menu.draw(menu_values(settings), "KI-Showcase",
                              "Autopilot-Modus „KI: Lernen zuschauen“ / „KI: Zeitraffer“    K schaltet die Einblendungen")
             else:
-                menu.draw(menu_values(settings), "EasyPilot Freiflug", f"Acro · {pad.name} · 12 Tore · {len(entities.kind)} bewegte Ziele")
+                menu.draw(menu_values(settings), "EasyPilot Freiflug", f"Acro · {pad.name} · {len(world.gates)} Tore · "
+                          f"{len(entities.kind)} bewegte Ziele")
+                tracks.draw_card(hud, settings["strecke"], menu.items[menu.sel]["key"] == "strecke")
         if remote is not None:
             remote.publish(flight, settings, sticks, {
                 "fps": len(fps_win) / max(1e-6, sum(fps_win)), "pad": pad.name, "menu": in_menu, "timeout": BOMB_TIMEOUT,

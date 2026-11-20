@@ -193,13 +193,17 @@ def thrust_model(base, params=None):
                                inflow=p.inflow, airmode=round(p.k * p.air_n ** 2, 2))
 
 
-PHYSICS = {"classic": "Klassisch", "liftoff": "Liftoff-nah"}
+PHYSICS = {"classic": "Klassisch", "liftoff": "Liftoff-nah", "real": "Realistisch"}   # "real": physics_real.py
 
 
-def make_drone(kind, pos, rates, thrust, drag, quat=(0.0, 0.0, 0.0, 1.0)):
-    """Drohne für Flight: kind 'classic' (sim.py, wie bisher) oder 'liftoff' (dieses Modell)."""
+def make_drone(kind, pos, rates, thrust, drag, quat=(0.0, 0.0, 0.0, 1.0), wind="aus"):
+    """Drohne für Flight: kind 'classic' (sim.py, wie bisher), 'liftoff' (dieses Modell) oder 'real'
+    (physics_real.py: echte 5"-Drohne mit Betaflight-Regler, Motoren, Akku; wind nur dort)."""
     if kind == "liftoff":
         return LiftoffDrone(pos=pos, quat=quat, params=LiftoffParams(), rates=rates)
+    if kind == "real":
+        from .physics_real import make
+        return make(pos, rates, quat, wind)
     from ..sim import SimDrone, SimParams
     p = SimParams(hover_throttle=thrust.hover_throttle, thrust_exponent=thrust.exponent,
                   drag=drag, inflow=thrust.inflow, airmode=thrust.airmode)

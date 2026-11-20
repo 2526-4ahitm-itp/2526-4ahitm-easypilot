@@ -2,8 +2,9 @@
 
 Das Studio startet den Sim als eigenen Prozess (Fenster oben links, --remote PORT) und steuert ihn über
 freefly/remote.py: Modus (Rennen / Bomben), Autopilot-Art (Rennlinie / Nur Kamera / Bomben), Tempo k,
-Runden bzw. Ziele, Mensch oder Autopilot. Jeder Lauf hat Countdown, Zeit, Torzeiten und landet in der
-Bestenliste; der beste Autopilot-Lauf je Art und k ist die Referenz (Zeit, Torzeiten, Geist auf der Karte).
+Runden bzw. Ziele, Strecke (freefly/tracks.py), Mensch oder Autopilot. Jeder Lauf hat Countdown, Zeit, Torzeiten
+und landet in der Bestenliste der Strecke; der beste Autopilot-Lauf je Art und k ist die Referenz (Zeit, Torzeiten,
+Geist auf der Karte).
 Ein Sim, der schon mit --remote läuft (z. B. von Hand gestartet), wird einfach verbunden.
 """
 import json
@@ -17,10 +18,11 @@ import time
 import uuid
 from pathlib import Path
 
+from .freefly import tracks
 from .freefly.remote import DEFAULT_PORT, SimClient
 
 ROOT = Path(__file__).resolve().parent.parent          # simulator/
-DEFAULTS = {"mode": "race", "ap_mode": "line", "ap_k": 0.6, "laps": 1, "targets": 5, "timeout": 180}
+DEFAULTS = {"mode": "race", "ap_mode": "line", "ap_k": 0.6, "laps": 1, "targets": 5, "timeout": 180, "strecke": "dorfrunde"}
 AP_NAMES = {"line": "Rennlinie", "camera": "Nur Kamera", "nn": "Neuronales Netz", "bomb": "Bomben"}
 TITLE_BAR = 28           # macOS-Fenster: Titelleiste über dem Bild (wie window_mac.TITLE_BAR)
 
@@ -151,8 +153,11 @@ class SimStudio:
         return "bomb" if k == "bomb" else f"{k}-{float(self.settings['ap_k']):.1f}"
 
     def board(self):
+        """Bestenliste je Strecke (Dorfrunde: die bisherige Datei race-Nlap.json) und Rundenzahl."""
         s = self.settings
-        name = f"bomb-{int(s['targets'])}ziele.json" if s["mode"] == "bomb" else f"race-{int(s['laps'])}lap.json"
+        tr = tracks.key(s.get("strecke"))
+        name = f"bomb-{int(s['targets'])}ziele.json" if s["mode"] == "bomb" else \
+            f"race-{int(s['laps'])}lap.json" if tr == "dorfrunde" else f"race-{tr}-{int(s['laps'])}lap.json"
         if name not in self._boards:
             self._boards[name] = SimBoard(self.dir / name, bomb=s["mode"] == "bomb")
         return self._boards[name]
@@ -165,7 +170,7 @@ class SimStudio:
 
     def sim_settings(self):
         s = self.settings
-        return {"mode": s["mode"], "ap_mode": s["ap_mode"], "ap_k": float(s["ap_k"])}
+        return {"mode": s["mode"], "ap_mode": s["ap_mode"], "ap_k": float(s["ap_k"]), "strecke": tracks.key(s.get("strecke"))}
 
     # ---------------------------------------------------------------- process
     def running(self):
@@ -252,6 +257,7 @@ class SimStudio:
                 if k in cmd and cmd[k] is not None:
                     self.settings[k] = cmd[k]
             self.settings["ap_k"] = round(max(0.2, min(1.2, float(self.settings["ap_k"]))), 1)
+            self.settings["strecke"] = tracks.key(self.settings.get("strecke"))
             self.save_settings()
             if self.live["phase"] not in ("ready", "countdown", "racing"):
                 self.client.send(cmd="settings", **self.sim_settings())
@@ -475,7 +481,9 @@ class SimStudio:
         if r and not r["bomb"] and ref and splits and len(splits) <= len(ref.get("splits", [])):
             delta = round(splits[-1] - ref["splits"][len(splits) - 1], 2)
         tel = self.client.latest()
+        hello = self.client.hello or {}
         return {**self.live, "settings": self.settings, "kind_ap": self.kind(), "ref_key": key,
+                "tracks": tracks.summary(), "track": hello.get("track") or {"key": "dorfrunde", "name": "Dorfrunde", "stars": 2},
                 "sim": {"running": self.client.connected, "own": self.proc is not None and self.proc.poll() is None,
                         "starting": self.live["phase"] == "starting", "port": self.port},
                 "tel": tel, "gates": (self.client.hello or {}).get("gates", []), "roads": (self.client.hello or {}).get("roads", []),
