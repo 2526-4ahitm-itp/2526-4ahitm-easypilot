@@ -8,5 +8,6 @@ stop() {
 }
 stop "mac/kiosk.py" "Präsentationsmodus"
 stop "autopilot.studio" "Studio"
+stop "autopilot[.]freefly --window --size [0-9]+x[0-9]+ --remote" "EasyPilot-Sim (vom Studio)"   # genau der Aufruf aus studio_sim.py
 stop "mac/ojdpad.py" "ojdpad"
 true

@@ -86,6 +86,7 @@ Im Finder in `simulator/mac/` (ein Alias davon auf den Schreibtisch legen reicht
 | `Start-EasyPilot.command` | startet, was fehlt (OpenJoystickDriver, ojdpad, Studio), lädt die zuletzt gewählte Strecke, klickt ein offenes Pausenmenü weg und ordnet Liftoff + zwei Safari-Fenster an. Läuft schon alles, ordnet es nur neu an. |
 | `Praesi-EasyPilot.command` | dasselbe als Präsentationsmodus: Studio randlos über Menüleiste und Dock (`kiosk.py`), deckt auch die Titelleiste von Liftoff ab. Raus: Knopf „Beenden ✕“ oben in der Leiste (auch über AnyDesk), Esc in einem Studio-Fenster, ctrl+Esc oder Stop. Systemeinstellungen bleiben unverändert. |
 | `Stop-EasyPilot.command` | beendet Präsentationsmodus, Studio und ojdpad. Liftoff bleibt offen. |
+| `Uebung-EasyPilot.command` | wie Start, dann „Mensch fliegt“ als endloser Übungsmodus (nach Absturz/Ziel geht es vom Start weiter); wartet auf die kalibrierte RC 3, Enter stoppt. Name als Argument (Standard „Simon“). |
 | `Kalibrieren.command` | echten Controller einmal kalibrieren (für „Mensch fliegt“), danach Live-Test der Sticks. |
 
 Logs: `~/EasyPilot/logs/`. Getestet am 19.11.2026: Kaltstart in ~11 s, Autopilot Stufe 3 im
@@ -96,7 +97,19 @@ Mac manchmal im Pausenmenü; das Studio klickt dann selbst „Resume“ (`Studio
 AutumnFieldsRace01 Stufe 3: Absturz bei Tor 7/10 (dort noch keine Autopilot-Referenz). Im Präsentationsmodus zeigt die Seite keine `alert()`-Meldungen
 (WKWebView ohne UI-Delegate), der rote Controller-Hinweis im Studio bleibt sichtbar.
 
-### DJI FPV Remote Controller 3 („Mensch fliegt“, noch ungetestet)
+### Latenz: Liftoff im Fenster, kein Parsec (gemessen 19.11.2026 abends)
+
+Mit Liftoff im Vollbild (`Screenmanager Fullscreen mode` = 2, eigener Space) und laufendem
+Parsec-Stream stieg die Verzögerung Befehl → Liftoff-Input von ~43 ms auf ~130 ms; der Autopilot
+stürzte in allen Modi vor Tor 1 ab. Parsec allein kostete im OJD-Feed 70–90 ms statt 14 ms.
+Mit Liftoff im Fenster (`defaults write "unity.LuGus Studios.Liftoff" "Screenmanager Fullscreen mode" -int 3`)
+und ohne Parsec: 30 ms, Stufe 3 „Karte + Kamera“ mit echter gates.pt 35,04 s im Ziel (17/17).
+Für Vorführungen deshalb AnyDesk/Parsec trennen. Die Torerkennung braucht `mac/setup.sh --vision`
+(ultralytics 8.4.182, torch) und `autopilot/models/gates.pt`; ~27 ms pro Bild auf MPS.
+`debug_vision` in `~/EasyPilot/settings.json` auf `false` lassen: sonst läuft bei jedem Lauf ein
+zweiter Detektor dauernd auf der GPU mit.
+
+### DJI FPV Remote Controller 3 („Mensch fliegt“)
 
 1. **Erst Liftoff starten** (Start-EasyPilot), dann die Fernsteuerung per USB-C (Datenkabel)
    anstecken und einschalten. Liftoff muss weiter das virtuelle Gamepad nutzen
@@ -104,6 +117,15 @@ AutumnFieldsRace01 Stufe 3: Absturz bei Tor 7/10 (dort noch keine Autopilot-Refe
 2. `Kalibrieren.command` doppelklicken und den Anweisungen folgen. Die RC 3 hat ab Werk einen
    selbstzentrierenden Gasstick: bei „Gas ganz UNTEN“ den Stick unten halten.
 3. Im Studio muss der Chip „Controller“ grün werden, dann „Mensch fliegt“.
+
+**Wichtig (getestet 19.11.2026):** Nur an den runden USB-C-Ports hinten mit USB-C-auf-USB-C-Kabel,
+eingeschaltet anstecken; der Mac braucht ~4 s (erst USB 3, dann USB 2). Am USB-A-Port wurde sie
+nie erkannt. OpenJoystickDriver hält die RC 3 exklusiv (SDL/pygame sehen dann nichts bzw. nur
+Nullen). Deshalb setzt `Start-EasyPilot.command` für sie das OJD-Profil `generic`
+(`ojd virtual set generic 2CA3:1021`), und `autopilot/hid_mac.py` liest dieses virtuelle Pad
+(„OpenJoystickDriver Generic HID Gamepad“, 1209:4A4F) direkt per IOKit: gemessen +0,5 ms (Median)
+gegenüber dem Rohbericht. Belegung über OJD: Achse 0 Roll, 1 Pitch, 2 Yaw, 4 Gas (0..1).
+Bei dieser RC 3 zentrieren beide senkrechten Sticks nicht von selbst.
 
 Das Studio erkennt einen später angesteckten Controller (pygame-Events werden gepumpt) und zählt
 `controller.local.json` nur als kalibriert, wenn der Name zum angesteckten Controller passt.

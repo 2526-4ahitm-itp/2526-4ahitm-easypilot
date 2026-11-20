@@ -45,16 +45,38 @@ def _is_virtual(joy):
     return sys.platform == "darwin" and guid.startswith("0300") and guid[8:20] == "5e040000130b"
 
 
+def _is_ojd_generic(joy):
+    """OJD's republished pad of a controller it holds (DJI RC 3). SDL reads it as zeros on macOS,
+    so it is listed through IOKit instead (hid_mac)."""
+    guid = joy.get_guid() if hasattr(joy, "get_guid") else ""
+    return sys.platform == "darwin" and guid[8:20] == "09120000" + "4f4a"
+
+
 def controllers():
-    """(index, name) of all joysticks except the virtual one the autopilot drives."""
+    """(index, name) of all joysticks except the virtual one the autopilot drives. On macOS a
+    controller that OpenJoystickDriver holds exclusively (DJI FPV RC 3) has the index "hid"."""
     pg = _pygame()
     pg.event.pump()        # SDL only sees a controller plugged in after start when events are pumped
     out = []
     for i in range(pg.joystick.get_count()):
         joy = pg.joystick.Joystick(i)
-        if not _is_virtual(joy):
+        if not _is_virtual(joy) and not _is_ojd_generic(joy):
             out.append((i, joy.get_name()))
+    if sys.platform == "darwin":
+        from . import hid_mac
+        out += [("hid", n) for n in hid_mac.find()[:1]]
     return out
+
+
+def _open(idx):
+    """(joystick-like object, pump function) for an index from controllers()."""
+    if idx == "hid":
+        from . import hid_mac
+        return hid_mac.HidPad(), lambda: None
+    pg = _pygame()
+    joy = pg.joystick.Joystick(idx)
+    joy.init()
+    return joy, pg.event.pump
 
 
 def calibrated():
@@ -73,13 +95,10 @@ class Controller:
     def __init__(self, config=CONFIG):
         cfg = json.loads(Path(config).read_text(encoding="utf-8"))
         self.cfg = cfg
-        pg = _pygame()
         match = [i for i, name in controllers() if name == cfg["name"]] or [i for i, _ in controllers()]
         if not match:
             raise RuntimeError("no controller connected (the virtual pad does not count)")
-        self.pg = pg
-        self.joy = pg.joystick.Joystick(match[0])
-        self.joy.init()
+        self.joy, self.pump = _open(match[0])
         self.name = self.joy.get_name()
 
     def _axis(self, spec):
@@ -93,21 +112,21 @@ class Controller:
         return min(1.0, max(-1.0, r))
 
     def read(self):
-        self.pg.event.pump()
+        self.pump()
         a = self.cfg["axes"]
         return (self._axis(a["throttle"]), self._axis(a["yaw"]), self._axis(a["pitch"]), self._axis(a["roll"]))
 
     def button(self, name):
         b = self.cfg.get("buttons", {}).get(name)
-        self.pg.event.pump()
+        self.pump()
         return b is not None and self.joy.get_button(b)
 
 
-def _sample(joy, pg, seconds):
+def _sample(joy, pump, seconds):
     vals = []
     end = time.time() + seconds
     while time.time() < end:
-        pg.event.pump()
+        pump()
         vals.append([joy.get_axis(i) for i in range(joy.get_numaxes())])
         time.sleep(0.01)
     return vals
@@ -117,16 +136,14 @@ def calibrate():
     found = controllers()
     if not found:
         sys.exit("kein Controller gefunden (Fernsteuerung im USB-Joystick-Modus anstecken)")
-    pg = _pygame()
     idx, name = found[0]
-    joy = pg.joystick.Joystick(idx)
-    joy.init()
+    joy, pump = _open(idx)
     print(f"Controller: {name}, {joy.get_numaxes()} Achsen, {joy.get_numbuttons()} Knöpfe")
 
     def step(msg, seconds=2.5):
         input(f"\n{msg}  [Enter]")
         print("  messe ...")
-        v = _sample(joy, pg, seconds)
+        v = _sample(joy, pump, seconds)
         return [sum(c) / len(c) for c in zip(*v)], [max(c) - min(c) for c in zip(*v)]
 
     rest, _ = step("Alle Sticks loslassen (mittig), Gas ganz UNTEN.")

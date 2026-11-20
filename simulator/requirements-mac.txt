@@ -5,3 +5,4 @@ UnityPy
 mss
 pyobjc-framework-Quartz
 pyobjc-framework-Cocoa
+moderngl

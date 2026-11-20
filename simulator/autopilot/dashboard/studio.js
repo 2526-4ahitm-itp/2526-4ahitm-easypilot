@@ -136,7 +136,7 @@ function renderCoverage() {
 function chip(el, ok, warn) { el.classList.toggle("ok", !!ok); el.classList.toggle("warn", !ok && !!warn); }
 
 function render(s) {
-  if (!EP.track) return;
+  if (!EP.track || document.body.classList.contains("simmode")) return;   // EasyPilot-Sim: sim.js
   if (trackRace !== s.race || (lastPhase !== s.phase && (s.phase === "finished" || s.phase === "idle"))) {
     trackRace = s.race;
     EP.loadTrack().then(renderStagePills);
@@ -258,7 +258,7 @@ function render(s) {
 }
 
 function frame() {
-  if (EP.state) {
+  if (EP.state && !document.body.classList.contains("simmode")) {
     const t = EP.fmt(EP.elapsed());
     $("clock").textContent = t;
     const s = EP.state;

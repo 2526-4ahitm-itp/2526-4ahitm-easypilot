@@ -38,12 +38,14 @@ from .session import catalog, flush_laps, lap_counted, lap_record, load as load_
 from .tdot import STAGES, LapTimer, Leaderboard
 from .telemetry import Telemetry
 from .track import race_gates
+from .studio_sim import SimStudio
 
 WEB = Path(__file__).resolve().parent / "dashboard"
 DATA = RUNS / "studio"
 SETTINGS = DATA / "settings.json"
 DEFAULTS = {"race": "StrawBaleRace01", "laps": 1, "stage": 3, "custom_speed": None, "vision": False,
-            "liftoff_mode": "race", "timeout": 180, "autopilot_mode": "karte"}
+            "liftoff_mode": "race", "timeout": 180, "autopilot_mode": "karte",
+            "simulator": "liftoff"}   # "liftoff" or "sim" (own simulator, studio_sim.py)
 # Autopilot modes: "karte" = gates from the track file, "karte_kamera" = plus camera correction (old
 # "vision" switch), "erkunden" = camera-only scouting lap, then race on its own map, "nur_kamera" =
 # camera only, no map (visionfly.py). The track file then only scores the run (lap timer).
@@ -77,6 +79,7 @@ class Studio:
         self.dbg_racer, self.dbg_state, self.dbg_plan = None, None, None
         self.dets = None              # (stamp, [[x0, y0, x1, y1, conf, 4 corners...]] normalised) of the live image
         self.det_thread = None
+        self.sim = SimStudio(DATA)       # second simulator choice: EasyPilot-Sim (autopilot/freefly)
         self._select(self.settings["race"], self.settings["laps"])
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -242,6 +245,17 @@ class Studio:
     # ---------------------------------------------------------------- commands from the page
     def submit(self, cmd):
         a = cmd.get("action")
+        if a == "simulator":
+            self.settings["simulator"] = "sim" if cmd.get("which") == "sim" else "liftoff"
+            self.save_settings()
+            return {"ok": True}
+        if a == "sim_layout":
+            ok = self.sim.arrange()
+            if sys.platform == "darwin" and cmd.get("url"):
+                ok = arrange_studio_windows_mac(cmd["url"]) and ok
+            return {"ok": ok} if ok else {"ok": False, "error": "Sim läuft nicht oder Safari-Fenster gehen nicht"}
+        if str(a).startswith("sim_"):
+            return self.sim.submit(cmd)
         if a == "abort":
             self.abort.set()
             self.queue_list.clear()
@@ -297,7 +311,8 @@ class Studio:
                 elif cmd["action"] == "bot":
                     self.run_bot(cmd.get("stage"), cmd.get("speed"))
                 else:
-                    self.run_human(cmd["name"], int(cmd.get("stage") or 1))
+                    self.run_human(cmd["name"], int(cmd.get("stage") or 1), bool(cmd.get("practice")),
+                                   bool(cmd.get("infinite")))
             except (Exception, SystemExit) as exc:   # SystemExit: vjoy/ojdpad missing - must not kill the worker
                 import traceback
                 traceback.print_exc()
@@ -536,7 +551,12 @@ class Studio:
             mp4.unlink()
         return self._finish("bot", name, level, why, extra)
 
-    def run_human(self, name, level):
+    def run_human(self, name, level, practice=False, infinite=False):
+        """practice: a crash does not end the run. Liftoff respawns the drone at the start, the
+        timer starts again and the pilot keeps flying (Versuch 2, 3, ...) until the finish, Stop/F9
+        or practice_minutes (default 5) are over. infinite: practice without time limit, and after
+        the finish the drone is reset for the next lap too - it only ends with Stop/F9."""
+        practice = practice or infinite
         self.dbg_racer, self.dbg_plan = None, None     # the debug view belongs to autopilot runs
         from .pilot import Controller
         from .vjoy import VJoy
@@ -552,9 +572,29 @@ class Studio:
             if s is None:
                 return self._finish("human", name, level, self.live["message"] or "abgebrochen")
             resets0 = self.tel.resets
-            end = time.perf_counter() + float(self.settings.get("timeout", 180))
+            limit = float(self.settings.get("practice_minutes", 5)) * 60 if practice else float(self.settings.get("timeout", 180))
+            end = float("inf") if infinite else time.perf_counter() + limit
             why = "im Ziel"
-            while not self.timer.finished:
+            attempt = 1
+            if practice:
+                self.live.update(message="Übung: Versuch 1")
+            best = None
+            while infinite or not self.timer.finished:
+                if infinite and self.timer.finished:     # lap done: show it, back to the start
+                    best = self.timer.time if best is None else min(best, self.timer.time)
+                    joy.idle()
+                    self.live.update(message=f"Übung: Versuch {attempt} im Ziel {self.timer.time:.2f} s (Bestzeit {best:.2f} s)")
+                    if not self._reset(joy, self._settle()):
+                        why = "Reset kommt nicht an"
+                        break
+                    s = self.tel.wait(1.0)
+                    resets0 = self.tel.resets
+                    attempt += 1
+                    self.timer.reset()
+                    if s is not None:
+                        self.timer.go(s.t)
+                    self.live.update(phase="racing", message=f"Übung: Versuch {attempt} (Bestzeit {best:.2f} s)")
+                    continue
                 if self.abort.is_set() or key_down(VK_F9):
                     why = "abgebrochen"
                     break
@@ -562,8 +602,20 @@ class Studio:
                     why = "Zeitlimit"
                     break
                 if self.tel.resets != resets0:
-                    why = "Reset / Absturz"
-                    break
+                    if not practice:
+                        why = "Reset / Absturz"
+                        break
+                    joy.idle()                      # respawned: new attempt from the start
+                    time.sleep(self._settle())
+                    s = self.tel.wait(1.0)
+                    resets0 = self.tel.resets
+                    attempt += 1
+                    self.timer.reset()
+                    if s is not None:
+                        self.timer.go(s.t)
+                    tail = f" (Bestzeit {best:.2f} s)" if best is not None else ""
+                    self.live.update(phase="racing", message=f"Übung: Versuch {attempt}{tail}")
+                    continue
                 joy.sticks(*ctl.read())
                 time.sleep(0.004)
             return self._finish("human", name, level, why)
@@ -730,6 +782,15 @@ def make_handler(studio, admin_key):
                 return self._send(200, json.dumps(studio.track_info(), ensure_ascii=False))
             if p == "/api/plan":
                 return self._send(200, json.dumps(studio.debug_plan()))
+            if p == "/api/sim":
+                return self._send(200, json.dumps({**studio.sim.state(), "selected": studio.settings.get("simulator")},
+                                                  ensure_ascii=False))
+            if p == "/api/sim/ghost":
+                return self._send(200, json.dumps(studio.sim.ghost()))
+            if p == "/api/sim/nn_curve.png":                  # Lernkurve des Netz-Piloten (freefly/train_nn.py)
+                from .freefly.nn import MODEL_DIR
+                if (MODEL_DIR / "curve.png").exists():
+                    return self._send(200, (MODEL_DIR / "curve.png").read_bytes(), "image/png")
             if p == "/api/maps":
                 return self._send(200, json.dumps(studio.maps(), ensure_ascii=False))
             m = re.match(r"/api/video/([^/]+)/(\d+)$", p)
