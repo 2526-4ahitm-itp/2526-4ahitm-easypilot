@@ -9,7 +9,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-DRONE_DIR = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff/DroneConfigurations"
+from .paths import LIFTOFF_USER
+
+DRONE_DIR = LIFTOFF_USER / "DroneConfigurations"
 
 
 @dataclass(frozen=True)

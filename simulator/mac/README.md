@@ -1,0 +1,169 @@
+# Liftoff-Autopilot auf macOS
+
+Der Autopilot (`simulator/autopilot`) läuft auch auf einem Mac (Apple Silicon, macOS 15),
+mit Liftoff aus Steam für macOS. Die Logik ist dieselbe; nur die Anbindung an das Betriebssystem
+ist ausgetauscht:
+
+| Windows | macOS | Datei |
+|---|---|---|
+| vJoy-Treiber | OpenJoystickDriver-Gamepad („Xbox Wireless Controller“), gehalten von `ojdpad.py` | `mac/ojdpad.py`, `autopilot/vjoy.py` |
+| `user32` (Fenster, Fokus, Klicks) | Quartz + AppKit | `autopilot/window_mac.py` |
+| GDI StretchBlt | mss + OpenCV | `autopilot/capture_mac.py` |
+| `AppData/LocalLow/...` | `~/Library/Application Support/LuGus Studios/Liftoff` | `autopilot/paths.py` |
+| F9 | F9 (bzw. fn+F9) | `autopilot/window_mac.py` |
+
+```
+Liftoff ──UDP :9001 (Telemetrie)──► autopilot (MacVJoy)
+   ▲                                     │ UDP :9101, 20 Byte pro Zustand
+   └── Gamepad „Xbox Wireless Controller“ ◄── mac/ojdpad.py ── ojd virtual feed
+```
+
+macOS lässt ein selbst gebautes virtuelles HID-Gerät nur mit einer Apple-Freigabe zu, auch mit
+`sudo` nicht. OpenJoystickDriver ist notarisiert und darf das. `ojdpad.py` hält das Gamepad
+dauerhaft offen wie der vJoy-Treiber unter Windows. Verschwindet das Gamepad, liest Liftoff einen
+mittigen Trigger, also halbes Gas, und die Drohne steigt weg. Kommt 0,5 s kein Paket, setzt
+`ojdpad` Gas aus und die Sticks in die Mitte. Es braucht keinen Mod im Spiel und kein `sudo`.
+
+## Einrichten (einmalig)
+
+1. Steam für macOS installieren, Liftoff installieren und einmal starten (legt den Datenordner an).
+2. ```bash
+   simulator/mac/setup.sh            # --vision zusätzlich für die YOLO-Torerkennung
+   ```
+   Legt `simulator/.venv` (Python 3.11) an und schreibt
+   `TelemetryConfiguration.json` nach `~/Library/Application Support/LuGus Studios/Liftoff`.
+3. **Systemeinstellungen > Datenschutz & Sicherheit** für das Terminal (bzw. die App, aus der
+   Python läuft): **Bedienungshilfen** (Klicks, Fenster) und **Bildschirmaufnahme** (Kamera-Bild,
+   Fenstergröße).
+4. OpenJoystickDriver installieren (getestet: 0.6.0-alpha.2,
+   https://github.com/xsyetopz/OpenJoystickDriver/releases), starten und unter
+   **Datenschutz & Sicherheit** **Eingabeüberwachung** und **Bedienungshilfen** erlauben.
+   CLI verlinken: `ln -s /Applications/OpenJoystickDriver.app/Contents/MacOS/OpenJoystickDriver /opt/homebrew/bin/ojd`.
+   Test: `ojd status`, dann `hidutil list | grep -i openjoystick` während ein Autopilot-Befehl läuft.
+5. `ojdpad` starten und laufen lassen:
+   `simulator/.venv/bin/python simulator/mac/ojdpad.py`
+6. **Liftoff > Options > Controls > Controller > Calibrate > Manual Calibration.** Beim Wählen
+   jedes Kanals müssen alle Achsen in der Mitte stehen. Kanäle:
+   - Right horizontal = 0 (Roll)
+   - Right vertical = 3 (Pitch)
+   - Left vertical = 4 (Gas)
+   - Left horizontal = 5 (Yaw)
+
+   Jede Achse einmal ganz durchfahren und das Deadband auf 0 stellen. Danach Mode 2 und Save.
+   Belegung und Vorzeichen stehen in `OjdGamepad` in `autopilot/vjoy.py`.
+7. **Controls > Buttons:** „FPV Noise Toggle“ (Left Trigger) und „Fisheye Toggle“ (Right Trigger)
+   mit Clear Key leeren, dann Save. Die übrigen Xbox-Standardknöpfe passen:
+   - A = Bestätigen
+   - B = Zurück bzw. Reset
+   - Guide = Pause
+   - Y = Exit
+8. Liftoff-Grafik (getestet auf M1): 1920×1080, Quality Fast, VSync aus, Bloom, AO, DOF, AA und Motion Blur aus.
+9. Strecken und Drohne wie unter Windows (alle Befehle in `simulator/`):
+   ```bash
+   .venv/bin/python -m autopilot.track extract
+   .venv/bin/python -m autopilot.sysid
+   ```
+
+## Benutzen
+
+OpenJoystickDriver muss laufen (Menüleiste), dazu `ojdpad.py` in einem eigenen Terminal.
+Liftoff muss im Vordergrund sein. Dann wie in `autopilot/README.md`, nur mit `.venv/bin/python`:
+
+```bash
+cd simulator
+.venv/bin/python -m autopilot.hovertest
+.venv/bin/python -m autopilot.race StrawBaleRace01 0.8 3
+.venv/bin/python -m autopilot.studio
+.venv/bin/python -m unittest discover -s autopilot/tests -t . -v   # ohne Liftoff
+```
+
+## Mit einem Doppelklick starten
+
+Im Finder in `simulator/mac/` (ein Alias davon auf den Schreibtisch legen reicht):
+
+| Datei | macht |
+|---|---|
+| `Start-EasyPilot.command` | startet, was fehlt (OpenJoystickDriver, ojdpad, Studio), lädt die zuletzt gewählte Strecke, klickt ein offenes Pausenmenü weg und ordnet Liftoff + zwei Safari-Fenster an. Läuft schon alles, ordnet es nur neu an. |
+| `Praesi-EasyPilot.command` | dasselbe als Präsentationsmodus: Studio randlos über Menüleiste und Dock (`kiosk.py`), deckt auch die Titelleiste von Liftoff ab. Raus: Knopf „Beenden ✕“ oben in der Leiste (auch über AnyDesk), Esc in einem Studio-Fenster, ctrl+Esc oder Stop. Systemeinstellungen bleiben unverändert. |
+| `Stop-EasyPilot.command` | beendet Präsentationsmodus, Studio und ojdpad. Liftoff bleibt offen. |
+| `Uebung-EasyPilot.command` | wie Start, dann „Mensch fliegt“ als endloser Übungsmodus (nach Absturz/Ziel geht es vom Start weiter); wartet auf die kalibrierte RC 3, Enter stoppt. Name als Argument (Standard „Simon“). |
+| `Kalibrieren.command` | echten Controller einmal kalibrieren (für „Mensch fliegt“), danach Live-Test der Sticks. |
+
+Logs: `~/EasyPilot/logs/`. Getestet am 19.11.2026: Kaltstart in ~11 s, Autopilot Stufe 3 im
+Präsentationsmodus 33,97 s im Ziel. Danach im Präsentationsmodus 6/6 im Ziel (Stufe 2: 41,11 / 40,94 s,
+Stufe 3: 33,59 / 33,59 s, Stufe 3 + Kamera: 34,84 / 34,84 s), AnyDesk und Emulator aus.
+Streckenwechsel StrawBale → AutumnFieldsRace01 → StrawBale geht. Nach dem Laden steht Liftoff am
+Mac manchmal im Pausenmenü; das Studio klickt dann selbst „Resume“ (`Studio._unpause`).
+AutumnFieldsRace01 Stufe 3: Absturz bei Tor 7/10 (dort noch keine Autopilot-Referenz). Im Präsentationsmodus zeigt die Seite keine `alert()`-Meldungen
+(WKWebView ohne UI-Delegate), der rote Controller-Hinweis im Studio bleibt sichtbar.
+
+### Latenz: Liftoff im Fenster, kein Parsec (gemessen 19.11.2026 abends)
+
+Mit Liftoff im Vollbild (`Screenmanager Fullscreen mode` = 2, eigener Space) und laufendem
+Parsec-Stream stieg die Verzögerung Befehl → Liftoff-Input von ~43 ms auf ~130 ms; der Autopilot
+stürzte in allen Modi vor Tor 1 ab. Parsec allein kostete im OJD-Feed 70–90 ms statt 14 ms.
+Mit Liftoff im Fenster (`defaults write "unity.LuGus Studios.Liftoff" "Screenmanager Fullscreen mode" -int 3`)
+und ohne Parsec: 30 ms, Stufe 3 „Karte + Kamera“ mit echter gates.pt 35,04 s im Ziel (17/17).
+Für Vorführungen deshalb AnyDesk/Parsec trennen. Die Torerkennung braucht `mac/setup.sh --vision`
+(ultralytics 8.4.182, torch) und `autopilot/models/gates.pt`; ~27 ms pro Bild auf MPS.
+`debug_vision` in `~/EasyPilot/settings.json` auf `false` lassen: sonst läuft bei jedem Lauf ein
+zweiter Detektor dauernd auf der GPU mit.
+
+### DJI FPV Remote Controller 3 („Mensch fliegt“)
+
+1. **Erst Liftoff starten** (Start-EasyPilot), dann die Fernsteuerung per USB-C (Datenkabel)
+   anstecken und einschalten. Liftoff muss weiter das virtuelle Gamepad nutzen
+   (Options > Controls); wählt Liftoff die RC 3 selbst aus, dort zurückstellen.
+2. `Kalibrieren.command` doppelklicken und den Anweisungen folgen. Die RC 3 hat ab Werk einen
+   selbstzentrierenden Gasstick: bei „Gas ganz UNTEN“ den Stick unten halten.
+3. Im Studio muss der Chip „Controller“ grün werden, dann „Mensch fliegt“.
+
+**Wichtig (getestet 19.11.2026):** Nur an den runden USB-C-Ports hinten mit USB-C-auf-USB-C-Kabel,
+eingeschaltet anstecken; der Mac braucht ~4 s (erst USB 3, dann USB 2). Am USB-A-Port wurde sie
+nie erkannt. OpenJoystickDriver hält die RC 3 exklusiv (SDL/pygame sehen dann nichts bzw. nur
+Nullen). Deshalb setzt `Start-EasyPilot.command` für sie das OJD-Profil `generic`
+(`ojd virtual set generic 2CA3:1021`), und `autopilot/hid_mac.py` liest dieses virtuelle Pad
+(„OpenJoystickDriver Generic HID Gamepad“, 1209:4A4F) direkt per IOKit: gemessen +0,5 ms (Median)
+gegenüber dem Rohbericht. Belegung über OJD: Achse 0 Roll, 1 Pitch, 2 Yaw, 4 Gas (0..1).
+Bei dieser RC 3 zentrieren beide senkrechten Sticks nicht von selbst.
+
+Das Studio erkennt einen später angesteckten Controller (pygame-Events werden gepumpt) und zählt
+`controller.local.json` nur als kalibriert, wenn der Name zum angesteckten Controller passt.
+
+## Studio (Demo für den Tag der offenen Tür)
+
+`autopilot/studio.py` läuft auch am Mac. Vorher müssen OpenJoystickDriver und `ojdpad.py` laufen,
+und die Strecken müssen einmal extrahiert sein (`.venv/bin/python -m autopilot.track extract`).
+
+```bash
+cd simulator
+.venv/bin/python -m autopilot.studio            # http://localhost:8765/
+```
+
+Was am Mac anders ist:
+
+- **Liftoff im Fenstermodus** (Unity-Prefs, Liftoff vorher beenden):
+  `defaults write "$HOME/Library/Preferences/unity.LuGus Studios.Liftoff.plist" "Screenmanager Fullscreen mode" -int 3`.
+  Die Auflösung zählt in Pixeln, auf einem Retina-Bildschirm ergibt 2560×1440 ein Fenster mit
+  1280×720 Punkten. Im Vollbild verdeckt Liftoff alles, und man kommt nicht mehr zu anderen Apps.
+- **DJI-FPV-DLC:** Die Bedingungen einmal akzeptieren. Abgelehnt erscheint der Dialog bei jedem
+  Start wieder und blockiert das Laden der Strecke.
+- **Mensch fliegt:** Der Controller wird über pygame gelesen. Das virtuelle Gamepad wird
+  herausgefiltert (`pilot._is_virtual`), getestet ist das mit einem echten Controller noch nicht.
+- Getestet am 18.11.2026: StrawBaleRace01 wird über das Studio geladen (~50 s). Autopilot Stufe 3:
+  17/17 Tore, 34,08 s.
+
+## Grenzen
+
+- Liftoff bleibt im Fenstermodus oder Vollbild; `studio` kann das Fenster unter macOS nur
+  verschieben, nicht randlos und immer im Vordergrund machen.
+- Die Aufnahme braucht ~30 ms pro Bild (Windows ~17 ms); für die Torerkennung reicht das.
+- `liftoff-hover` (pygame + vJoy-Variante) ist noch nicht portiert.
+- Sieht Liftoff das Gerät nicht: `ojd status` (Berechtigungen) und `hidutil list | grep -i openjoystick`.
+- Unter macOS weckt das Telemetrie-Paket die Regelschleife (`Session._idle`). Kurze Sleeps eines
+  Hintergrundprozesses dauern dort ~80 ms, sonst läuft die Regelung nur mit 14 Hz statt ~98 Hz.
+- Getestet am 18.11.2026: `hovertest 14 3 3` steigt auf 3 m, fliegt 3 m / 3 m und hält. Reset
+  funktioniert, Pause und `race` sind ungetestet.
+- Nicht verwenden: das OJD-Profil `generic` (Achsen bleiben 0) und zwei Flugachsen auf einem Stick
+  (Rewired begrenzt den Stick auf einen Kreis).
+- Nicht verwenden: einen BepInEx-Mod. Liftoff enthält ACTk und meldet „Custom code injection detected“.

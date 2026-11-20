@@ -86,3 +86,7 @@ def client_rect(hwnd=None):
     origin = wt.POINT(0, 0)
     user32.ClientToScreen(hwnd, ctypes.byref(origin))
     return origin.x, origin.y, rect.right, rect.bottom
+
+
+if sys.platform == "darwin":
+    from .window_mac import client_rect, click, find_window, focus_liftoff, is_focused, refocus_quick  # noqa: F401,F811

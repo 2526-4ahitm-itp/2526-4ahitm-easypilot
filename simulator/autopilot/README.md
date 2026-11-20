@@ -27,6 +27,8 @@ FPV-Bild ── capture.py ──► detector.py (YOLO, 4 Eckpunkte) ──┘  
 
 ## Einrichten (einmalig)
 
+**macOS:** siehe [`../mac/README.md`](../mac/README.md) (OpenJoystickDriver statt vJoy, `setup.sh`). Die Schritte hier gelten für Windows.
+
 1. Python 3.11, `pip install numpy opencv-python UnityPy ultralytics` und PyTorch mit CUDA.
 2. vJoy 2.2.2.0, Gerät 1 mit 8 Achsen und 32 Knöpfen (wie bei `liftoff-hover`).
 3. **Liftoff-Controllerdatei für vJoy** um Menü-, Reset- und Pause-Knöpfe ergänzen (Liftoff
