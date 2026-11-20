@@ -1,5 +1,9 @@
 """Die Welt des Freiflug-Simulators: Wiese, Dorf mit Straßen und Häusern, Bäume, Tor-Strecke.
 
+Strecken (tracks.py): das Dorf wird immer an Hand der Dorfrunde (COURSE) angelegt, damit Häuser und
+Bäume für jede Strecke an derselben Stelle stehen. Für eine andere Strecke (World(track=...)) ersetzt
+_use_track danach die Tore und räumt Deko (Bäume, Büsche, Laternen, Leitungen, Steine) aus deren Linie.
+
 Alles ist Low-Poly-Geometrie in einem Vertex-Puffer (Position, Normale, Farbe, uv in Metern,
 Material). Kollision: orientierte Boxen (Drehung um y), Dächer und Baumkronen als gestufte Boxen.
 Koordinaten wie Unity/sim.py: x rechts, y oben, z vorne (Startrichtung).
@@ -24,16 +28,51 @@ class Gate:
     z: float
     lift: float
     yaw: float = 0.0
+    kind: str = "std"            # Torart (tracks.py): std small big tilt double ladder flag
+    w: float = GATE_W            # Öffnung
+    h: float = GATE_H
+    roll: float = 0.0            # rad, schräges Tor
+    n_open: int = 1              # Öffnungen übereinander (Doppeltor 2, Leiter 3)
+    level: object = 0            # zählende Öffnung, None = jede
+    plan: int = 0                # Öffnung, auf die die Rennlinie zielt (wenn level None)
+    base: float = 0.0            # Boden unter dem Tor (Flachdach)
+    pole: tuple = None           # Flagge: Stange (x, z); das Tor ist das Fenster daneben
+
+    def open_y(self, k):
+        return self.lift + self.h / 2 + k * (self.h + GATE_T)
 
     @property
     def center(self):
-        return (self.x, self.lift + GATE_H / 2, self.z)
+        return (self.x, self.open_y(self.plan if self.level is None else self.level), self.z)
+
+    @property
+    def plan_size(self):
+        """Öffnung für die Rennlinie: schräg -> eingeschriebenes Quadrat, Flagge -> Abstand zur Stange."""
+        if self.roll:
+            return (min(self.w, self.h) * 0.7,) * 2
+        if self.pole is not None:
+            return (self.w - 1.0, self.h)
+        return (self.w, self.h)
 
     def local(self, p):
-        """(quer, hoch, Flugrichtung) relativ zur Tormitte."""
+        """(quer, hoch, Flugrichtung) relativ zur Tormitte, quer/hoch auf ein Standardtor (GATE_W x GATE_H)
+        umgerechnet: game.Flight prüft |quer| < GATE_W/2 und |hoch| < GATE_H/2 für jede Torart. Bei mehreren
+        zählenden Öffnungen gilt die nächstgelegene, beim schrägen Tor wird erst zurückgedreht."""
         c, s = math.cos(self.yaw), math.sin(self.yaw)
-        rx, ry, rz = p[0] - self.x, p[1] - (self.lift + GATE_H / 2), p[2] - self.z
-        return c * rx - s * rz, ry, s * rx + c * rz
+        rx, rz = p[0] - self.x, p[2] - self.z
+        q, f = c * rx - s * rz, s * rx + c * rz
+        best = None
+        for k in (range(self.n_open) if self.level is None else (self.level,)):
+            y = p[1] - self.open_y(k)
+            u = q
+            if self.roll:
+                cr, sr = math.cos(self.roll), math.sin(self.roll)
+                u, y = cr * q + sr * y, -sr * q + cr * y
+            nx, ny = u * (GATE_W / self.w), y * (GATE_H / self.h)
+            m = max(abs(nx) / GATE_W, abs(ny) / GATE_H)
+            if best is None or m < best[0]:
+                best = (m, nx, ny)
+        return best[1], best[2], f
 
 
 # Rundkurs: (x, z, Höhe der Unterkante). Richtung jedes Tors = vom vorigen zum nächsten Tor.
@@ -51,7 +90,14 @@ ROOFS = [(0.6, 0.2, 0.17), (0.35, 0.33, 0.33), (0.52, 0.2, 0.2), (0.30, 0.22, 0.
 
 
 class World:
-    def __init__(self, seed=11):
+    def __init__(self, seed=11, track=None):
+        """track: Strecke aus tracks.py (Name, Schlüssel oder Nummer); None = FREEFLY_STRECKE oder Dorfrunde.
+        Das Dorf wird immer mit der Dorfrunde angelegt (gleiche Häuser, gleiche Bäume für alle Strecken);
+        für eine andere Strecke tauscht _use_track danach nur die Tore und räumt Deko aus ihrer Linie."""
+        from . import tracks
+        self.track = tracks.key(track)
+        self.track_info = tracks.info(self.track)
+        self.deco_items = []     # (Anfang, Ende, x, z, Radius, Höhe): Bäume, Büsche, Laternen, Leitungen, Steine
         self.v = []              # Vertices: 12 floats
         self.targets = []        # zerstörbare Objekte (Bomben-Modus), siehe _target
         self.boxes = []          # (cx, cy, cz, hx, hy, hz, yaw)
@@ -66,6 +112,8 @@ class World:
         self._village()
         self._fields()
         self._trees()
+        if self.track != "dorfrunde":
+            self._use_track(self.track_info)
         self.vertices = np.array(self.v, dtype="f4")
         b = np.array(self.boxes, dtype="f8")
         self.bc, self.bh = b[:, 0:3], b[:, 3:6]
@@ -98,6 +146,106 @@ class World:
             t["alive"] = True
         self.alive[:] = True
 
+    # ------------------------------------------------------------ Strecken (tracks.py)
+
+    def _deco(self, start, x, z, r, top):
+        """Was seit `start` gebaut wurde, ist Deko (Baum, Busch, Laterne, Leitung, Stein): darf für eine
+        andere Strecke wegfallen. r = waagrechter Radius, top = Höhe."""
+        self.deco_items.append((start, self.mark(), x, z, r, top))
+
+    def _track_gates(self, spec):
+        from .tracks import OPENINGS, SIZES
+        n = len(spec)
+        pts = [(d["x"], d["z"]) for d in spec]
+        out = []
+        for i, d in enumerate(spec):
+            x, z = pts[i]
+            if d.get("yaw") is not None:
+                yaw = math.radians(d["yaw"])
+            else:                                         # Winkelhalbierende wie bei der Dorfrunde
+                px, pz = pts[i - 1] if i else (0.0, 0.0)
+                nx, nz = pts[(i + 1) % n]
+                a = np.array((x - px, z - pz)) / math.hypot(x - px, z - pz)
+                b = np.array((nx - x, nz - z)) / math.hypot(nx - x, nz - z)
+                yaw = math.atan2(*(a + b))
+            kind = d.get("kind", "std")
+            w, h = SIZES[kind]
+            base = d.get("base", 0.0)
+            pole = None
+            if kind == "flag":
+                side = 1.0 if d.get("side", "r") == "r" else -1.0   # Stange rechts/links der Flugrichtung
+                pole = (x, z)
+                off = side * (w / 2 + 0.35)                   # Fenstermitte = Stange - quer * off
+                x, z = x - math.cos(yaw) * off, z + math.sin(yaw) * off
+                lift = 0.0
+            else:
+                lift = max(d.get("lift", 0.0), base + 0.25)
+            nopen = OPENINGS.get(kind, 1)
+            level = d.get("level", 0) if nopen > 1 else 0
+            out.append(Gate(x, z, lift, yaw, kind, w, h, math.radians(d.get("roll", 0.0)), nopen, level,
+                            d.get("plan", 0), base, pole))
+        return out
+
+    @staticmethod
+    def _track_line(gates, ks=(0.6, 1.0)):
+        """Rennlinien (ohne Hindernisse, 2 Runden) bei k 0,6 und 1,0: daraus wird die Deko geräumt."""
+        try:
+            from ..planner import Gate as PGate
+            from ..race import build_line, launch
+            pg = [PGate(g.center, (math.sin(g.yaw), 0.0, math.cos(g.yaw)), *g.plan_size) for g in gates]
+            start, d = launch(pg[0], SPAWN)
+            pts = []
+            for k in ks:
+                pts += list(build_line(pg + [pg[0]], start, d, 2, k).points)
+            return np.asarray(pts, dtype="f8")
+        except Exception as e:
+            print("Rennlinie für die Deko-Freihaltung nicht verfügbar:", e)
+            return np.zeros((0, 3))
+
+    @staticmethod
+    def _in_way(pts, gates, x, z, r, top):
+        if len(pts):
+            d = np.hypot(pts[:, 0] - x, pts[:, 2] - z)
+            if np.any((d < r + LINE_CLEAR) & (pts[:, 1] < top + 2.5)):
+                return True
+        for g in gates:
+            for gx, gz in ((g.x, g.z),) + ((g.pole,) if g.pole else ()):
+                if math.hypot(gx - x, gz - z) < r + max(g.w, 3.0) / 2 + 2.5:
+                    return True
+        return math.hypot(x, z) < r + 4.0                       # Startplatz
+
+    def _use_track(self, t):
+        """Dorfrunden-Tore raus, Tore der Strecke rein, Deko aus deren Linie räumen."""
+        from .tracks import COLORS
+        gates = self._track_gates(t["gates"])
+        pts = self._track_line(gates)
+        keep_v = np.ones(len(self.v), dtype=bool)
+        keep_b = np.ones(len(self.boxes), dtype=bool)
+        gv, gb = self._gate_mark
+        keep_v[:gv] = False
+        keep_b[:gb] = False
+        self.removed_deco = 0
+        for (v0, b0), (v1, b1), x, z, r, top in self.deco_items:
+            if self._in_way(pts, gates, x, z, r, top):
+                keep_v[v0:v1] = False
+                keep_b[b0:b1] = False
+                self.removed_deco += 1
+        cv = np.concatenate(([0], np.cumsum(keep_v)))
+        cb = np.concatenate(([0], np.cumsum(keep_b)))
+        self.v = [v for v, k in zip(self.v, keep_v) if k]
+        self.boxes = [b for b, k in zip(self.boxes, keep_b) if k]
+        for tg in self.targets:
+            tg["verts"] = (int(cv[tg["verts"][0]]), int(cv[tg["verts"][1]]))
+            tg["boxes"] = (int(cb[tg["boxes"][0]]), int(cb[tg["boxes"][1]]))
+        self.deco_items = []
+        self.gates = gates
+        self.line_xz = pts[:, [0, 2]] if len(pts) else np.zeros((0, 2))
+        accent = COLORS[t["stars"]]
+        self.gate_boxes = (len(self.boxes), None)          # Kollisionsboxen der Tore (Tests: Tor steckt in nichts)
+        for i, g in enumerate(gates):
+            self.gate_kind(g, M_GATE + i, accent)
+        self.gate_boxes = (self.gate_boxes[0], len(self.boxes))
+
     # ------------------------------------------------------------ Aufbau
 
     def _course(self):
@@ -112,6 +260,7 @@ class World:
             g = Gate(x, z, max(lift, 0.25), yaw)          # unterer Balken sichtbar über der Wiese
             gates.append(g)
             self.gate(g, M_GATE + i)
+        self._gate_mark = self.mark()                     # Vertices/Boxen der Dorfrunden-Tore: [0, Marke)
         # Start-Plattform
         self.box((0, 0.04, 0), (1.3, 0.04, 1.3), 0, (0.25, 0.25, 0.27), M_PAD, collide=False)
         return gates
@@ -227,7 +376,9 @@ class World:
         # Laternen entlang der Hauptstraße
         for z in range(18, 170, 16):
             if self.course_dist(64.8, z) > 11 and self.unreserved(64.8, z, 1.5):  # Rennlinie schwingt in Kurven weit aus
+                m = self.mark()
                 self.lamp(64.8, z)
+                self._deco(m, 64.8, z, 1.4, 5.3)
         # Straßenbäume und Stromleitungen quer über die Straßen (macht es eng)
         for x0, z0, x1, z1, w in ROADS[:2]:
             L = math.hypot(x1 - x0, z1 - z0)
@@ -240,12 +391,15 @@ class World:
                     if self.course_dist(x, z) > 8 and not self.hit((x, 1.0, z), 0.6, all_boxes=True) \
                             and rng.random() < 0.65 and self.unreserved(x, z, 2.5) \
                             and self.line_dist(x, z) > 7.0 * 0.3 + LINE_CLEAR:        # Krone bis 0,3 * Höhe
-                        self.leafy(x, z, rng.uniform(5.0, 7.0))
+                        m, h = self.mark(), rng.uniform(5.0, 7.0)
+                        self.leafy(x, z, h)
+                        self._deco(m, x, z, h * 0.38, h * 1.05)
             for t in np.arange(20, L - 10, 38.0):
                 cx, cz = x0 + ux * t, z0 + uz * t
                 if self.course_dist(cx, cz) < 7 or not self.unreserved(cx, cz, w / 2 + 3):
                     continue
                 ends = []
+                m = self.mark()
                 for side in (-1, 1):
                     off = side * (w / 2 + 2.0)
                     ends.append((cx + nx * off, cz + nz * off))
@@ -255,6 +409,7 @@ class World:
                 span = math.hypot(bx - ax, bz - az)
                 for dy in (7.0, 7.4):                                      # zwei Kabel
                     self.box(((ax + bx) / 2, dy, (az + bz) / 2), (0.03, 0.03, span / 2), yaw, (0.1, 0.1, 0.1))
+                self._deco(m, cx, cz, span / 2 + 0.5, 7.7)
 
     def _trees(self):
         rng = self.rng
@@ -270,16 +425,20 @@ class World:
             if self.line_dist(x, z) < 11 * 0.3 + LINE_CLEAR:                  # Krone bis 0,3 * Höhe (max 11 m)
                 continue
             h = rng.uniform(5, 11)
+            m = self.mark()
             if rng.random() < 0.5:
                 self.pine(x, z, h)
             else:
                 self.leafy(x, z, h)
+            self._deco(m, x, z, h * 0.38, h * 1.1)
             placed += 1
         for _ in range(60):                                       # Büsche
             x, z = rng.uniform(-60, 150), rng.uniform(-30, 200)
             if self.road_dist(x, z) > 2 and self.free(x, z, 1.2, 3.0, y=0.5) and self.line_dist(x, z) > 1.2 + LINE_CLEAR:
                 s = rng.uniform(0.6, 1.2)
+                m = self.mark()
                 self.blob((x, s * 0.6, z), (s, s * 0.7, s), (0.22, 0.45, 0.18), collide=True)
+                self._deco(m, x, z, s * 1.2, s * 1.4)
 
     # ------------------------------------------------------------ Durchflug-Gebäude
 
@@ -542,7 +701,9 @@ class World:
             x, z = dr.uniform(-80, 200), dr.uniform(-60, 240)
             if self.road_dist(x, z) > 3 and self.course_dist(x, z) > 4 and self.unreserved(x, z, 1.0):
                 sc = dr.uniform(0.3, 0.8)
+                m = self.mark()
                 self.blob((x, sc * 0.3, z), (sc * 1.2, sc * 0.6, sc), (0.5, 0.5, 0.48), collide=sc > 0.5, mat=M_PLAIN)
+                self._deco(m, x, z, sc * 1.4, sc * 0.8)
 
     # ------------------------------------------------------------ Bauteile
 
@@ -569,6 +730,97 @@ class World:
                 at(x, 0.05, 0.15, 0.05, 0.6, M_PLAIN, dark)        # Rahmenecken, der Kamera-Pilot braucht den Ring)
                 for lz in (-0.6, 0.6):
                     at(x, 0.06, 0.19, 0.06, 0.08, M_PLAIN, steel, lz=lz, collide=False)
+
+    def gate_kind(self, g, mat, accent):
+        """Tor einer Strecke (tracks.py): Rahmen orange/weiß (Shader, Material M_GATE + i), Füße und
+        Ständer in der Schwierigkeitsfarbe. Mehrere Öffnungen übereinander teilen sich die Holme."""
+        if g.pole is not None:
+            return self._flag(g, mat, accent)
+        if g.roll:
+            return self._tilted(g, mat, accent)
+        t, w, h = GATE_T, g.w, g.h
+        c, s = math.cos(g.yaw), math.sin(g.yaw)
+
+        def at(lx, ly, hx, hy, hz, m=mat, col=(1.0, 0.5, 0.1), lz=0.0, collide=True):
+            self.box((g.x + c * lx + s * lz, ly, g.z - s * lx + c * lz), (hx, hy, hz), g.yaw, col, m, collide)
+        inner = g.n_open * h + (g.n_open - 1) * t
+        for side in (-1, 1):
+            at(side * (w / 2 + t / 2), g.lift + inner / 2, t / 2, inner / 2 + t, t / 2)
+        for k in range(g.n_open + 1):
+            at(0, g.lift - t / 2 + k * (h + t), w / 2 + t, t / 2, t / 2)
+        if g.n_open > 1 and g.level is not None:              # zählende Öffnung: Pfeile in Streckenfarbe
+            y = g.open_y(g.level)
+            for side in (-1, 1):
+                at(side * (w / 2 + t + 0.1), y, 0.1, h * 0.32, 0.14, M_PLAIN, accent, collide=False)
+        self._stands(g, [(side * (w / 2 + t / 2), 0.0) for side in (-1, 1)], g.lift - t, accent)
+
+    def _stands(self, g, feet, top, accent):
+        """Ständer vom Boden (oder Dach) bis `top` an den Stellen feet (quer, längs)."""
+        c, s = math.cos(g.yaw), math.sin(g.yaw)
+        dark = tuple(v * 0.5 for v in accent)
+        for lx, lz0 in feet:
+            px, pz = g.x + c * lx + s * lz0, g.z - s * lx + c * lz0
+            hgt = top - g.base
+            if hgt > 0.3:
+                self.box((px, g.base + hgt / 2, pz), (0.08, hgt / 2, 0.08), g.yaw, accent)
+                spread = 0.5 + 0.04 * hgt
+                self.box((px, g.base + 0.03, pz), (0.45, 0.03, spread + 0.05), g.yaw, dark, collide=False)
+                for lz in (-spread, spread):
+                    self.limb((px + s * lz, g.base + 0.06, pz + c * lz), (px, g.base + min(hgt * 0.5, 4.0), pz),
+                              0.035, accent)
+            else:
+                self.box((px, g.base + 0.05, pz), (0.15, 0.05, 0.6), g.yaw, accent)
+
+    def obox(self, center, axes, half, col, mat):
+        """Quader mit beliebiger Lage (axes: drei Einheitsvektoren), uv in Metern. Ohne Kollision."""
+        C = np.asarray(center, float)
+        A = [np.asarray(a, float) for a in axes]
+        for i in range(3):
+            j, k = (i + 1) % 3, (i + 2) % 3
+            for sg in (-1, 1):
+                n = A[i] * sg
+                ctr = C + n * half[i]
+                pts = [ctr + A[j] * su * half[j] + A[k] * sv * half[k] for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+                if sg < 0:
+                    pts = pts[::-1]
+                uv = [(float(np.dot(p, A[j]) + np.dot(p, A[k])), float(np.dot(p, A[k]) - np.dot(p, A[j]))) for p in pts]
+                self.quad(*[tuple(p) for p in pts], tuple(n), col, uv, mat)
+
+    def _tilted(self, g, mat, accent):
+        """Schräges Tor: Rahmen um die Flugachse gedreht. Kollision: kleine Würfel entlang der Holme."""
+        t, w, h = GATE_T, g.w, g.h
+        c, s = math.cos(g.yaw), math.sin(g.yaw)
+        Q, F, Y = np.array((c, 0.0, -s)), np.array((s, 0.0, c)), np.array((0.0, 1.0, 0.0))
+        cr, sr = math.cos(g.roll), math.sin(g.roll)
+        U, V = cr * Q + sr * Y, -sr * Q + cr * Y
+        C = np.array((g.x, g.open_y(0), g.z))
+        bars = [(C + U * sd * (w / 2 + t / 2), (U, V, F), (t / 2, h / 2 + t, t / 2)) for sd in (-1, 1)] + \
+               [(C + V * sd * (h / 2 + t / 2), (U, V, F), (w / 2 + t, t / 2, t / 2)) for sd in (-1, 1)]
+        for ctr, axes, half in bars:
+            self.obox(ctr, axes, half, (1.0, 0.5, 0.1), mat)
+            long = int(np.argmax(half))
+            L = half[long]
+            for a in np.arange(-L + 0.1, L, 0.2):
+                p = ctr + axes[long] * a
+                self.boxes.append((p[0], p[1], p[2], t / 2 + 0.02, t / 2 + 0.02, t / 2 + 0.02, g.yaw))
+        b = C - V * (h / 2 + t)                             # Ständer unter die Mitte des unteren Holms
+        lq = float(np.dot(b - C, Q))
+        self._stands(g, [(lq, 0.0)], float(b[1]), accent)
+
+    def _flag(self, g, mat, accent):
+        """Flagge zum Umfliegen: Stange mit Fahnentuch (Tor-Material: leuchtet als nächstes Tor),
+        gezählt wird das Fenster neben der Stange (innen in der Kurve)."""
+        px, pz = g.pole
+        c, s = math.cos(g.yaw), math.sin(g.yaw)
+        side = 1.0 if (c * (px - g.x) - s * (pz - g.z)) > 0 else -1.0
+        top = g.h + 0.6
+        self.cylinder((px, 0, pz), 0.06, top, (0.88, 0.88, 0.9), sides=8)
+        ox = side * 0.5
+        self.box((px + c * ox, (1.4 + top) / 2, pz - s * ox), (0.44, (top - 1.4) / 2, 0.03), g.yaw,
+                 (1.0, 0.5, 0.1), mat)
+        self.box((px + c * (ox + side * 0.47), (1.4 + top) / 2, pz - s * (ox + side * 0.47)),
+                 (0.05, (top - 1.4) / 2, 0.035), g.yaw, accent, collide=False)
+        self.box((px, 0.04, pz), (0.5, 0.04, 0.5), g.yaw, tuple(v * 0.5 for v in accent), collide=False)
 
     def container(self, center, yaw, col):
         start = self.mark()

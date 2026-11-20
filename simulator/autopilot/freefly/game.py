@@ -8,9 +8,10 @@ from ..sim import SimDrone, SimParams
 from .world import GATE_H, GATE_W, RADIUS, SPAWN
 
 DRAG = 0.033            # 1/m, wie race.DRAG (Störgrößen-Schätzung bei 27 m/s)
-# Physik für neue Flights: "classic" (sim.py) oder "liftoff" (physics.py); __main__ setzt Flight.physics
+# Physik für neue Flights: "classic" (sim.py), "liftoff" (physics.py) oder "real" (physics_real.py); __main__ setzt Flight.physics
 # aus Menü/--physik, die Tests ohne Fenster lesen FREEFLY_PHYSIK.
 PHYSICS = os.environ.get("FREEFLY_PHYSIK", "classic")
+WIND = os.environ.get("FREEFLY_WIND", "aus")      # nur „Realistisch“: "aus" / "leicht" / "stark" (physics_real.WIND)
 
 
 class Flight:
@@ -29,11 +30,12 @@ class Flight:
         self.respawn()
 
     physics = PHYSICS
+    wind = WIND
 
     def respawn(self):
-        if self.physics == "liftoff":
+        if self.physics in ("liftoff", "real"):
             from .physics import make_drone
-            self.drone = make_drone("liftoff", SPAWN, self.rates, self.thrust, DRAG)
+            self.drone = make_drone(self.physics, SPAWN, self.rates, self.thrust, DRAG, wind=self.wind)
         else:
             p = SimParams(hover_throttle=self.thrust.hover_throttle, thrust_exponent=self.thrust.exponent,
                           drag=DRAG, inflow=self.thrust.inflow, airmode=self.thrust.airmode)
@@ -63,7 +65,9 @@ class Flight:
         d.step(*sticks, dt)
         self.flight_time += dt
         up_y = qrot(d.quat, (0.0, 1.0, 0.0))[1]
-        if d.pos[1] < RADIUS:
+        if self.physics == "real":            # Boden/Hindernisse erst nach den Bomben-Zielen (unten)
+            pass
+        elif d.pos[1] < RADIUS:
             if vy < -6.0:
                 return self.crash(f"zu hart aufgeschlagen ({-vy:.0f} m/s)")
             if up_y < 0.25:
@@ -82,7 +86,12 @@ class Flight:
                     self.events.append(("boom", d.pos, True, ei))
                     return self.crash(f"{name} getroffen ({took:.1f} s)", hit=True)
                 return self.crash(f"falsches Ziel ({name})")
-        if self.world.hit_index(d.pos) >= 0:
+        if self.physics == "real":            # abprallen/kippen statt sofort Absturz (physics_real.collide)
+            from .physics_real import collide
+            reason = collide(self, d, vy, dt, RADIUS, up_y)
+            if reason:
+                return self.crash(reason)
+        elif self.world.hit_index(d.pos) >= 0:
             return self.crash("Hindernis getroffen")
         if abs(d.pos[0]) > 1500 or abs(d.pos[2]) > 1500 or d.pos[1] > 400:
             return self.crash("zu weit weg")

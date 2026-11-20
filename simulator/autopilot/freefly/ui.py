@@ -187,6 +187,9 @@ class Hud:
                    f"übrig {int(flight.entities.alive.sum())}", W / 2, 86 * s, int(21 * s), bold=False)
         else:
             T.draw(f"TOR {flight.next_gate + 1} / {n}", W / 2, 44 * s, int(36 * s))
+            name = getattr(flight.world, "track_info", {}).get("name")                    # Strecke (tracks.py)
+            if name:
+                T.draw(name, W / 2, 14 * s, int(17 * s), tint=(1, 1, 1, 0.75), bold=False)
         lap = None if flight.lap_start is None else flight.flight_time - flight.lap_start
         if not bomb:
             T.draw(f"Runde {fmt_time(lap)}    Letzte {fmt_time(flight.last_lap)}    Beste {fmt_time(settings.get('best_lap'))}",

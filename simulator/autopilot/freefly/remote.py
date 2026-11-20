@@ -6,7 +6,8 @@ Der Sim ist der Server (RemoteServer, läuft in der Spielschleife), das Studio d
 Jede Nachricht ist eine Zeile JSON.
 
 Studio -> Sim (Befehle, "cmd"):
-  settings  mode ("race"/"bomb"), ap_mode ("line"/"camera"), ap_k, show_line, mark, hud, auto
+  settings  mode ("race"/"bomb"), ap_mode ("line"/"camera"), ap_k, show_line, mark, hud, auto,
+            strecke (tracks.py; der Sim baut die Welt neu und schickt danach ein neues "hello")
   prepare   Lauf vorbereiten: Einstellungen wie bei settings, Drohne an den Start, eingefroren,
             Menü zu. auto = ob danach der Autopilot fliegt (er wird hier schon gebaut).
   go        Start: Drohne frei; mit auto fliegt der Autopilot ab dem Startplatz.
@@ -16,7 +17,7 @@ Studio -> Sim (Befehle, "cmd"):
   quit      Sim beenden
 
 Sim -> Studio:
-  {"hello": {...}}   einmal nach dem Verbinden: Tore (x, y, z, Gier), Fenster, Version
+  {"hello": {...}}   nach dem Verbinden und nach jedem Streckenwechsel: Strecke, Tore (x, y, z, Gier), Straßen
   {"tel": {...}}     Telemetrie mit 20 Hz (Lage, Höhe, Tempo, Sticks, Tor, Modus, Ziel ...)
   {"ev": "..."}      Ereignisse sofort: go, gate (i, t), crash (reason, hit), respawn, target, lap
 
@@ -131,7 +132,10 @@ class RemoteServer:
                 gates.append({"x": round(c[0], 2), "y": round(c[1], 2), "z": round(c[2], 2),
                               "yaw": round(math.degrees(getattr(g, "yaw", 0.0)), 1)})
         from .world import ROADS
-        return {"gates": gates, "roads": [list(r) for r in ROADS], "version": 1}
+        from .tracks import summary
+        info = getattr(self.world, "track_info", None) or {"key": "dorfrunde", "name": "Dorfrunde", "stars": 2}
+        return {"gates": gates, "roads": [list(r) for r in ROADS], "version": 2,
+                "track": {"key": info["key"], "name": info["name"], "stars": info["stars"]}, "tracks": summary()}
 
     # ------------------------------------------------------------ Befehle
     def poll(self, settings, flight, restart, resume):
@@ -152,7 +156,10 @@ class RemoteServer:
 
     def _settings(self, c, settings):
         changed = False
-        for k in ("mode", "ap_mode", "ap_k", "show_line", "mark", "hud"):
+        if c.get("strecke"):
+            from .tracks import key
+            c = {**c, "strecke": key(c["strecke"])}
+        for k in ("mode", "ap_mode", "ap_k", "show_line", "mark", "hud", "strecke"):
             if k in c and c[k] is not None and settings.get(k) != c[k]:
                 if k == "mode" and c[k] not in ("race", "bomb"):
                     continue
@@ -272,6 +279,7 @@ class RemoteServer:
             "next_gate": flight.next_gate, "gates": len(flight.world.gates), "mode": flight.mode,
             "auto": info.get("auto"), "ap_mode": settings.get("ap_mode"), "ap_k": settings.get("ap_k"),
             "auto_on": bool(settings.get("auto")), "last_lap": flight.last_lap, "best_lap": settings.get("best_lap"),
+            "strecke": getattr(flight.world, "track", "dorfrunde"),
             "hits": flight.hits, "misses": flight.misses, "target": tgt, "menu": bool(info.get("menu")),
             "fps": round(info.get("fps", 0.0)), "lat": round(info.get("lat", 0.0), 2), "pad": info.get("pad"),
             "hold": self.hold}})

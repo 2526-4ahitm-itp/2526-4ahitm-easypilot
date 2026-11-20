@@ -82,6 +82,7 @@ const SIM = (() => {
   }
   $("simK").oninput = () => { $("simKVal").textContent = kTxt($("simK").value); };
   $("simK").onchange = () => send({action: "sim_settings", ap_k: +$("simK").value});
+  $("simTrack").onchange = () => send({action: "sim_settings", strecke: $("simTrack").value});
   $("simLaps").onchange = () => send(st && st.settings.mode === "bomb" ? {action: "sim_settings", targets: +$("simLaps").value}
                                                                        : {action: "sim_settings", laps: +$("simLaps").value});
   $("simTimeout").onchange = () => send({action: "sim_settings", timeout: +$("simTimeout").value});
@@ -127,6 +128,19 @@ const SIM = (() => {
     if (document.activeElement !== $("simLaps")) $("simLaps").value = String(cur);
     $("simLapsLabel").textContent = bomb ? "Ziele" : "Runden";
     if (document.activeElement !== $("simTimeout")) $("simTimeout").value = String(s.timeout);
+    // Strecke (freefly/tracks.py): Auswahl, Sterne in der Schwierigkeitsfarbe, Kurzbeschreibung
+    const trs = st.tracks || [], tr = trs.find(t => t.key === s.strecke) || trs[0];
+    $("simTrackBox").classList.toggle("hidden", bomb || !trs.length);
+    if (trs.length && $("simTrack").dataset.n !== String(trs.length)) {
+      $("simTrack").innerHTML = trs.map(t => `<option value="${t.key}">${esc(t.name)}</option>`).join("");
+      $("simTrack").dataset.n = String(trs.length);
+    }
+    if (tr) {
+      if (document.activeElement !== $("simTrack")) $("simTrack").value = tr.key;
+      $("simTrackStars").textContent = "★".repeat(tr.stars) + "☆".repeat(5 - tr.stars);
+      $("simTrackStars").style.color = tr.stars === 5 ? "" : tr.color;
+      $("simTrackDesc").textContent = tr.desc;
+    }
   }
 
   // ---------------------------------------------------------------- state
@@ -150,7 +164,9 @@ const SIM = (() => {
   function render(s) {
     const set = s.settings, bomb = set.mode === "bomb", tel = s.tel;
     renderControls();
-    $("mapTitle").textContent = "EasyPilot-Sim · Dorf";
+    const trName = (s.tracks || []).find(t => t.key === set.strecke)?.name || "Dorfrunde";
+    $("mapTitle").textContent = bomb ? "EasyPilot-Sim · Dorf" : `EasyPilot-Sim · ${trName}`
+      + (s.track && s.track.key !== set.strecke ? ` (Sim fliegt noch ${s.track.name})` : "");
     $("mapEnv").textContent = bomb ? `Bomben-Modus · ${set.targets} Ziel${set.targets > 1 ? "e" : ""} · je 30 s`
       : `${set.laps} Runde${set.laps > 1 ? "n" : ""} · ${s.gates.length || 12} Tore · ${refName(s.ref_key)}`;
     chip($("chipSim"), s.sim.running, s.sim.starting);
@@ -247,7 +263,7 @@ const SIM = (() => {
 
     // boards
     const bd = s.board;
-    const head = bomb ? `– ${set.targets} Ziele` : `– ${set.laps} Runde${set.laps > 1 ? "n" : ""}`;
+    const head = bomb ? `– ${set.targets} Ziele` : `– ${trName}, ${set.laps} Runde${set.laps > 1 ? "n" : ""}`;
     $("simBoardHead").textContent = head;
     $("simBoardHead2").textContent = head;
     const rk = bd.ranking.length ? bd.ranking.map((x, i) => `<tr class="${i === 0 ? "gold" : ""}"><td>${i + 1}</td>
