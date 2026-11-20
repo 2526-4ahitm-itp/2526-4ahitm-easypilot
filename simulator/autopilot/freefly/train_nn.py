@@ -661,7 +661,7 @@ def plot_curve():
     x, off, prev = [], 0.0, 0.0
     for r in rows:                       # fortgesetzte Trainings zählen ab 0: aufaddieren
         m = float(r["minutes"])
-        if m < prev:
+        if m <= prev:
             off += prev
         prev = m
         x.append(off + m)

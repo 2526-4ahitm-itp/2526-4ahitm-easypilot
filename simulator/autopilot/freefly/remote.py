@@ -156,7 +156,7 @@ class RemoteServer:
             if k in c and c[k] is not None and settings.get(k) != c[k]:
                 if k == "mode" and c[k] not in ("race", "bomb"):
                     continue
-                if k == "ap_mode" and c[k] not in ("line", "camera", "nn"):
+                if k == "ap_mode" and c[k] not in ("line", "camera", "nn", "nn_learn", "nn_replay"):   # nn_*: nn_show.py
                     continue
                 settings[k] = round(max(0.2, min(1.2, float(c[k]))), 1) if k == "ap_k" else c[k]
                 changed = True
