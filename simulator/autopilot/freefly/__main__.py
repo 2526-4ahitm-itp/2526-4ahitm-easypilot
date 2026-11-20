@@ -18,8 +18,13 @@ Controller mit der Tastatur (W/S Gas, A/D Gieren, Pfeile Nicken/Rollen).
 Autopilot (P oder Menü): im Rennen wahlweise Rennlinie oder nur Kamera (Menü „Autopilot-Modus“),
 im Bomben-Modus fliegt immer BombAutopilot. Pro Bomben-Ziel 30 s (Zeit im Menü zählt nicht), dann neues Ziel.
 
+Spielmodi (modes.py, Menü „Modus“, Taste M): Rennen mit Geist der Bestzeit (Taste G), Bomben (B), Ringe sammeln
+(Menü „Ring-Set“), Paket ausliefern, Freestyle; --modus ringe|paket|freestyle, --ringset leicht|schwer.
+
 Esc = Menü, R / Leertaste / Knopf an der Fernsteuerung = Neustart, H = Anzeige, O = Lageanzeige (attitude.py),
 T = Steuerung umschalten (Automatisch / RC 3 / Tastatur, controls.py; Fernsteuerung darf später angesteckt werden).
+L = Kamera-Look (Sauber / Digital / Analog), Menü „Kamera & Grafik …“: Bildzittern, Pixelblöcke, Grafik Hoch/Mittel/
+Schnell, Sichtweite (look.py; Messen/Bilder: FREEFLY_LOOK=analog, FREEFLY_GRAFIK=schnell).
 Nach Absturz, Treffer oder Runden-Ende: Blick auf die Stelle, abblenden, Countdown (restart.py), R überspringt.
 Nach Start und Absturz ist die Drohne erst scharf, wenn das Gas ganz unten war.
 
@@ -58,6 +63,8 @@ from . import osd as osd_ui                   # Liftoff-OSD, Elemente und Preset
 from . import nn_show                         # KI-Showcase: Lernen zuschauen, Zeitraffer, Aufzeichnung (Menü „KI-Showcase …“)
 from .world import World
 from . import tracks                          # Strecken (Menü „Strecke“, --strecke), Bestzeit je Strecke
+from . import modes                           # Spielmodi: Geist, Ringe, Paket, Freestyle (Menü „Modus“, Taste M)
+from . import look as look_fx                 # FPV-Look (Sauber/Digital/Analog) und Grafik-Stufen (Menü „Kamera & Grafik“)
 
 DT = 0.002              # s, Physik-Schritt (500 Hz)
 SETTINGS = Path(__file__).resolve().parent.parent / "freefly.local.json"
@@ -87,18 +94,23 @@ def _user_sim_running():
 
 
 def load_settings(cam_tilt, hfov):
-    s = {"tilt": round(cam_tilt), "fov": round(hfov), "mark": True, "hud": True, "best_lap": None,
-         "ap_k": 0.6, "show_line": True, "quick": False, "mode": "race", "ap_mode": "line", "kb_sens": 0.6, "kb_gas": 1.0, "ctl": "auto",
+    # Standardwerte = Simons Einstellungen vom 20.11.2026 (Uptilt 20°, Sichtfeld 135°, Tastatur 50 % / 1,4x)
+    s = {"tilt": 20, "fov": 135, "mark": True, "hud": True, "best_lap": None,
+         "ap_k": 1.2, "show_line": True, "quick": False, "mode": "race", "ap_mode": "camera", "kb_sens": 0.5, "kb_gas": 1.4, "ctl": "auto",
+         "strecke": "dorfrunde", "wind": "aus", "nn_learn": True,
          "physik": "liftoff"}            # Liftoff-nah (physics.py); "classic" = sim.py; OSD-Elemente: osd.ensure
     try:
         s.update(json.loads(SETTINGS.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         pass
     s["strecke"] = tracks.key(s.get("strecke") or tracks.DEFAULT)
+    s.setdefault("ghost", True)                 # Geist der Bestzeit (modes.py), Taste G
+    s["ring_set"] = modes.ring_set_key(s.get("ring_set"))
     if not isinstance(s.get("best_laps"), dict):      # Bestzeit je Strecke; die alte gilt für die Dorfrunde
         s["best_laps"] = {"dorfrunde": s.get("best_lap")} if s.get("best_lap") else {}
     s["best_lap"] = s["best_laps"].get(s["strecke"])
     osd_ui.ensure(s)                   # "osd": Elemente; alte "lage"/"karte" werden übernommen
+    look_fx.ensure(s)                  # "look" sauber, "grafik" hoch: sieht aus wie bisher (look.py)
     nn_show.ensure(s)                  # "nnshow": KI-Einblendungen, "nn_learn": Netz lernt mit (nn_show.py)
     s["auto"] = False                 # Autopilot nie von selbst einschalten
     s["mode"] = "race"                 # Bomben-Modus wählt man im Menü (B)
@@ -109,7 +121,7 @@ def save_settings(s):
     if s.get("no_save"):                 # --bench: Messläufe ändern die Einstellungen nicht
         return
     try:
-        SETTINGS.write_text(json.dumps({k: v for k, v in s.items() if k not in ("auto", "mode", "no_save")}, indent=1), encoding="utf-8")
+        SETTINGS.write_text(json.dumps({k: v for k, v in s.items() if k not in ("auto", "mode", "no_save", "ghost_save")}, indent=1), encoding="utf-8")
     except OSError:
         pass
 
@@ -117,10 +129,15 @@ def save_settings(s):
 MENU = [{"label": "Fliegen", "kind": "action", "key": "resume"},
         {"label": "Neustart am Startplatz", "kind": "action", "key": "restart"},
         {"label": "Zerstörung zurücksetzen (Z)", "kind": "action", "key": "repair"},
+        {"label": "Vollbild / Fenster (F)", "kind": "action", "key": "window"},
         {"label": "Modus", "kind": "value", "key": "mode"},
         {"label": "Strecke", "kind": "value", "key": "strecke"},
+        {"label": "Ring-Set", "kind": "value", "key": "ring_set"},
+        {"label": "Geist der Bestzeit (G)", "kind": "toggle", "key": "ghost"},
         {"label": "Kamera-Uptilt", "kind": "value", "key": "tilt"},
         {"label": "Sichtfeld", "kind": "value", "key": "fov"},
+        {"label": "Kamera-Look (L)", "kind": "value", "key": "look"},
+        {"label": "Kamera & Grafik …", "kind": "action", "key": "lookmenu"},
         {"label": "Physik", "kind": "value", "key": "physik"},
         {"label": "Wind", "kind": "value", "key": "wind"},
         {"label": "Autopilot fliegt", "kind": "toggle", "key": "auto"},
@@ -145,25 +162,30 @@ BOMB_TIMEOUT = 30.0     # s: so lange pro Bomben-Ziel, dann kommt ein neues
 def menu_values(s):
     onoff = lambda k: "an" if s[k] else "aus"
     return {"tilt": f"{s['tilt']}°", "fov": f"{s['fov']}°", "mark": onoff("mark"), "hud": onoff("hud"),
-            "auto": onoff("auto"), "mode": "Bomben" if s["mode"] == "bomb" else "Rennen (Tore)", "ap_k": f"{s['ap_k']:.1f}", "show_line": onoff("show_line"), "quick": onoff("quick"),
-            "ap_mode": "Bomben-Ziele" if s["mode"] == "bomb" else AP_MODES[s["ap_mode"]],
+            "auto": onoff("auto"), "mode": modes.MODE_LABEL[modes.mode_key(s["mode"])], "ap_k": f"{s['ap_k']:.1f}", "show_line": onoff("show_line"), "quick": onoff("quick"),
+            "ap_mode": "Bomben-Ziele" if s["mode"] == "bomb" else "nur Rennen/Bomben" if s["mode"] in modes.GAME_MODES else AP_MODES[s["ap_mode"]],
+            "ring_set": modes.RING_SETS[modes.ring_set_key(s.get("ring_set"))]["name"], "ghost": onoff("ghost"),
             "kb_sens": f"{round(s['kb_sens'] * 100)} %", "kb_gas": f"{s['kb_gas']:.1f}x",
             "ctl": CTL_LABEL.get(s.get("ctl"), "Automatisch"),
             "physik": PHYSICS_NAMES.get(s.get("physik"), "Klassisch"),
             "wind": WIND_LABEL.get(s.get("wind"), "aus") if s.get("physik") == "real" else "nur bei Realistisch",
             "strecke": tracks.label(s.get("strecke")),
-            **osd_ui.menu_values(s), **nn_show.menu_values(s)}
+            **osd_ui.menu_values(s), **nn_show.menu_values(s), **look_fx.menu_values(s)}
 
 
 def change(s, key, direction):
-    if osd_ui.change(s, key, direction) or nn_show.change(s, key, direction):
+    if osd_ui.change(s, key, direction) or nn_show.change(s, key, direction) or look_fx.change(s, key, direction):
         pass
     elif key == "tilt":
         s["tilt"] = max(0, min(70, s["tilt"] + 5 * direction))
     elif key == "fov":
         s["fov"] = max(80, min(150, s["fov"] + 5 * direction))
-    elif key == "mode":
-        s["mode"] = "race" if s["mode"] == "bomb" else "bomb"
+    elif key == "mode":                    # Rennen -> Bomben -> Ringe -> Paket -> Freestyle (modes.py)
+        order = modes.MODE_ORDER
+        s["mode"] = order[(order.index(modes.mode_key(s["mode"])) + (direction or 1)) % len(order)]
+    elif key == "ring_set":
+        order = modes.RING_ORDER
+        s["ring_set"] = order[(order.index(modes.ring_set_key(s.get("ring_set"))) + (direction or 1)) % len(order)]
     elif key == "strecke":
         order = tracks.ORDER
         i = order.index(s["strecke"]) if s.get("strecke") in order else 0
@@ -241,6 +263,8 @@ def main():
                          "(physics_real.py, echte 5\"-Drohne mit Betaflight); sonst aus dem Menü / FREEFLY_PHYSIK")
     ap.add_argument("--wind", choices=WIND_ORDER, help="Wind und Böen (nur Physik real); sonst Menü / FREEFLY_WIND")
     ap.add_argument("--strecke", help="Strecke: " + ", ".join(tracks.ORDER) + " (oder 1-5); sonst aus dem Menü")
+    ap.add_argument("--modus", help="Spielmodus: race, bomb, ringe, paket, freestyle (modes.py); sonst Rennen")
+    ap.add_argument("--ringset", choices=modes.RING_ORDER, help="Ring-Set für --modus ringe")
     args = ap.parse_args()
 
     rates, thrust = load_model()
@@ -253,11 +277,13 @@ def main():
     print(f"Welt: {len(world.vertices) // 3} Dreiecke, {len(world.boxes)} Kollisionsboxen, "
           f"Strecke {world.track_info['name']}, {len(world.gates)} Tore ({time.perf_counter() - t0:.1f} s)")
 
+    look_fx.from_env(settings)
+    msaa = look_fx.context_samples(settings)      # Kantenglättung des Bildschirms je Grafik-Stufe (Hoch: 4x wie bisher)
     pygame.init()
     for attr, val in ((pygame.GL_CONTEXT_MAJOR_VERSION, 3), (pygame.GL_CONTEXT_MINOR_VERSION, 3),
                       (pygame.GL_CONTEXT_PROFILE_MASK, pygame.GL_CONTEXT_PROFILE_CORE),
-                      (pygame.GL_CONTEXT_FORWARD_COMPATIBLE_FLAG, 1), (pygame.GL_MULTISAMPLEBUFFERS, 1),
-                      (pygame.GL_MULTISAMPLESAMPLES, 4)):
+                      (pygame.GL_CONTEXT_FORWARD_COMPATIBLE_FLAG, 1), (pygame.GL_MULTISAMPLEBUFFERS, int(msaa > 0)),
+                      (pygame.GL_MULTISAMPLESAMPLES, msaa)):
         pygame.display.gl_set_attribute(attr, val)
     flags = pygame.OPENGL | pygame.DOUBLEBUF
     if args.window:
@@ -282,8 +308,13 @@ def main():
     menu = Menu(hud, MENU)
     osd_menu = Menu(hud, osd_ui.MENU)              # Untermenü „Anzeige / OSD“
     nn_menu = Menu(hud, nn_show.MENU)              # Untermenü „KI-Showcase“
+    look_menu = Menu(hud, look_fx.MENU)            # Untermenü „Kamera & Grafik“ (look.py)
+    post = look_fx.PostFx(renderer, msaa)          # Nachbearbeitung + Grafik-Stufe (Hoch = gleiche Optik)
+    post.configure(settings)
     cur_menu = [menu]
     losd = osd_ui.LiftoffOsd(renderer)
+    from .modes_gfx import ModeGfx
+    mgfx = ModeGfx(renderer)                      # Ringe, Paket, Stationen, Geist-Drohne (modes.py)
     from .attitude import Lage
     lage = Lage(renderer, world)                  # Horizont, Kompass, Leisten, 3D-Drohne, Minikarte (attitude.py)
 
@@ -351,6 +382,19 @@ def main():
     models = {k: renderer.entity_vao(m, 64) for k, m in
               (("person", person_mesh()), ("car", car_mesh()), ("bus", bus_mesh()))}
 
+    def switch_window():
+        """F: zwischen Vollbild und Fenster (1600x900) wechseln. Der GL-Kontext lässt sich am Mac nicht
+        sicher umschalten, darum startet sich der Sim mit dem anderen Modus neu (ca. 3 s, Einstellungen bleiben)."""
+        save_settings(settings)
+        argv = [a for a in sys.argv[1:] if a != "--window"]
+        if "--size" in argv:                              # --size <WxH> entfernen
+            i = argv.index("--size")
+            del argv[i:i + 2]
+        if not args.window:
+            argv += ["--window", "--size", "1600x900"]
+        pygame.quit()
+        os.execv(sys.executable, [sys.executable, "-m", "autopilot.freefly", *argv])
+
     def repair():
         """Alles Zerstörte wieder aufbauen: Ziele (Personen, Autos, Busse), Häuser, Krater."""
         entities.revive()
@@ -382,9 +426,13 @@ def main():
               f"{getattr(world, 'removed_deco', 0)} Bäume/Laternen geräumt ({time.perf_counter() - t0:.1f} s)")
         flight.say(world.track_info["name"], f"Schwierigkeit {world.track_info['stars']}/5", 3.0)
 
-    def restart():
+    def restart(full=False):
+        """full: Spielmodus von vorn (R, Menü); sonst geht ein Ringe-/Paket-/Freestyle-Lauf nach Absturz weiter."""
         if settings.get("strecke") != world.track:
             switch_track()
+        if settings["mode"] in modes.GAME_MODES and settings["auto"]:
+            settings["auto"] = False               # Spielmodi sind für Menschen: kein Autopilot
+            flight.say("Autopilot nur im Rennen", "Ringe, Paket und Freestyle fliegst du selbst", 2.5)
         flight.mode = settings["mode"]
         if flight.mode == "bomb":
             timed_out = flight.target is not None and time.perf_counter() - flight.target_since > BOMB_TIMEOUT
@@ -400,6 +448,7 @@ def main():
         pilot["physik"] = flight.physics
         flight.wind = settings.get("wind", "aus")          # nur „Realistisch“ (physics_real.WIND)
         flight.respawn()
+        modes.attach(flight, settings, full)     # Geist / Ringe / Paket / Freestyle (flight.game)
         pad.kb.throttle = 0.0                    # nach jedem Neustart Gas auf 0 (Fernsteuerung: erst Gas runter = scharf)
         if settings["auto"]:
             ap0 = autopilot()
@@ -428,6 +477,11 @@ def main():
     settings["no_save"] = bool(args.bench)
     if args.bomb:
         settings["mode"] = "bomb"
+    if args.modus or os.environ.get("FREEFLY_MODUS"):     # Spielmodus (modes.py), z. B. für Tests und Bilder
+        settings["mode"] = modes.mode_key(args.modus or os.environ["FREEFLY_MODUS"])
+    if args.ringset:
+        settings["ring_set"] = args.ringset
+    settings["ghost_save"] = not args.bench or bool(os.environ.get("FREEFLY_GHOST_DIR"))   # Messläufe: kein neuer Geist
     if args.line:
         settings["ap_mode"] = "line"
     if args.camera:
@@ -436,7 +490,9 @@ def main():
         settings["ap_mode"] = "nn"
     if args.nn_show:
         settings["ap_mode"] = "nn_learn" if args.nn_show == "lernen" else "nn_replay"
-    restart()
+    restart(full=True)
+    if os.environ.get("FREEFLY_SPIEL_TEST"):              # Bilder: Spielstand vorbereiten (modes.test_setup)
+        modes.test_setup(flight, os.environ["FREEFLY_SPIEL_TEST"])
     if args.pose:
         x, y, z, yaw, pitch = (float(v) for v in args.pose.split(","))
         flight.drone.pos = (x, y, z)
@@ -470,11 +526,13 @@ def main():
         pygame.mouse.set_visible(args.window)
         save_settings(settings)
 
-    def end_run(kind, title, sub, color):
+    def end_run(kind, title, sub, color, line=None):
         """Absturz, Treffer oder Runden-Ende: Blick auf die Stelle, abblenden, Start, Countdown."""
         lap = None if flight.lap_start is None else flight.flight_time - flight.lap_start
         best = settings.get("best_lap")
-        if flight.mode == "bomb":
+        if line is not None:                      # Spielmodus fertig (modes.take_result)
+            pass
+        elif flight.mode == "bomb":
             line = f"Treffer {flight.hits}   Daneben {flight.misses}   Flugzeit {flight.flight_time:.1f} s"
         else:
             line = (f"Flugzeit {flight.flight_time:.1f} s" + (f"   Runde {lap:.2f} s" if lap is not None else "")
@@ -494,7 +552,7 @@ def main():
 
     def skip_or_restart():
         if not seq.skip(flight):
-            restart()
+            restart(full=True)
         stats["counted"] = False
 
     while running:
@@ -517,7 +575,10 @@ def main():
                 elif act == "nnshow":                     # Untermenü „KI-Showcase“ (nn_show.MENU)
                     cur_menu[0] = nn_menu
                     nn_menu.sel = 0
-                elif act == "back" or (act == "resume" and cur_menu[0] in (osd_menu, nn_menu)):
+                elif act == "lookmenu":
+                    cur_menu[0] = look_menu
+                    look_menu.sel = 0
+                elif act == "back" or (act == "resume" and cur_menu[0] in (osd_menu, nn_menu, look_menu)):
                     cur_menu[0] = menu
                     save_settings(settings)
                 elif act == "resume":
@@ -527,18 +588,27 @@ def main():
                     resume()
                 elif act == "repair":
                     repair()
+                elif act == "window":
+                    switch_window()
                 elif act == "quit":
                     running = False
                 elif isinstance(act, tuple):
                     change(settings, act[1], act[2])
                     pad.configure(settings["kb_sens"], KB_GAS * settings["kb_gas"])
+                    if act[1] == "ghost":
+                        modes.attach(flight, settings)
                     if act[1] == "ctl":
                         pad.set_mode(settings["ctl"])
                         pad.notice = None
-                    if act[1] in ("auto", "ap_k", "show_line", "mode", "ap_mode", "physik", "wind", "strecke"):
+                    if act[1] in ("auto", "ap_k", "show_line", "mode", "ap_mode", "physik", "wind", "strecke", "ring_set"):
                         skip_or_restart()
                     renderer.tilt = settings["tilt"]
                     renderer.set_fov(settings["fov"])
+                    post.configure(settings)
+                    if act[1] == "grafik" and look_fx.context_samples(settings) != msaa and not settings.get("no_save"):
+                        save_settings(settings)           # Kantenglättung gibt es nur beim Anlegen des GL-Kontexts:
+                        pygame.quit()                     # Sim startet mit der neuen Stufe neu (ca. 3 s, wie F)
+                        os.execv(sys.executable, [sys.executable, "-m", "autopilot.freefly", *sys.argv[1:]])
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
                     in_menu = True
@@ -553,8 +623,17 @@ def main():
                     settings["ctl"] = pad.mode
                     save_settings(settings)
                 elif ev.key == pygame.K_b:
+                    settings["mode"] = "race" if settings["mode"] == "bomb" else "bomb"
+                    skip_or_restart()
+                elif ev.key == pygame.K_m:                    # Modus weiter: Rennen, Bomben, Ringe, Paket, Freestyle
                     change(settings, "mode", 1)
                     skip_or_restart()
+                    flight.say(modes.MODE_LABEL[settings["mode"]], "M = nächster Modus", 2.0)
+                elif ev.key == pygame.K_g:                    # Geist der Bestzeit an/aus
+                    settings["ghost"] = not settings["ghost"]
+                    modes.attach(flight, settings)
+                    flight.say("Geist " + ("an" if settings["ghost"] else "aus"), None, 1.2)
+                    save_settings(settings)
                 elif ev.key == pygame.K_p:
                     settings["auto"] = not settings["auto"]
                     skip_or_restart()
@@ -565,6 +644,13 @@ def main():
                     save_settings(settings)
                 elif ev.key == pygame.K_z:
                     repair()
+                elif ev.key == pygame.K_l:
+                    look_fx.change(settings, "look", 1)        # Kamera-Look: Sauber -> Digital -> Analog
+                    post.configure(settings)
+                    flight.say("Kamera-Look", look_fx.LOOKS[settings["look"]], 1.5)
+                    save_settings(settings)
+                elif ev.key == pygame.K_f:
+                    switch_window()
                 elif ev.key == pygame.K_k:
                     nn_show.toggle(settings)                  # KI-Einblendungen: Zuschauer <-> aus
                     save_settings(settings)
@@ -579,7 +665,7 @@ def main():
                 skip_or_restart()
         last_buttons = buttons
         if remote is not None:
-            remote.poll(settings, flight, restart, resume)
+            remote.poll(settings, flight, lambda: restart(full=True), resume)
             running = running and not remote.quit
 
         if not in_menu:
@@ -662,6 +748,12 @@ def main():
                 end_run("hit" if hit else "crash", "TREFFER!" if hit else "ABSTURZ", flight.crash_reason,
                         (1, 0.8, 0.2, 1) if hit else (1, 0.35, 0.3, 1))
                 stats["counted"] = "seq"
+            res = modes.take_result(flight, settings)       # Ringe/Paket/Freestyle fertig: Bestwert, Ergebnis
+            if res is not None:
+                print(f"Spielmodus {flight.mode}: {res[0]} – {res[1]}{' (neuer Rekord)' if res[3] else ''}")
+                save_settings(settings)
+                if not seq.active:
+                    end_run("done", res[0], res[1], (1, 0.85, 0.3, 1), line=res[2])
             if flight.new_best is not None:
                 stats["laps"] += 1
                 print(f"Runde {flight.new_best:.2f} s{' (Autopilot k=%.1f)' % settings['ap_k'] if ap else ''}")
@@ -686,12 +778,15 @@ def main():
         if look is not None:                      # Kamera schaut auf die Absturzstelle / Explosion
             eye = look[0]
             axes = renderer.look_axes(eye, look[1])
+        post.begin(settings)                      # Look/Grafik: Szene in eigenen Puffer (sonst direkt)
         renderer.draw(eye, d.quat, flight.next_gate, settings["mark"] and flight.mode == "race", t_read, axes=axes)
         if flight.mode == "bomb":
             renderer.draw_entities([(vao, ibuf, entities.instances(k)) for k, (vao, ibuf) in models.items()])
         if settings["auto"] and settings["show_line"]:
             renderer.draw_line()
         fx.draw(renderer, fxtex, explosions)
+        mgfx.draw(flight, t_read)                 # Spielmodi: Ringe, Paket, Adressen, Geist (modes_gfx.py)
+        post.apply(flight, world, settings, t_read, sticks)   # Linse, Rauschen … (OSD danach bleibt scharf)
         if not in_menu:
             fps = len(fps_win) / max(1e-6, sum(fps_win)) if fps_win else 0.0
             lat = statistics.median(read_to_done[-120:]) * 1000 if read_to_done else 0.0
@@ -717,6 +812,9 @@ def main():
             if cur_menu[0] is osd_menu:
                 osd_menu.draw(menu_values(settings), "Anzeige / OSD",
                               "Voreinstellung: Liftoff · Minimal · Zuschauer · Aus    H schaltet alles, O die Lageanzeige")
+            elif cur_menu[0] is look_menu:
+                look_menu.draw(menu_values(settings), "Kamera & Grafik",
+                               "Look: Sauber · Digital · Analog (Taste L)    Grafik-Wechsel startet den Sim neu (ca. 3 s)")
             elif cur_menu[0] is nn_menu:
                 nn_menu.draw(menu_values(settings), "KI-Showcase",
                              "Autopilot-Modus „KI: Lernen zuschauen“ / „KI: Zeitraffer“    K schaltet die Einblendungen")

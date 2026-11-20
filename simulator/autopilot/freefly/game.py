@@ -27,6 +27,7 @@ class Flight:
         self.target_since = time.perf_counter()
         self.events = []                 # ("boom", pos, groß?, Ziel-Index oder None) für main
         self.rng = __import__("random").Random(5)
+        self.game = None                 # Spielmodus/Geist (modes.py, __main__ ruft modes.attach nach respawn)
         self.respawn()
 
     physics = PHYSICS
@@ -95,7 +96,10 @@ class Flight:
             return self.crash("Hindernis getroffen")
         if abs(d.pos[0]) > 1500 or abs(d.pos[2]) > 1500 or d.pos[1] > 400:
             return self.crash("zu weit weg")
-        self._gate(prev, d.pos)
+        if self.mode in ("race", "bomb"):
+            self._gate(prev, d.pos)
+        if self.game is not None:             # Geist, Ringe, Paket, Freestyle (modes.py)
+            self.game.step(self, prev, dt)
 
     def _gate(self, a, b):
         g = self.world.gates[self.next_gate]
@@ -125,6 +129,8 @@ class Flight:
         self.crash_reason = reason
         self.target_hit = hit
         self.crash_pos, self.crash_vel = self.drone.pos, self.drone.vel
+        if self.game is not None:
+            self.game.on_crash(self)
         if self.mode == "bomb" and not hit:
             self.misses += 1
             self.events.append(("boom", self.drone.pos, False, None))   # daneben: Explosion, kein Treffer

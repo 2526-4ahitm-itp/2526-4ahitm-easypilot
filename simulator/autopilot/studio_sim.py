@@ -6,6 +6,10 @@ Runden bzw. Ziele, Strecke (freefly/tracks.py), Mensch oder Autopilot. Jeder Lau
 und landet in der Bestenliste der Strecke; der beste Autopilot-Lauf je Art und k ist die Referenz (Zeit, Torzeiten,
 Geist auf der Karte).
 Ein Sim, der schon mit --remote läuft (z. B. von Hand gestartet), wird einfach verbunden.
+
+Spielmodi für Menschen (freefly/modes.py): Ringe (Set leicht/schwer, Wertung Zeit), Paket und Freestyle (Wertung
+Punkte). Der Sim meldet das Ergebnis selbst ("result"); ein Absturz beendet diese Läufe nicht. Eigene Bestenliste
+je Modus (ringe-<set>.json, paket.json, freestyle.json), ohne Autopilot.
 """
 import json
 import math
@@ -22,8 +26,11 @@ from .freefly import tracks
 from .freefly.remote import DEFAULT_PORT, SimClient
 
 ROOT = Path(__file__).resolve().parent.parent          # simulator/
-DEFAULTS = {"mode": "race", "ap_mode": "line", "ap_k": 0.6, "laps": 1, "targets": 5, "timeout": 180, "strecke": "dorfrunde"}
+DEFAULTS = {"mode": "race", "ap_mode": "line", "ap_k": 0.6, "laps": 1, "targets": 5, "timeout": 180, "strecke": "dorfrunde",
+            "ring_set": "leicht"}
 AP_NAMES = {"line": "Rennlinie", "camera": "Nur Kamera", "nn": "Neuronales Netz", "bomb": "Bomben"}
+GAME_MODES = ("ringe", "paket", "freestyle")          # freefly/modes.py: nur Menschen, Ergebnis kommt vom Sim
+MODES = ("race", "bomb") + GAME_MODES
 TITLE_BAR = 28           # macOS-Fenster: Titelleiste über dem Bild (wie window_mac.TITLE_BAR)
 
 
@@ -54,8 +61,8 @@ def quarter():
 class SimBoard:
     """Bestenliste je Modus und Länge: beste Autopilot-Läufe je Art/k (Referenz mit Torzeiten und Pfad) + alle Läufe."""
 
-    def __init__(self, path, bomb=False):
-        self.path, self.bomb = Path(path), bomb
+    def __init__(self, path, bomb=False, points=False):
+        self.path, self.bomb, self.points = Path(path), bomb, points
         self.lock = threading.Lock()
         self.data = {"bot": {}, "runs": []}
         try:
@@ -73,6 +80,8 @@ class SimBoard:
         """Ist Lauf a besser als b? Rennen: Zeit; Bomben: mehr Treffer, dann Zeit."""
         if b is None:
             return True
+        if self.points:                     # Paket, Freestyle: mehr Punkte
+            return a.get("points", 0) > b.get("points", 0)
         if self.bomb:
             return (a.get("hits", 0), -(a["time"] or 1e9)) > (b.get("hits", 0), -(b["time"] or 1e9))
         return a["time"] < b["time"]
@@ -104,7 +113,8 @@ class SimBoard:
 
     def summary(self, top=10):
         runs = [r for r in self.data["runs"] if r["time"] is not None and r.get("kind") == "human"]
-        key = (lambda r: (-r.get("hits", 0), r["time"])) if self.bomb else (lambda r: r["time"])
+        key = (lambda r: (-r.get("points", 0), r["time"])) if self.points else \
+            (lambda r: (-r.get("hits", 0), r["time"])) if self.bomb else (lambda r: r["time"])
         best = {}
         for r in sorted(runs, key=key):
             best.setdefault(r["name"].strip().lower(), r)
@@ -156,6 +166,11 @@ class SimStudio:
         """Bestenliste je Strecke (Dorfrunde: die bisherige Datei race-Nlap.json) und Rundenzahl."""
         s = self.settings
         tr = tracks.key(s.get("strecke"))
+        if s["mode"] in GAME_MODES:         # Spielmodi: eine Liste je Modus (Ringe je Set), unabhängig von der Strecke
+            name = f"ringe-{s.get('ring_set', 'leicht')}.json" if s["mode"] == "ringe" else f"{s['mode']}.json"
+            if name not in self._boards:
+                self._boards[name] = SimBoard(self.dir / name, points=s["mode"] != "ringe")
+            return self._boards[name]
         name = f"bomb-{int(s['targets'])}ziele.json" if s["mode"] == "bomb" else \
             f"race-{int(s['laps'])}lap.json" if tr == "dorfrunde" else f"race-{tr}-{int(s['laps'])}lap.json"
         if name not in self._boards:
@@ -163,6 +178,11 @@ class SimStudio:
         return self._boards[name]
 
     def gates_total(self):
+        m = self.settings["mode"]
+        if m in GAME_MODES:
+            from .freefly import modes
+            return len(modes.RING_SETS[modes.ring_set_key(self.settings.get("ring_set"))]["rings"]) if m == "ringe" \
+                else modes.DELIVERIES if m == "paket" else 1
         if self.settings["mode"] == "bomb":
             return int(self.settings["targets"])
         n = len((self.client.hello or {}).get("gates") or []) or 12
@@ -170,7 +190,8 @@ class SimStudio:
 
     def sim_settings(self):
         s = self.settings
-        return {"mode": s["mode"], "ap_mode": s["ap_mode"], "ap_k": float(s["ap_k"]), "strecke": tracks.key(s.get("strecke"))}
+        return {"mode": s["mode"], "ap_mode": s["ap_mode"], "ap_k": float(s["ap_k"]), "strecke": tracks.key(s.get("strecke")),
+                "ring_set": s.get("ring_set", "leicht")}
 
     # ---------------------------------------------------------------- process
     def running(self):
@@ -258,6 +279,10 @@ class SimStudio:
                     self.settings[k] = cmd[k]
             self.settings["ap_k"] = round(max(0.2, min(1.2, float(self.settings["ap_k"]))), 1)
             self.settings["strecke"] = tracks.key(self.settings.get("strecke"))
+            if self.settings["mode"] not in MODES:
+                self.settings["mode"] = "race"
+            if self.settings.get("ring_set") not in ("leicht", "schwer"):
+                self.settings["ring_set"] = "leicht"
             self.save_settings()
             if self.live["phase"] not in ("ready", "countdown", "racing"):
                 self.client.send(cmd="settings", **self.sim_settings())
@@ -266,6 +291,8 @@ class SimStudio:
             return {"ok": False, "error": "unknown action"}
         if not self.client.connected:
             return {"ok": False, "error": "Der Sim läuft nicht – erst „Sim starten“."}
+        if a == "sim_bot" and self.settings["mode"] in GAME_MODES:
+            return {"ok": False, "error": "Ringe, Paket und Freestyle fliegen nur Menschen."}
         c = {"id": uuid.uuid4().hex[:6], "kind": "bot" if a == "sim_bot" else "human"}
         c["name"] = ((cmd.get("name") or "").strip()[:24] or "Gast") if c["kind"] == "human" else self.bot_name()
         self.queue_list.append({"id": c["id"], "kind": c["kind"], "name": c["name"]})
@@ -295,6 +322,7 @@ class SimStudio:
     def fly(self, kind, name):
         s = self.settings
         bomb = s["mode"] == "bomb"
+        game = s["mode"] in GAME_MODES
         self.live.update(phase="ready", pilot=name, kind=kind, countdown=0, message="")
         self.last_result = None
         self.run = None
@@ -310,11 +338,15 @@ class SimStudio:
         tel = self.client.latest() or {}
         self.run = {"t0": None, "base": 0.0, "last_t": 0.0, "splits": [], "path": [], "finished": False, "end": None,
                     "bomb": bomb, "hits": 0, "misses": 0, "sim_m": 0, "target": None,
-                    "total": self.gates_total(), "key": self.ref_key(), "start_gate": tel.get("next_gate", 0)}
+                    "total": self.gates_total(), "key": self.ref_key(), "start_gate": tel.get("next_gate", 0),
+                    "game": s["mode"] if game else None, "result": None}
         self.client.send(cmd="go")
         self.client.send(cmd="say", text="Los!", sub=None, s=1.0)
         self.live.update(phase="racing", countdown=0)
-        if kind == "human":
+        if kind == "human" and s["mode"] == "freestyle":
+            from .freefly.modes import FREESTYLE_TIME
+            limit = FREESTYLE_TIME + 60.0         # 90 s Flugzeit, Neustarts nach Abstürzen zählen nicht
+        elif kind == "human":
             limit = float(s.get("timeout", 180))
         elif bomb:
             limit = 45.0 * int(s["targets"])
@@ -355,6 +387,13 @@ class SimStudio:
         r = self.run
         if r is None or r["t0"] is None:
             return 0.0
+        if r.get("game"):                   # Spieluhr des Sims (Ringe mit Strafsekunden, Freestyle Restzeit)
+            if r.get("time") is not None:
+                return r["time"]
+            g = (self.client.latest() or {}).get("game") or {}
+            if r.get("stopped_at") is not None:
+                return r["stopped_at"]
+            return g.get("left", 0.0) if r["game"] == "freestyle" else g.get("time", 0.0)
         if r.get("time") is not None:
             return r["time"]
         if r.get("stopped_at") is not None:
@@ -369,6 +408,15 @@ class SimStudio:
         self.events = (self.events + [{**ev, "at": round(time.time(), 2)}])[-20:]
         r = self.run
         if r is None or r["end"]:
+            return
+        if r.get("game"):                   # Spielmodus: nur das Ergebnis zählt, Abstürze/Neustarts nicht
+            if e == "go":
+                r["t0"], r["last_t"] = ev.get("t", 0.0), ev.get("t", 0.0)
+            elif e == "result" and r["t0"] is not None:
+                res = ev.get("result") or {}
+                r["result"] = res
+                r["time"] = res.get("time")
+                r["end"] = "im Ziel"
             return
         if e == "go":
             r["t0"], r["last_t"] = ev.get("t", 0.0), ev.get("t", 0.0)
@@ -439,6 +487,21 @@ class SimStudio:
                "hits": r.get("hits", 0), "misses": r.get("misses", 0), "key": r.get("key", self.ref_key())}
         board = self.board()
         ref = board.bot(res["key"])
+        gr = r.get("result")
+        if r.get("game"):
+            res.update(game=r["game"], result=gr, gates=0)
+            if gr:
+                entry = {"name": name, "kind": kind, "time": gr.get("time"), "points": gr.get("points"),
+                         "detail": {k: v for k, v in gr.items() if k not in ("mode", "time", "points")}}
+                if entry["time"] is None:
+                    entry["time"] = 0.0
+                old = board.summary(1)["ranking"]
+                e = board.add_run(entry, res["key"])
+                res.update(id=e["id"], points=gr.get("points"), record=bool(not old or board.better(entry, old[0])))
+            self.last_result = res
+            self.live.update(phase="finished" if gr else "dnf", message=why)
+            print("sim result:", json.dumps(res, ensure_ascii=False), flush=True)
+            return res
         if t is not None:
             entry = {"name": name, "kind": kind, "time": t, "splits": r["splits"], "hits": r.get("hits", 0),
                      "misses": r.get("misses", 0), "ap_mode": self.kind(), "k": float(self.settings["ap_k"])}
@@ -482,7 +545,8 @@ class SimStudio:
             delta = round(splits[-1] - ref["splits"][len(splits) - 1], 2)
         tel = self.client.latest()
         hello = self.client.hello or {}
-        return {**self.live, "settings": self.settings, "kind_ap": self.kind(), "ref_key": key,
+        game = (tel or {}).get("game") if r and r.get("game") else None
+        return {**self.live, "settings": self.settings, "kind_ap": self.kind(), "ref_key": key, "game": game,
                 "tracks": tracks.summary(), "track": hello.get("track") or {"key": "dorfrunde", "name": "Dorfrunde", "stars": 2},
                 "sim": {"running": self.client.connected, "own": self.proc is not None and self.proc.poll() is None,
                         "starting": self.live["phase"] == "starting", "port": self.port},
