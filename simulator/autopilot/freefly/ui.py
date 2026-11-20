@@ -147,7 +147,7 @@ class Hud:
             self.draw_target(flight, now)
         # Tor-Markierung
         n = len(flight.world.gates)
-        if settings["mark"] and not bomb:
+        if settings["mark"] and settings.get("mode", "race") == "race":       # Spielmodi (modes.py): eigener Pfeil
             g = flight.world.gates[flight.next_gate]
             dist = math.dist(d.pos, g.center)
             scr, cam = r.project(g.center)
@@ -173,7 +173,7 @@ class Hud:
                    tint=(0.3, 0.95, 1, 1))
         if o["info"]:
             T.draw(f"Flugzeit {fmt_time(flight.flight_time)}", 30 * s, 34 * s, int(21 * s), "left", bold=False)
-            T.draw("Esc Menü   R Neustart   P Autopilot   T Steuerung   O Lage   H Anzeige", 30 * s, 64 * s, int(17 * s),
+            T.draw("Esc Menü   R Neustart   M Modus   G Geist   P Autopilot   T Steuerung   O Lage   H Anzeige", 30 * s, 64 * s, int(17 * s),
                    "left", tint=(1, 1, 1, 0.7), bold=False)
             T.draw(f"{info['fps']:.0f} fps   {info['lat']:.1f} ms", W - 30 * s, 34 * s, int(19 * s), "right", bold=False)
             T.draw(info["pad"], W - 30 * s, 62 * s, int(16 * s), "right", tint=(1, 1, 1, 0.7), bold=False)

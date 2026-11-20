@@ -17,16 +17,23 @@ Elemente (jedes einzeln schaltbar, gespeichert in freefly.local.json unter "osd"
   horizont, lkompass, leisten, drohne3d, karte   Lageanzeige aus attitude.py (rundes Instrument, Gradkompass,
             Tempo-/Höhenleisten, 3D-Drohne, Minikarte)
   gross     „Zuschauer“: alles größer und mit kurzen Erklärungen
+  spiel     Spielmodi (modes.py): oben Mitte Zeit/Ringe/Punkte statt Runde, Bestwert in der Mitspieler-Liste
+  pfeil     Markierung bzw. Pfeil am Rand zum nächsten Ring, zur Station oder Lieferadresse
+  ansage    große Einblendungen: Trick-Namen („BACKFLIP +200“), Kombo, Ringe, Paket
+  geist     Geist der Bestzeit: Abstand an jedem Tor („+0,8 s“ rot / „−0,3 s“ grün) und Zeile „Geist“
+  (die vier neuen sind in allen Voreinstellungen außer „Aus“ an: ohne sie sind die Modi nicht spielbar)
 
 Presets: Liftoff, Minimal, Zuschauer, Aus. Taste H schaltet alles (settings["hud"]), Taste O die Lageanzeige.
 Gezeichnet wird mit attitude.Batch (alle Striche, Punkte, Ringe in einem Zeichenaufruf) und Text-Sprites;
 wechselnde Zahlen werden gedrosselt neu gesetzt (jede neue Zeichenkette kostet eine Textur).
 """
 import math
+import time
 
 import numpy as np
 
 from .attitude import Batch, lage_data
+from .modes import GAME_MODES
 
 ELEMENTS = [
     ("zeit", "Zeit und Runde"),
@@ -48,18 +55,25 @@ ELEMENTS = [
     ("drohne3d", "3D-Drohne"),
     ("karte", "Minikarte"),
     ("gross", "Groß + Erklärungen"),
+    ("spiel", "Spielstand (Ringe, Paket, Freestyle)"),
+    ("pfeil", "Pfeil zum nächsten Ring / Ziel"),
+    ("ansage", "Trick-Namen und Meldungen groß"),
+    ("geist", "Geist: Abstand an jedem Tor"),
 ]
+GAME = ("spiel", "pfeil", "ansage", "geist")                          # Spielmodi (modes.py)
 LAGE = ("horizont", "lkompass", "leisten", "drohne3d", "karte")       # Taste O
 
 _on = lambda *keys: {k: k in keys for k, _ in ELEMENTS}
 PRESETS = {
-    "liftoff": _on("zeit", "kompass", "rahmen", "visier", "fpm", "leiter", "werte", "gas", "sticks", "liste"),
-    "minimal": _on("zeit", "visier", "fpm", "werte"),
+    # Standard = Simons Einstellung vom 20.11.2026; Kompasse nur, wenn man sie extra einschaltet
+    "standard": _on("zeit", "visier", "fpm", "werte", "sticks", "liste", "leisten", *GAME),
+    "liftoff": _on("zeit", "kompass", "rahmen", "visier", "fpm", "leiter", "werte", "gas", "sticks", "liste", *GAME),
+    "minimal": _on("zeit", "visier", "fpm", "werte", *GAME),
     "zuschauer": _on("zeit", "visier", "fpm", "werte", "gas", "sticks", "horizont", "lkompass", "drohne3d", "karte",
-                     "gross"),
+                     "gross", *GAME),
     "aus": _on(),
 }
-PRESET_LABEL = {"liftoff": "Liftoff", "minimal": "Minimal", "zuschauer": "Zuschauer", "aus": "Aus"}
+PRESET_LABEL = {"standard": "Standard", "liftoff": "Liftoff", "minimal": "Minimal", "zuschauer": "Zuschauer", "aus": "Aus"}
 
 MENU = [{"label": "Voreinstellung", "kind": "value", "key": "osd_preset"},
         {"label": "Anzeige an (H)", "kind": "toggle", "key": "hud"}] + \
@@ -71,12 +85,12 @@ def ensure(s):
     """settings["osd"] vollständig machen; alte Schalter "lage"/"karte" (Lageanzeige) übernehmen."""
     o = s.get("osd")
     if not isinstance(o, dict):
-        o = dict(PRESETS["liftoff"])
+        o = dict(PRESETS["standard"])
         if s.get("lage"):
             o.update({k: True for k in LAGE if k != "karte"})
             o["karte"] = bool(s.get("karte"))
     for k, _ in ELEMENTS:
-        o[k] = bool(o.get(k, PRESETS["liftoff"][k]))
+        o[k] = bool(o.get(k, PRESETS["standard"][k]))
     s["osd"] = o
     s.pop("lage", None)
     s.pop("karte", None)
@@ -197,7 +211,12 @@ class LiftoffOsd:
 
         # ---- oben Mitte: Zeit, Runde / Ziel
         y_cmp = 162 * s
-        if o["zeit"]:
+        game = getattr(flight, "game", None)
+        gmode = game.mode if game is not None and game.mode in GAME_MODES else None
+        if o["zeit"] and gmode and o["spiel"]:
+            self._game_top(txt, game, settings, W, S, s, now, big)
+            y_cmp = 128 * S + 34 * s
+        elif o["zeit"]:
             if bomb:
                 t = flight.target_info()
                 tt = now - flight.target_since
@@ -219,7 +238,7 @@ class LiftoffOsd:
             y_cmp = max(y_cmp, (236 if big else 190) * s)   # Gradkompass (attitude.py) liegt bei 136 bzw. 180 px
 
         # ---- Kompass-Band
-        goal = self._goal(flight, bomb)
+        goal = game.goal(d.pos) if gmode else self._goal(flight, bomb)
         if o["kompass"]:
             k = 1.15 * S                              # px pro Grad
             half = 200 * S
@@ -323,10 +342,17 @@ class LiftoffOsd:
             rows = [("Du", "D")]
             if info.get("auto"):
                 rows.append(("Autopilot", "A"))
-            if settings.get("best_lap") and not bomb:
+            race = not bomb and not gmode
+            if settings.get("best_lap") and race:
                 rows.append((f"Bestzeit  {clock(settings['best_lap'])}", "B"))
-            if flight.last_lap and not bomb:
+            if race and o["geist"] and game is not None and getattr(game, "show", False) and game.best:
+                rows.append((f"Geist  {clock(game.best['lap'])}", "G"))
+            if flight.last_lap and race:
                 rows.append((f"Letzte  {clock(flight.last_lap)}", "L"))
+            if gmode:
+                from .modes import best_text
+                b = best_text(settings, game)
+                rows.append((f"Bestwert  {b}" if b else "Bestwert  –", "B"))
             if bomb:
                 rows.append((f"Treffer {flight.hits}  Daneben {flight.misses}", "Z"))
             bx = W - 55 * s
@@ -342,6 +368,81 @@ class LiftoffOsd:
         B.flush(r.size)
         for text, x, y, size, anchor, tint, bold in texts:
             T.draw(text, x, y, size, anchor, tint=tint, bold=bold, family=FONT)
+        if game is not None:
+            self._game_overlay(hud, flight, game, gmode, o, W, H, s, now)
+
+    # ------------------------------------------------------------------ Spielmodi (modes.py)
+
+    def _game_top(self, txt, game, settings, W, S, s, now, big):
+        """Oben Mitte statt Runde/Tor: Uhr und Stand des Spielmodus."""
+        from .modes import fmt_pts
+        sm = game.summary()
+        m = game.mode
+        if m == "ringe":
+            txt(self._txt("clock", now, clock(game.clock()), 30), W / 2, 55 * S, 32 * S)
+            line = f"RINGE {sm['got']} / {sm['total']}   SET {game.set.upper()}"
+            if sm["penalty"]:
+                line += f"   +{sm['penalty']:.0f} S STRAFE"
+            txt(self._txt("sub", now, line), W / 2, 100 * S, 21 * S, tint=(1, 0.85, 0.4, W_A))
+        elif m == "paket":
+            txt(self._txt("clock", now, clock(game.t), 30), W / 2, 55 * S, 32 * S)
+            what = f"ZU: {sm['target'].upper()}" if sm["carry"] else "PAKET HOLEN" if sm["target"] else "FERTIG"
+            txt(self._txt("sub", now, f"PAKET {min(sm['n'] + 1, sm['total'])} / {sm['total']}   {what}   "
+                                      f"{fmt_pts(sm['points'])} P"), W / 2, 100 * S, 21 * S, tint=(0.55, 0.9, 1, W_A))
+        else:
+            txt(self._txt("clock", now, clock(game.left()), 30), W / 2, 55 * S, 32 * S)
+            line = f"PUNKTE {fmt_pts(sm['points'])}"
+            if sm["mult"]:
+                line += f"   KOMBO x{sm['mult']}  {fmt_pts(sm['combo'])}"
+            txt(self._txt("sub", now, line), W / 2, 100 * S, 21 * S, tint=(0.55, 0.9, 1, W_A))
+        if big:
+            txt({"ringe": "Zeit (Absturz +5 s)", "paket": "Lieferzeit", "freestyle": "Restzeit"}[m], W / 2, 20 * S,
+                15 * S, tint=(1, 1, 1, 0.7), bold=False)
+
+    def _game_overlay(self, hud, flight, game, gmode, o, W, H, s, now):
+        """Pfeil/Markierung zum Ziel, große Ansagen (Tricks, Ringe, Paket, Geist-Abstand)."""
+        r, T, Sh = self.r, hud.text, hud.shapes
+        if gmode and o["pfeil"]:
+            goal = game.goal(flight.drone.pos)
+            if goal is not None:
+                col = {"ringe": (1, 0.3, 0.9), "paket": (0.3, 1, 0.5) if getattr(game, "carry", False) else (0.35, 0.65, 1),
+                       "freestyle": (1, 1, 1)}[gmode]
+                dist = math.dist(flight.drone.pos, goal)
+                scr, cam = r.project(goal)
+                pulse = 0.75 + 0.25 * math.sin(now * 7)
+                r.begin_2d()
+                if scr is not None and 40 * s < scr[0] < W - 40 * s and 40 * s < scr[1] < H - 40 * s:
+                    size = max(34 * s, min(110 * s, 2000 * s / max(dist, 1)))
+                    if dist > 30 or gmode != "ringe":           # nahe Ringe leuchten selbst, nur die Entfernung
+                        r.sprite(Sh.diamond, scr[0], scr[1], size, size, tint=(*col, 0.85 * pulse))
+                    T.draw(f"{dist:.0f} m", scr[0], scr[1] + size / 2 + 14 * s, int(20 * s), family=FONT)
+                else:
+                    ang = math.atan2(cam[0], cam[1])
+                    rx, ry = W / 2 - 90 * s, H / 2 - 90 * s
+                    ax, ay = W / 2 + rx * math.sin(ang), H / 2 - ry * math.cos(ang)
+                    r.sprite(Sh.arrow, ax, ay, 60 * s, 60 * s, angle=ang, tint=(*col, pulse))
+                    T.draw(f"{dist:.0f} m", ax - 80 * s * math.sin(ang), ay + 80 * s * math.cos(ang), int(20 * s),
+                           family=FONT)
+        items = game.ann.current(time.perf_counter())
+        if gmode is None:                                   # Rennen: nur Geist-Abstände (Element „geist“)
+            if not o["geist"]:
+                return
+        elif not o["ansage"]:
+            return
+        if not items:
+            return
+        r.begin_2d()
+        text, sub, col, t0, dur = items[-1]
+        age = time.perf_counter() - t0
+        a = min(1.0, (dur - age) / 0.35) * min(1.0, age / 0.08 + 0.3)
+        pop = 1.0 + 0.25 * max(0.0, 1.0 - age / 0.18)          # kurz größer, dann normal
+        y = H * 0.27
+        T.draw(text, W / 2, y, int((58 if gmode else 46) * s * pop), tint=(col[0], col[1], col[2], a), family=FONT)
+        if sub:
+            T.draw(sub, W / 2, y + 48 * s, int(24 * s), tint=(1, 1, 1, 0.9 * a), bold=False, family=FONT)
+        for k, (t2, s2, c2, t02, d2) in enumerate(reversed(items[:-1])):    # ältere klein darüber
+            a2 = min(1.0, (d2 - (time.perf_counter() - t02)) / 0.35) * 0.7
+            T.draw(t2, W / 2, y - (58 + 30 * k) * s, int(26 * s), tint=(c2[0], c2[1], c2[2], a2), family=FONT)
 
     @staticmethod
     def _goal(flight, bomb):

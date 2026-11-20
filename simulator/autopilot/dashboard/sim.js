@@ -4,6 +4,12 @@
 const SIM = (() => {
   let st = null, fetchedAt = 0, who = "bot", trail = [], ghost = null, ghostId = null, selected = null, lastPhase = null;
   const fmt = EP.fmt;
+  // Spielmodi (freefly/modes.py): nur Menschen, Ergebnis vom Sim; Ringe = Zeit, Paket/Freestyle = Punkte
+  const GAME = {ringe: "Ringe", paket: "Paket", freestyle: "Freestyle"};
+  const GAME_DESC = {ringe: "Alle Ringe einsammeln, Reihenfolge egal. Absturz = +5 s, die Ringe bleiben. Pfeil zeigt zum nächsten.",
+    paket: "Paket an der blauen Station holen (tief darüber schweben), an der grünen Adresse sanft absetzen. 5 Adressen.",
+    freestyle: "90 s Tricks: Flip, Rolle, Power-Loop, Split-S, Sturzflug, Durchflug, Lücke, Proximity. Kombos zählen mehr, Absturz verliert die Kombo."};
+  const pts = n => `${Math.round(n || 0).toLocaleString("de-AT")} P`;
   const AP = {line: "Rennlinie", camera: "Nur Kamera", nn: "Neuronales Netz", bomb: "Bomben"};
   const kTxt = k => Number(k).toFixed(1).replace(".", ",");
   const refName = key => {
@@ -83,6 +89,7 @@ const SIM = (() => {
   $("simK").oninput = () => { $("simKVal").textContent = kTxt($("simK").value); };
   $("simK").onchange = () => send({action: "sim_settings", ap_k: +$("simK").value});
   $("simTrack").onchange = () => send({action: "sim_settings", strecke: $("simTrack").value});
+  $("simRingSet").onchange = () => send({action: "sim_settings", ring_set: $("simRingSet").value});
   $("simLaps").onchange = () => send(st && st.settings.mode === "bomb" ? {action: "sim_settings", targets: +$("simLaps").value}
                                                                        : {action: "sim_settings", laps: +$("simLaps").value});
   $("simTimeout").onchange = () => send({action: "sim_settings", timeout: +$("simTimeout").value});
@@ -104,8 +111,16 @@ const SIM = (() => {
 
   function renderControls() {
     if (!st) return;
-    const s = st.settings, bomb = s.mode === "bomb";
+    const s = st.settings, game = GAME[s.mode], bomb = s.mode === "bomb" || !!game;   // Spielmodi: ohne Autopilot/Strecke
     document.querySelectorAll("#simModeSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === s.mode));
+    $("simGameBox").classList.toggle("hidden", !game);
+    $("simRingRow").classList.toggle("hidden", s.mode !== "ringe");
+    if (document.activeElement !== $("simRingSet")) $("simRingSet").value = s.ring_set || "leicht";
+    $("simGameDesc").textContent = game ? GAME_DESC[s.mode] : "";
+    if (game && who === "bot") document.querySelector('#simWho button[data-who="human"]').click();
+    document.querySelector('#simWho button[data-who="bot"]').disabled = !!game;
+    $("simApHead").classList.toggle("hidden", !!game);
+    $("simLapsRow").classList.toggle("hidden", !!game);
     document.querySelectorAll("#simApSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === s.ap_mode));
     $("simApSeg").classList.toggle("hidden", bomb);
     const nn = !bomb && st.nn && (s.ap_mode === "nn" || st.nn.show_mode);   // Netz-Pilot: Lernkurve + Stand
@@ -158,12 +173,16 @@ const SIM = (() => {
   function elapsed() {
     if (!st) return 0;
     const frozen = st.tel && (st.tel.menu || st.tel.frozen || !st.tel.armed || st.tel.crashed);
-    return st.phase === "racing" && !frozen ? st.elapsed + (performance.now() - fetchedAt) / 1000 : st.elapsed;
+    const k = st.settings && st.settings.mode === "freestyle" ? -1 : 1;     // Freestyle: Restzeit läuft rückwärts
+    return st.phase === "racing" && !frozen ? Math.max(0, st.elapsed + k * (performance.now() - fetchedAt) / 1000) : st.elapsed;
   }
 
   function render(s) {
-    const set = s.settings, bomb = set.mode === "bomb", tel = s.tel;
+    const set = s.settings, bomb = set.mode === "bomb", tel = s.tel, game = GAME[set.mode];
     renderControls();
+    if (game) return renderGame(s, set, tel);
+    document.querySelector("#simDelta").previousElementSibling.textContent = "Abstand";
+    document.querySelector("#simRef").previousElementSibling.textContent = "Autopilot";
     const trName = (s.tracks || []).find(t => t.key === set.strecke)?.name || "Dorfrunde";
     $("mapTitle").textContent = bomb ? "EasyPilot-Sim · Dorf" : `EasyPilot-Sim · ${trName}`
       + (s.track && s.track.key !== set.strecke ? ` (Sim fliegt noch ${s.track.name})` : "");
@@ -526,6 +545,94 @@ const SIM = (() => {
       c.fillStyle = "rgba(15,15,16,0.85)"; c.fillRect(cx - w / 2, cy + R * 0.55, w, 30 * u);
       c.fillStyle = tel.crashed ? "#e5484d" : "#f2b33d"; c.fillText(msg, cx, cy + R * 0.55 + 20 * u);
     }
+  }
+
+  // ---------------------------------------------------------------- Spielmodi (Ringe, Paket, Freestyle)
+  function renderGame(s, set, tel) {
+    const m = set.mode, g = s.game || (tel && tel.game) || {}, r = s.last_result, ranking = s.board.ranking;
+    const byPts = m !== "ringe";
+    $("mapTitle").textContent = `EasyPilot-Sim · ${GAME[m]}`;
+    $("mapEnv").textContent = m === "ringe" ? `Ring-Set ${set.ring_set === "schwer" ? "Schwer" : "Leicht"} · ${s.gates_total} Ringe`
+      : m === "paket" ? "5 Adressen · Punkte für sanftes Absetzen und Tempo" : "90 s · Punkte für Tricks";
+    chip($("chipSim"), s.sim.running, s.sim.starting);
+    chip($("chipSimTel"), !!tel, false);
+    $("simStatus").textContent = s.sim.running ? `Sim läuft${tel ? ` · ${tel.fps} fps · ${tel.pad || ""}` : ""}` : s.sim.starting ? "Sim startet …" : "Sim aus";
+    $("simStartBtn").classList.toggle("hidden", s.sim.running);
+    $("simStopBtn").classList.toggle("hidden", !s.sim.running);
+    $("simPilot").textContent = s.pilot || "Bereit";
+    $("simBadge").innerHTML = `<span>${GAME[m]}</span>`;
+    $("simGateLabel").textContent = m === "ringe" ? "Ringe" : m === "paket" ? "Paket" : "Punkte";
+    const racing = s.phase === "racing";
+    $("simGate").textContent = !racing && !r ? "–" : m === "ringe" ? `${g.got ?? 0}/${g.total ?? s.gates_total}`
+      : m === "paket" ? `${g.delivered ?? 0}/${g.total ?? 5}` : (g.points ?? 0).toLocaleString("de-AT");
+    const best = ranking[0];
+    document.querySelector("#simDelta").previousElementSibling.textContent = m === "freestyle" ? "Kombo" : m === "paket" ? "Punkte" : "Strafe";
+    $("simDelta").className = "big-stat num";
+    $("simDelta").textContent = !racing ? "–" : m === "freestyle" ? (g.mult ? `x${g.mult}` : "–") : m === "paket" ? (g.points ?? 0).toLocaleString("de-AT")
+      : `${g.penalty || 0} s`;
+    document.querySelector("#simRef").previousElementSibling.textContent = "Rekord";
+    $("simRef").textContent = best ? (byPts ? pts(best.points) : fmt(best.time) + " s") : "–";
+    $("simSpeed").textContent = tel ? Math.round(tel.speed) : "–";
+    const total = Math.max(1, s.gates_total), done = m === "ringe" ? g.got || 0 : m === "paket" ? g.n || 0 : 0;
+    const sec = $("simSectors");
+    if (sec.children.length !== total) sec.innerHTML = "<i></i>".repeat(total);
+    [...sec.children].forEach((el, i) => { el.className = i < done ? "done" : (i === done && racing ? "next" : ""); });
+    const cd = $("countdown");
+    cd.style.display = s.phase === "countdown" && VIEW !== "right" ? "flex" : "none";
+    if (s.phase === "countdown") {
+      $("cdNum").textContent = s.countdown || "";
+      $("cdLights").innerHTML = Array.from({length: 3}, (_, i) => `<i class="${s.countdown && i < 4 - s.countdown ? "on" : ""}"></i>`).join("");
+    }
+    if (s.phase === "ready" || s.phase === "countdown") trail = [];
+    if (tel && (racing || s.phase === "idle")) {
+      const p = [tel.pos[0], tel.pos[2]], l = trail[trail.length - 1];
+      if (!l || Math.hypot(l[0] - p[0], l[1] - p[1]) > 0.3) trail.push(p);
+      if (trail.length > 3000) trail.splice(0, 1000);
+    }
+    const b = $("simBanner");
+    b.className = "banner";
+    if (s.phase === "starting") b.textContent = "Sim startet …";
+    else if (!s.sim.running && s.phase === "idle") b.textContent = "Sim aus – „Sim starten“ öffnet das Fenster oben links";
+    else if (racing) b.textContent = tel && !tel.armed ? `${s.pilot}: Gas ganz runter, dann ist die Drohne scharf`
+      : m === "paket" ? `${s.pilot}: ${g.carry ? "Paket zu " + (g.target || "der Adresse") : "Paket an der Station holen"}`
+      : m === "ringe" ? `${s.pilot} sammelt Ringe` : `${s.pilot}: Tricks!`;
+    else if (s.phase === "countdown") b.textContent = "Gleich geht es los";
+    else if (s.phase === "ready") b.textContent = "Drohne geht an den Start";
+    else if (s.phase === "error") { b.className = "banner err"; b.textContent = s.message; }
+    else if ((s.phase === "finished" || s.phase === "dnf") && r) {
+      if (!r.result) b.textContent = `Nicht gewertet: ${r.reason}`;
+      else {
+        const v = byPts ? pts(r.result.points) : fmt(r.result.time) + " s";
+        b.className = r.record ? "banner win" : "banner";
+        b.innerHTML = `${r.record ? icon("trophy") : ""}${esc(r.name)}: ${v}` + (r.record ? " – neuer Rekord" : "");
+      }
+    } else b.textContent = {ringe: "Wer sammelt alle Ringe am schnellsten", paket: "Wer liefert am besten aus", freestyle: "Wer macht die meisten Punkte"}[m];
+    $("simQueue").innerHTML = s.waiting.length ? "Als Nächstes: " + s.waiting.map(q => esc(q.name)).join(", ") : "";
+    $("leftTag").textContent = s.pilot && s.phase !== "idle" ? "Live · " + s.pilot : "EasyPilot-Sim";
+    // Tabelle: Ergebnis-Details des letzten Laufs
+    $("simSplitTitle").textContent = "Lauf";
+    $("simSplitHead").textContent = "";
+    const det = r && r.result ? r.result : null;
+    $("simSplits").innerHTML = det ? Object.entries({
+      ringe: {"Zeit": fmt(det.time) + " s", "Strafe": `${det.penalty || 0} s`, "Abstürze": det.crashes, "Ringe": det.rings},
+      paket: {"Punkte": pts(det.points), "Zugestellt": det.delivered, "Kaputt": det.broken, "Zeit": fmt(det.time) + " s"},
+      freestyle: {"Punkte": pts(det.points), "Tricks": det.tricks, "Beste Kombo": pts(det.best_combo)}}[m] || {})
+      .map(([k, v]) => `<tr><td></td><td>${k}</td><td class="t">${esc(String(v))}</td></tr>`).join("")
+      : `<tr><td></td><td class="muted">Noch kein Lauf</td></tr>`;
+    const head = m === "ringe" ? `– Ringe ${set.ring_set === "schwer" ? "schwer" : "leicht"}` : `– ${GAME[m]}`;
+    $("simBoardHead").textContent = head;
+    $("simBoardHead2").textContent = head;
+    const rk = ranking.length ? ranking.map((x, i) => `<tr class="${i === 0 ? "gold" : ""}"><td>${i + 1}</td><td>${esc(x.name)}</td>
+      <td class="s"></td><td class="t">${byPts ? pts(x.points) : fmt(x.time) + " s"}</td></tr>`).join("")
+      : `<tr><td></td><td class="muted">Noch keine Ergebnisse</td></tr>`;
+    $("simRanking").innerHTML = rk;
+    $("simRanking2").innerHTML = rk;
+    $("simRecent").innerHTML = s.board.recent.length ? s.board.recent.map(x => `<tr><td>${icon("user")}</td><td>${esc(x.name)}</td>
+      <td class="t">${byPts ? pts(x.points) : fmt(x.time) + " s"}</td>
+      <td><button class="small" onclick="if(confirm('Lauf löschen?')) cmd({action:'sim_delete', id:'${x.id}'})">löschen</button></td></tr>`).join("")
+      : `<tr><td></td><td class="muted">Noch keine Läufe</td></tr>`;
+    $("simRefs").innerHTML = `<tr><td></td><td class="muted">Im Modus ${GAME[m]} fliegt kein Autopilot</td></tr>`;
+    lastPhase = s.phase;
   }
 
   function frame() {

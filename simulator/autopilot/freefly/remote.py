@@ -6,7 +6,8 @@ Der Sim ist der Server (RemoteServer, läuft in der Spielschleife), das Studio d
 Jede Nachricht ist eine Zeile JSON.
 
 Studio -> Sim (Befehle, "cmd"):
-  settings  mode ("race"/"bomb"), ap_mode ("line"/"camera"), ap_k, show_line, mark, hud, auto,
+  settings  mode ("race"/"bomb"/"ringe"/"paket"/"freestyle", modes.py), ring_set, ghost, ap_mode ("line"/"camera"),
+            ap_k, show_line, mark, hud, auto,
             strecke (tracks.py; der Sim baut die Welt neu und schickt danach ein neues "hello")
   prepare   Lauf vorbereiten: Einstellungen wie bei settings, Drohne an den Start, eingefroren,
             Menü zu. auto = ob danach der Autopilot fliegt (er wird hier schon gebaut).
@@ -19,7 +20,8 @@ Studio -> Sim (Befehle, "cmd"):
 Sim -> Studio:
   {"hello": {...}}   nach dem Verbinden und nach jedem Streckenwechsel: Strecke, Tore (x, y, z, Gier), Straßen
   {"tel": {...}}     Telemetrie mit 20 Hz (Lage, Höhe, Tempo, Sticks, Tor, Modus, Ziel ...)
-  {"ev": "..."}      Ereignisse sofort: go, gate (i, t), crash (reason, hit), respawn, target, lap
+  {"ev": "..."}      Ereignisse sofort: go, gate (i, t), crash (reason, hit), respawn, target, lap,
+                     result (Spielmodus fertig: Ringe-Zeit oder Paket-/Freestyle-Punkte)
 
 Zeiten ("t") sind Flugzeit des Sims (flight.flight_time): sie steht im Menü und bis die Drohne scharf ist.
 """
@@ -159,9 +161,11 @@ class RemoteServer:
         if c.get("strecke"):
             from .tracks import key
             c = {**c, "strecke": key(c["strecke"])}
-        for k in ("mode", "ap_mode", "ap_k", "show_line", "mark", "hud", "strecke"):
+        for k in ("mode", "ap_mode", "ap_k", "show_line", "mark", "hud", "strecke", "ring_set", "ghost"):
             if k in c and c[k] is not None and settings.get(k) != c[k]:
-                if k == "mode" and c[k] not in ("race", "bomb"):
+                if k == "mode" and c[k] not in ("race", "bomb", "ringe", "paket", "freestyle"):
+                    continue
+                if k == "ring_set" and c[k] not in ("leicht", "schwer"):
                     continue
                 if k == "ap_mode" and c[k] not in ("line", "camera", "nn", "nn_learn", "nn_replay"):   # nn_*: nn_show.py
                     continue
@@ -255,6 +259,9 @@ class RemoteServer:
         if flight.crashed_at is not None and L.get("crashed_at") != flight.crashed_at:
             self.send({"ev": "crash", "reason": flight.crash_reason, "hit": bool(getattr(flight, "target_hit", False)),
                        "t": round(flight.flight_time, 3), "pos": _r(d.pos), "hits": flight.hits, "misses": flight.misses})
+        g = getattr(flight, "game", None)
+        if g is not None and g.result is not None and L.get("result") is not g.result:
+            self.send({"ev": "result", "result": {k: v for k, v in g.result.items() if k != "log"}})
         if flight.target != L.get("target") and L.get("drone") is not None:
             self.send({"ev": "target", "name": self._target_name(flight), "hits": flight.hits, "misses": flight.misses})
         self._remember(flight)
@@ -282,11 +289,12 @@ class RemoteServer:
             "strecke": getattr(flight.world, "track", "dorfrunde"),
             "hits": flight.hits, "misses": flight.misses, "target": tgt, "menu": bool(info.get("menu")),
             "fps": round(info.get("fps", 0.0)), "lat": round(info.get("lat", 0.0), 2), "pad": info.get("pad"),
-            "hold": self.hold}})
+            "hold": self.hold, "game": g.summary() if g is not None else None}})
 
     def _remember(self, flight):
         L = self._last
         L["drone"], L["next_gate"], L["crashed_at"], L["target"] = flight.drone, flight.next_gate, flight.crashed_at, flight.target
+        L["result"] = getattr(getattr(flight, "game", None), "result", None)
 
     def close(self):
         try:

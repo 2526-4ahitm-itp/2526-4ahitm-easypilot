@@ -218,8 +218,15 @@
           <input id="simName" maxlength="24" placeholder="Name" autocomplete="off">
           <div class="hint" id="simCtlHint"></div>
         </div>
-        <div class="seg" id="simModeSeg">
+        <div class="seg" id="simModeSeg" style="grid-template-columns: repeat(3, 1fr)">
           <button data-v="race" class="on">Rennen (Tore)</button><button data-v="bomb">Bomben-Ziele</button>
+          <button data-v="ringe" title="Leuchtende Ringe im Dorf einsammeln, Reihenfolge egal – Wertung: Zeit">Ringe</button>
+          <button data-v="paket" title="Pakete an der Station holen und an 5 Adressen sanft absetzen – Wertung: Punkte">Paket</button>
+          <button data-v="freestyle" title="90 s Tricks: Flip, Rolle, Power-Loop, Split-S, Durchflug … – Wertung: Punkte">Freestyle</button>
+        </div>
+        <div id="simGameBox" class="hidden">
+          <label class="opt" id="simRingRow">Ring-Set <select id="simRingSet"><option value="leicht">Leicht (14 große Ringe)</option><option value="schwer">Schwer (14 kleine, Scheunen, Brücke, Turm)</option></select></label>
+          <div class="hint" id="simGameDesc"></div>
         </div>
         <div id="simTrackBox">
           <label class="opt">Strecke <select id="simTrack"></select> <b id="simTrackStars" style="letter-spacing: 1px"></b></label>
