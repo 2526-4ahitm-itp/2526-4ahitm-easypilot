@@ -26,9 +26,9 @@ TITLE_BAR = 28           # macOS-Fenster: Titelleiste über dem Bild (wie window
 
 
 def _nn_status():
-    """Trainingsstand des Netz-Piloten (freefly/nn.py, train_nn.py) fürs Studio, oder None."""
-    from .freefly.nn import training_status
-    return training_status()
+    """Trainings-, Lern- und Versuchs-Stand des Netz-Piloten (freefly/nn_show.py) fürs Studio."""
+    from .freefly.nn_show import studio_status
+    return studio_status()
 
 
 def screen_size():
@@ -222,6 +222,24 @@ class SimStudio:
             return self.start_sim()
         if a == "sim_stop":
             return self.stop_sim()
+        if a == "sim_show":                 # KI-Showcase im Sim: Lernen zuschauen / Zeitraffer / aus (nn_show.py)
+            if not self.client.connected:
+                return {"ok": False, "error": "Der Sim läuft nicht – erst „Sim starten“."}
+            mode = {"learn": "nn_learn", "replay": "nn_replay"}.get(cmd.get("show"))
+            self.abort.set()
+            self.queue_list.clear()
+            if mode:
+                self.settings.update(mode="race", ap_mode="nn")
+                self.save_settings()
+
+            def go():                       # erst den laufenden Studio-Lauf enden lassen (der schickt "stop")
+                end = time.time() + 4.0
+                while self.live["phase"] in ("ready", "countdown", "racing") and time.time() < end:
+                    time.sleep(0.05)
+                time.sleep(0.2)
+                self.client.send(cmd="settings", mode="race", ap_mode=mode or "nn", auto=bool(mode))
+            threading.Thread(target=go, daemon=True).start()
+            return {"ok": True}
         if a == "sim_abort":
             self.abort.set()
             self.queue_list.clear()
@@ -467,4 +485,15 @@ class SimStudio:
                 "ghost_id": f"{key}|{ref.get('date')}|{ref.get('time')}" if ref and ref.get("path") else None,
                 "last_result": self.last_result, "waiting": self.queue_list, "board": board.summary(),
                 "controllers": self.controllers(), "events": self.events[-6:],
-                "nn": _nn_status() if self.kind() == "nn" else None}
+                "nn": self._nn(tel)}
+
+    def _nn(self, tel):
+        """Netz-Stand, wenn das Netz gewählt ist oder im Sim der KI-Showcase läuft (höchstens 2-mal pro Sekunde lesen)."""
+        show = tel.get("ap_mode") if tel and tel.get("auto_on") and str(tel.get("ap_mode")).startswith("nn_") else None
+        if self.kind() != "nn" and not show:
+            return None
+        t, cached = getattr(self, "_nn_cache", (0.0, None))
+        if time.time() - t > 0.5 or cached is None:
+            cached = _nn_status()
+            self._nn_cache = (time.time(), cached)
+        return {**cached, "show_mode": show}

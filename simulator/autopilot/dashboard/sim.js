@@ -42,6 +42,44 @@ const SIM = (() => {
   });
   document.querySelectorAll("#simModeSeg button").forEach(b => b.onclick = () => send({action: "sim_settings", mode: b.dataset.v}));
   document.querySelectorAll("#simApSeg button").forEach(b => b.onclick = () => send({action: "sim_settings", ap_mode: b.dataset.v}));
+  document.querySelectorAll("#simShowSeg button").forEach(b => b.onclick = () => {
+    if (!st || !st.sim.running) { alert("Der Sim läuft nicht – erst „Sim starten“."); return; }
+    send({action: "sim_show", show: b.dataset.v});
+  });
+
+  // KI-Showcase (freefly/nn_show.py): Versuch, Bester, heute gelernt, Lernkurve Tore pro Versuch
+  function renderShow(n) {
+    const sh = n.show || {}, L = n.learn || {}, mode = n.show_mode;
+    document.querySelectorAll("#simShowSeg button").forEach(b =>
+      b.classList.toggle("on", (b.dataset.v === "learn" && mode === "nn_learn") || (b.dataset.v === "replay" && mode === "nn_replay")
+                               || (b.dataset.v === "off" && !mode)));
+    $("simShowAtt").textContent = sh.attempts ? String(sh.attempts) : "–";
+    $("simShowBest").textContent = sh.attempts ? `Tor ${sh.best}` : "–";
+    const m = L.today_min || 0;
+    $("simShowMin").textContent = m >= 0.5 ? (m < 90 ? `${Math.round(m)} min` : `${(m / 60).toFixed(1).replace(".", ",")} h`) : "–";
+    $("simShowModel").textContent = `Modell v${L.published ?? n.best_version ?? "?"}`
+      + (L.own_flights ? ` · gelernt aus ${L.own_flights} eigenen Flügen` : "")
+      + (L.running ? ` · Lern-Programm: ${L.phase_text || L.phase || "läuft"}` : " · Lern-Programm aus");
+    const cv = $("simShowCurve"), key = JSON.stringify(sh.curve || []);
+    if (cv.dataset.k === key) return;
+    cv.dataset.k = key;
+    const g = cv.getContext("2d"), W = cv.width, H = cv.height, pts = (sh.curve || []).slice(-40);
+    g.clearRect(0, 0, W, H);
+    const top = Math.max(12, ...pts.map(p => p[1])), x0 = 28, y1 = H - 18, h = y1 - 10, w = W - x0 - 6;
+    g.font = "12px system-ui"; g.fillStyle = "rgba(255,255,255,0.6)"; g.strokeStyle = "rgba(255,255,255,0.15)";
+    for (const gy of [6, 12, 18, 24]) if (gy <= top) {
+      const y = y1 - h * gy / top; g.beginPath(); g.moveTo(x0, y); g.lineTo(W - 6, y); g.stroke(); g.fillText(String(gy), 4, y + 4);
+    }
+    if (!pts.length) { g.fillText("noch kein Versuch", W / 2 - 50, H / 2); return; }
+    const bw = w / Math.max(16, pts.length);
+    pts.forEach((p, i) => {
+      const bh = Math.max(2, h * p[1] / top), x = x0 + bw * i;
+      g.fillStyle = (p[2] || 0) % 2 ? "rgba(110,255,160,0.9)" : "rgba(80,220,255,0.9)";
+      g.fillRect(x + bw * 0.12, y1 - bh, bw * 0.76, bh);
+      if (i && p[2] !== pts[i - 1][2]) { g.fillStyle = "#ffd75a"; g.fillRect(x, 10, 2, h); g.fillText(`v${p[2]}`, x + 3, 22); }
+    });
+    g.fillStyle = "rgba(255,255,255,0.6)"; g.fillText(`Versuch ${pts[0][0]} … ${pts[pts.length - 1][0]}`, x0, H - 3);
+  }
   $("simK").oninput = () => { $("simKVal").textContent = kTxt($("simK").value); };
   $("simK").onchange = () => send({action: "sim_settings", ap_k: +$("simK").value});
   $("simLaps").onchange = () => send(st && st.settings.mode === "bomb" ? {action: "sim_settings", targets: +$("simLaps").value}
@@ -69,9 +107,10 @@ const SIM = (() => {
     document.querySelectorAll("#simModeSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === s.mode));
     document.querySelectorAll("#simApSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === s.ap_mode));
     $("simApSeg").classList.toggle("hidden", bomb);
-    const nn = !bomb && s.ap_mode === "nn" && st.nn;                 // Netz-Pilot: Lernkurve + Stand
+    const nn = !bomb && st.nn && (s.ap_mode === "nn" || st.nn.show_mode);   // Netz-Pilot: Lernkurve + Stand
     $("simNN").classList.toggle("hidden", !nn);
     if (nn) {
+      renderShow(st.nn);
       const v = `${st.nn.version}-${st.nn.updated}`;
       if ($("simNNCurve").dataset.v !== v) { $("simNNCurve").src = `/api/sim/nn_curve.png?v=${encodeURIComponent(v)}`; $("simNNCurve").dataset.v = v; }
       $("simNNTxt").textContent = `Bestes Modell v${st.nn.best_version ?? "?"}: ${Number(st.nn.best_gates).toFixed(1).replace(".", ",")} Tore ohne Lehrer · `

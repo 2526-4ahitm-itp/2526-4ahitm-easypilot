@@ -226,7 +226,21 @@
           <button data-v="line" class="on">Rennlinie</button><button data-v="camera">Nur Kamera</button><button data-v="nn" title="lernt selbst, sieht nur das Kamerabild">Neuronales Netz</button>
         </div>
         <div id="simNN" class="hidden" style="margin-top: 8px">
-          <img id="simNNCurve" alt="Lernkurve des Netzes" style="width: 100%; border-radius: 8px; background: #fff">
+          <!-- KI-Showcase (freefly/nn_show.py): läuft im Sim-Fenster ohne Countdown, Versuch für Versuch -->
+          <div class="seg" id="simShowSeg" style="grid-template-columns: repeat(3, 1fr)">
+            <button data-v="learn" title="Das Netz fliegt, probiert aus und lernt aus jedem Versuch">Lernen zuschauen</button>
+            <button data-v="replay" title="Gespeicherte Versionen der Reihe nach: wie weit kam es nach 3, 10, 40 min Training?">Zeitraffer</button>
+            <button data-v="off">Showcase aus</button>
+          </div>
+          <div id="simShowBig" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; text-align: center">
+            <div><div style="font-size: 12px; opacity: 0.7">Versuch</div><b id="simShowAtt" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+            <div><div style="font-size: 12px; opacity: 0.7">Bester Versuch</div><b id="simShowBest" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+            <div><div style="font-size: 12px; opacity: 0.7">Heute gelernt</div><b id="simShowMin" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+          </div>
+          <div id="simShowModel" style="font-size: clamp(13px, 1.1vw, 18px); margin: 4px 0 6px; text-align: center"></div>
+          <div style="font-size: 12px; opacity: 0.7">Lernkurve: Tore pro Versuch (Farbe wechselt mit jeder neuen Version)</div>
+          <canvas id="simShowCurve" width="640" height="200" style="width: 100%; height: auto; border-radius: 8px; background: rgba(0,0,0,0.25)"></canvas>
+          <img id="simNNCurve" alt="Lernkurve des Trainings" style="width: 100%; border-radius: 8px; background: #fff; margin-top: 6px">
           <div id="simNNTxt" style="font-size: 12px; opacity: 0.8; margin-top: 4px"></div>
         </div>
         <div class="simrow">

@@ -52,6 +52,7 @@ from .controls import CTL_LABEL, CTL_MODES, Controls, open_controller
 from .restart import RestartSeq
 from .ui import Hud, Menu
 from . import osd as osd_ui                   # Liftoff-OSD, Elemente und Presets (Menü „Anzeige / OSD …“)
+from . import nn_show                         # KI-Showcase: Lernen zuschauen, Zeitraffer, Aufzeichnung (Menü „KI-Showcase …“)
 from .world import World
 
 DT = 0.002              # s, Physik-Schritt (500 Hz)
@@ -90,7 +91,8 @@ def load_settings(cam_tilt, hfov):
     except (OSError, ValueError):
         pass
     osd_ui.ensure(s)                   # "osd": Elemente; alte "lage"/"karte" werden übernommen
-    s["auto"] = False                  # Autopilot nie von selbst einschalten
+    nn_show.ensure(s)                  # "nnshow": KI-Einblendungen, "nn_learn": Netz lernt mit (nn_show.py)
+    s["auto"] = False                 # Autopilot nie von selbst einschalten
     s["mode"] = "race"                 # Bomben-Modus wählt man im Menü (B)
     return s
 
@@ -106,6 +108,7 @@ def save_settings(s):
 
 MENU = [{"label": "Fliegen", "kind": "action", "key": "resume"},
         {"label": "Neustart am Startplatz", "kind": "action", "key": "restart"},
+        {"label": "Zerstörung zurücksetzen (Z)", "kind": "action", "key": "repair"},
         {"label": "Modus", "kind": "value", "key": "mode"},
         {"label": "Kamera-Uptilt", "kind": "value", "key": "tilt"},
         {"label": "Sichtfeld", "kind": "value", "key": "fov"},
@@ -116,6 +119,7 @@ MENU = [{"label": "Fliegen", "kind": "action", "key": "resume"},
         {"label": "Rennlinie zeigen", "kind": "toggle", "key": "show_line"},
         {"label": "Tore markieren", "kind": "toggle", "key": "mark"},
         {"label": "Anzeige / OSD …", "kind": "action", "key": "osd"},
+        {"label": "KI-Showcase …", "kind": "action", "key": "nnshow"},
         {"label": "Schnell-Neustart (ohne Countdown)", "kind": "toggle", "key": "quick"},
         {"label": "Steuerung (T)", "kind": "value", "key": "ctl"},
         {"label": "Tastatur-Empfindlichkeit", "kind": "value", "key": "kb_sens"},
@@ -123,7 +127,8 @@ MENU = [{"label": "Fliegen", "kind": "action", "key": "resume"},
         {"label": "Beenden", "kind": "action", "key": "quit"}]
 
 
-AP_MODES = {"line": "Rennlinie", "camera": "Nur Kamera", "nn": "Neuronales Netz"}
+AP_MODES = {"line": "Rennlinie", "camera": "Nur Kamera", "nn": "Neuronales Netz",
+            "nn_learn": "KI: Lernen zuschauen", "nn_replay": "KI: Zeitraffer"}     # nn_show.py
 BOMB_TIMEOUT = 30.0     # s: so lange pro Bomben-Ziel, dann kommt ein neues
 
 
@@ -135,11 +140,11 @@ def menu_values(s):
             "kb_sens": f"{round(s['kb_sens'] * 100)} %", "kb_gas": f"{s['kb_gas']:.1f}x",
             "ctl": CTL_LABEL.get(s.get("ctl"), "Automatisch"),
             "physik": PHYSICS_NAMES.get(s.get("physik"), "Klassisch"),
-            **osd_ui.menu_values(s)}
+            **osd_ui.menu_values(s), **nn_show.menu_values(s)}
 
 
 def change(s, key, direction):
-    if osd_ui.change(s, key, direction):
+    if osd_ui.change(s, key, direction) or nn_show.change(s, key, direction):
         pass
     elif key == "tilt":
         s["tilt"] = max(0, min(70, s["tilt"] + 5 * direction))
@@ -150,6 +155,8 @@ def change(s, key, direction):
     elif key == "ap_mode":
         order = list(AP_MODES)
         s["ap_mode"] = order[(order.index(s["ap_mode"]) + (direction or 1)) % len(order)] if s["ap_mode"] in order else "line"
+        if s["ap_mode"] in ("nn_learn", "nn_replay"):
+            s["auto"] = True               # Showcase: gleich losfliegen lassen
     elif key == "kb_sens":
         s["kb_sens"] = round(max(0.1, min(1.0, s["kb_sens"] + 0.1 * direction)), 1)
     elif key == "kb_gas":
@@ -204,6 +211,7 @@ def main():
     ap.add_argument("--bomb", action="store_true", help="im Bomben-Modus starten")
     ap.add_argument("--camera", action="store_true", help="Autopilot-Modus 'nur Kamera'")
     ap.add_argument("--nn", action="store_true", help="Autopilot-Modus 'Neuronales Netz' (nn.py)")
+    ap.add_argument("--nn-show", choices=("lernen", "zeitraffer"), help="KI-Showcase: Lernen zuschauen / Zeitraffer (nn_show.py)")
     ap.add_argument("--boom-test", type=float, default=0.0, help="nach so vielen s ins Ziel stürzen (Test)")
     ap.add_argument("--remote", type=int, default=0, help="Fernsteuerung für EasyPilot Studio auf diesem Port (remote.py)")
     ap.add_argument("--physik", choices=("klassisch", "liftoff"),
@@ -246,6 +254,7 @@ def main():
     hud = Hud(renderer)
     menu = Menu(hud, MENU)
     osd_menu = Menu(hud, osd_ui.MENU)              # Untermenü „Anzeige / OSD“
+    nn_menu = Menu(hud, nn_show.MENU)              # Untermenü „KI-Showcase“
     cur_menu = [menu]
     losd = osd_ui.LiftoffOsd(renderer)
     from .attitude import Lage
@@ -259,10 +268,15 @@ def main():
     flight = Flight(world, rates, thrust)
     from .auto import Autopilot, BombAutopilot, CameraAutopilot
     pilot = {"line": None, "camera": None, "bomb": None, "nn": None}
-    nn_overlay = []                                # NNOverlay (nn.py), sobald das Netz fliegt
+    nn_overlay = []                                # nn_show.Show (Einblendungen, Aufzeichnung), sobald das Netz fliegt
 
     def ap_kind():
-        return "bomb" if settings["mode"] == "bomb" else settings["ap_mode"]
+        if settings["mode"] == "bomb":
+            return "bomb"
+        return "nn" if settings["ap_mode"] in nn_show.SHOW_MODES else settings["ap_mode"]
+
+    def nn_active():
+        return bool(settings["auto"] and ap_kind() == "nn" and nn_overlay and pilot["nn"] is not None)
 
     def line_pilot():
         if pilot["line"] is None or pilot["line"].k != settings["ap_k"]:
@@ -286,9 +300,10 @@ def main():
             return pilot["camera"]
         if kind == "nn":                           # Neuronales Netz: nur Kamerabild + Flugzustand (nn.py)
             if pilot["nn"] is None:
-                from .nn import NNOverlay, NNPilot
+                from .nn import NNPilot
                 pilot["nn"] = NNPilot(world, rates, thrust, ctx=ctx)
-                nn_overlay.append(NNOverlay(renderer))
+                nn_overlay.append(nn_show.Show(renderer, "studio" if args.remote else "test" if args.bench else "spiel",
+                                               settings.get("physik", "classic")))
                 print(f"Netz-Pilot: {pilot['nn'].label()}")
             return pilot["nn"]
         if pilot["bomb"] is None:
@@ -298,7 +313,7 @@ def main():
     def ap_label():
         kind = ap_kind()
         if kind == "nn":
-            return "Netz · " + (pilot["nn"].label() if pilot["nn"] else "lädt")
+            return nn_overlay[0].label(pilot["nn"]) if nn_overlay else "Netz · lädt"
         return {"line": f"Rennlinie k={settings['ap_k']:.1f}", "camera": f"nur Kamera {10 * settings['ap_k']:.0f} m/s",
                 "bomb": "Bomben"}[kind] + (f" · {pilot['bomb'].info}" if kind == "bomb" and pilot["bomb"] else "")
 
@@ -308,6 +323,15 @@ def main():
     flight.entities = entities
     models = {k: renderer.entity_vao(m, 64) for k, m in
               (("person", person_mesh()), ("car", car_mesh()), ("bus", bus_mesh()))}
+
+    def repair():
+        """Alles Zerstörte wieder aufbauen: Ziele (Personen, Autos, Busse), Häuser, Krater."""
+        entities.revive()
+        world.revive()
+        renderer.set_craters([])
+        if flight.mode == "bomb":
+            flight.next_target()
+        flight.say("Zerstörung zurückgesetzt", "alles wieder heil", 2.0)
 
     def restart():
         flight.mode = settings["mode"]
@@ -323,7 +347,12 @@ def main():
         flight.respawn()
         pad.kb.throttle = 0.0                    # nach jedem Neustart Gas auf 0 (Fernsteuerung: erst Gas runter = scharf)
         if settings["auto"]:
-            autopilot().reset()
+            ap0 = autopilot()
+            if ap0 is pilot["nn"]:                # Modus, Rauschen, Modell (nur zwischen zwei Versuchen) – nn_show
+                nn_overlay[0].prepare(ap0, flight, settings, time.perf_counter())
+            ap0.reset()
+            if ap0 is pilot["nn"]:
+                nn_overlay[0].after_reset(ap0, time.perf_counter())
             flight.armed = True
         show = settings["auto"] and settings["show_line"] and ap_kind() == "line"
         renderer.set_line(autopilot().line.points if show else None)
@@ -342,6 +371,8 @@ def main():
         settings["ap_mode"] = "camera"
     if args.nn:
         settings["ap_mode"] = "nn"
+    if args.nn_show:
+        settings["ap_mode"] = "nn_learn" if args.nn_show == "lernen" else "nn_replay"
     restart()
     if args.pose:
         x, y, z, yaw, pitch = (float(v) for v in args.pose.split(","))
@@ -386,7 +417,9 @@ def main():
             line = (f"Flugzeit {flight.flight_time:.1f} s" + (f"   Runde {lap:.2f} s" if lap is not None else "")
                     + (f"   Letzte {flight.last_lap:.2f} s" if flight.last_lap else "")
                     + (f"   Bestzeit {best:.2f} s" if best else ""))
-        if settings.get("quick"):                 # Schnell-Neustart: sofort zurück zum Start, kein Countdown
+        if nn_active():                           # KI-Showcase: „Versuch 37: 9 Tore“
+            title, sub = nn_overlay[0].end_text(kind, title, sub)
+        if settings.get("quick"):                # Schnell-Neustart: sofort zurück zum Start, kein Countdown
             restart_clean()
             flight.say(title, sub, 1.2)
             return
@@ -418,7 +451,10 @@ def main():
                 if act == "osd":
                     cur_menu[0] = osd_menu
                     osd_menu.sel = 0
-                elif act == "back" or (act == "resume" and cur_menu[0] is osd_menu):
+                elif act == "nnshow":                     # Untermenü „KI-Showcase“ (nn_show.MENU)
+                    cur_menu[0] = nn_menu
+                    nn_menu.sel = 0
+                elif act == "back" or (act == "resume" and cur_menu[0] in (osd_menu, nn_menu)):
                     cur_menu[0] = menu
                     save_settings(settings)
                 elif act == "resume":
@@ -426,6 +462,8 @@ def main():
                 elif act == "restart":
                     skip_or_restart()
                     resume()
+                elif act == "repair":
+                    repair()
                 elif act == "quit":
                     running = False
                 elif isinstance(act, tuple):
@@ -461,6 +499,11 @@ def main():
                     settings["hud"] = not settings["hud"]
                 elif ev.key == pygame.K_o:
                     osd_ui.toggle_lage(settings)              # Lageanzeige (Horizont, Gradkompass, Leisten, 3D, Karte)
+                    save_settings(settings)
+                elif ev.key == pygame.K_z:
+                    repair()
+                elif ev.key == pygame.K_k:
+                    nn_show.toggle(settings)                  # KI-Einblendungen: Zuschauer <-> aus
                     save_settings(settings)
 
         t_read = time.perf_counter()
@@ -505,6 +548,13 @@ def main():
                         if not seq.active:
                             end_run("done", "AUTOPILOT FERTIG", f"{len(ap.racer.progress.gate_times)} Tore geflogen",
                                     (0.4, 1, 0.6, 1))
+            if nn_overlay:                                 # KI: Aufzeichnung abschließen, „kein Tor mehr“, Lern-Prozess
+                if nn_active():
+                    nn_end = nn_overlay[0].frame(flight, pilot["nn"], settings, t_read)
+                    if nn_end and not seq.active and flight.crashed_at is None:
+                        end_run(nn_end[0], nn_end[1], nn_end[2], (0.4, 1, 0.6, 1))
+                else:
+                    nn_overlay[0].recorder.end(None, "neu gestartet")
             if (flight.mode == "bomb" and flight.crashed_at is None and flight.target is not None
                     and t_read - flight.target_since > BOMB_TIMEOUT):
                 old = entities.name(flight.target)                  # Zeit um: neues Ziel
@@ -583,12 +633,12 @@ def main():
             lat = statistics.median(read_to_done[-120:]) * 1000 if read_to_done else 0.0
             hud.draw(flight, sticks, {"fps": fps, "lat": lat, "pad": pad.name,
                                       "auto": ap_label() if settings["auto"] else None}, settings, t_read)
-            if settings["auto"] and ap_kind() == "nn" and nn_overlay and settings["hud"]:
-                nn_overlay[0].draw(hud, pilot["nn"], t_read)     # was das Netz sieht + Trainingsstand
             if settings["hud"] and any(settings["osd"][k] for k in osd_ui.LAGE):
                 lage.draw(hud, flight, settings, t_read, dt_frame,
-                          left_busy=bool(settings["auto"] and ap_kind() == "nn" and nn_overlay and settings["hud"]))
+                          left_busy=bool(nn_active() and settings["hud"] and settings["nnshow"]["sieht"]))
             losd.draw(hud, flight, sticks, {"auto": ap_label() if settings["auto"] else None}, settings, t_read, dt_frame)
+            if nn_active():                       # KI-Einblendungen: sieht / will / Lernkurve / Zähler / Erklärtexte
+                nn_overlay[0].draw(hud, pilot["nn"], settings, t_read)
             hud.flash(max((e.flash() for e in explosions), default=0.0))
             if seq.active or seq.done_at is not None:
                 seq.draw(hud, t_read)             # Meldung, Abblenden, Countdown, „LOS!“
@@ -603,6 +653,9 @@ def main():
             if cur_menu[0] is osd_menu:
                 osd_menu.draw(menu_values(settings), "Anzeige / OSD",
                               "Voreinstellung: Liftoff · Minimal · Zuschauer · Aus    H schaltet alles, O die Lageanzeige")
+            elif cur_menu[0] is nn_menu:
+                nn_menu.draw(menu_values(settings), "KI-Showcase",
+                             "Autopilot-Modus „KI: Lernen zuschauen“ / „KI: Zeitraffer“    K schaltet die Einblendungen")
             else:
                 menu.draw(menu_values(settings), "EasyPilot Freiflug", f"Acro · {pad.name} · 12 Tore · {len(entities.kind)} bewegte Ziele")
         if remote is not None:
@@ -640,6 +693,9 @@ def main():
         img = ctx.screen.read(components=3)
         pygame.image.save(pygame.transform.flip(pygame.image.frombytes(img, size, "RGB"), False, True), args.shot)
     save_settings(settings)
+    if nn_overlay:                                # laufenden KI-Versuch noch speichern (nn_show.Recorder)
+        nn_overlay[0].recorder.end(None, "Sim beendet")
+        nn_overlay[0].recorder.flush()
     pygame.quit()
     print(f"Runden {stats['laps']}, Abstürze {stats['crashes']}, Treffer {flight.hits}, daneben {flight.misses}")
     print(stats_text(read_to_done[30:], frame_times[30:]))

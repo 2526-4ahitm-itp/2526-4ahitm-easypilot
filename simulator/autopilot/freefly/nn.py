@@ -189,17 +189,26 @@ class NNPilot:
         self.ctl = SetpointController(rates, thrust)
         self.path = Path(path) if path else MODEL_DIR / "best.pt"
         self.net, self.meta, self.mtime = None, {}, None
+        self.recorder = None          # nn_show.Recorder: jeder Flug wird aufgezeichnet (Training aus eigenen Flügen)
+        self.flight = None            # game.Flight, für die Belohnung in der Aufzeichnung
+        self.explore = 0.0            # Rauschen auf der Ausgabe (Lernen zuschauen: probiert etwas aus)
+        self.just_loaded = None       # (alte Version, neue Version) nach einem Modellwechsel, fürs OSD
         self.reload()
         self.reset()
+
+    def set_model(self, path):
+        """Anderes Modell (Zeitraffer: v001.pt …); geladen wird beim nächsten reset(), nie mitten im Flug."""
+        self.path = Path(path) if path else MODEL_DIR / "best.pt"
 
     def reload(self):
         """Neues best.pt (Training läuft im Hintergrund)? Dann laden. -> True wenn neu geladen."""
         try:
-            m = self.path.stat().st_mtime
+            m = (str(self.path), self.path.stat().st_mtime)
         except OSError:
             return False
         if m == self.mtime:
             return False
+        old = self.meta.get("version") if self.net is not None else None
         net, meta = load_model(self.path)
         if net is None:
             return False
@@ -207,6 +216,8 @@ class NNPilot:
             net(self.torch.zeros(1, 4, self.cam.height, self.cam.width, dtype=self.torch.uint8),
                 self.torch.zeros(1, N_STATE))
         self.net, self.meta, self.mtime = net, meta or {}, m
+        if old is not None and old != self.meta.get("version"):
+            self.just_loaded = (old, self.meta.get("version"))
         return True
 
     @property
@@ -227,7 +238,11 @@ class NNPilot:
         return s
 
     def reset(self):
+        if self.recorder is not None:
+            self.recorder.end(None, "neu gestartet")      # schon beendet: nichts; sonst abgebrochen speichern
         self.reload()
+        if self.recorder is not None and self.net is not None:
+            self.recorder.begin(self.meta.get("version", 0), self.explore)
         self.ctl.reset()
         self.prev = np.zeros(4, np.float32)
         self.next_frame = 0.0
@@ -248,7 +263,12 @@ class NNPilot:
             img = image_input(bgr, depth)
             st = state_features(state, self.prev)
             with self.torch.no_grad():
-                a = self.net(self.torch.from_numpy(img[None].copy()), self.torch.from_numpy(st[None]))[0].numpy()
+                mu = self.net(self.torch.from_numpy(img[None].copy()), self.torch.from_numpy(st[None]))[0].numpy()
+            a = mu
+            if self.explore > 0:                     # ausprobieren (wie im PPO-Training: Gauß um die Ausgabe)
+                a = mu + np.random.normal(0.0, self.explore, 4).astype(np.float32)
+            if self.recorder is not None and self.flight is not None:
+                self.recorder.decision(img, st, a, mu, self.flight, state)
             a = np.clip(a, -1.0, 1.0).astype(np.float32)
             self.prev = a
             self.ctl.set = action_to_setpoint(a)
