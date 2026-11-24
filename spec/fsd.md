@@ -381,3 +381,18 @@ eingegebenen GPS-Koordinate, tief über dem Boden und ohne Kollision.
 
 Rückwärts vom Tag der offenen Tür geplant, in Wochen W1–W10 (siehe `tasks.md` im Change).
 Datum vom Team zu ergänzen.
+
+### 20.7 macOS und eigener Freiflug-Simulator
+
+- **macOS:** Autopilot und Studio laufen auch auf einem Mac (Apple Silicon) mit Liftoff aus Steam.
+  Statt vJoy steuert ein virtuelles Gamepad über OpenJoystickDriver Liftoff. Ohne Paket für 0,5 s
+  geht Gas auf null. Start per Doppelklick, Anleitung in `simulator/mac/README.md`.
+- **Eigener Freiflug-Simulator** (`simulator/autopilot/freefly`): FPV-Flug ohne Liftoff in einem
+  Dorf mit Toren und Hindernissen. Drei Physik-Modelle: „Klassisch“, „Liftoff-nah“ (aus
+  Liftoff-Telemetrie gefittet) und „Realistisch“ (echte 5-Zoll-Drohne mit Betaflight-Regler, Akku
+  und Wind). Fünf Strecken mit Schwierigkeitsstufen.
+- Im eigenen Simulator fliegen dieselben Autopiloten wie in Liftoff (Rennlinie oder nur Kamera)
+  und ein Netz-Pilot, der aus seinen eigenen Flügen weiterlernt.
+- Spielmodi für Besucher:innen: Rennen gegen den Geist der Bestzeit, Ringe, Paket ausliefern,
+  Freestyle.
+- Das Studio steuert den eigenen Simulator als zweite Wahl neben Liftoff, mit Bestenlisten.

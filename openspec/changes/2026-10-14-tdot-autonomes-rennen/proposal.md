@@ -22,6 +22,8 @@ Der Liftoff-Hover (§11) zeigt schon, dass Telemetrie und Regelung in Liftoff fu
   - Ablauf Mensch → Programm
 
   Dazu gehören §20.5 und US-12.
+- **macOS-Port:** Autopilot und Studio laufen auch auf einem Mac mit Liftoff aus Steam; nur die Anbindung ans Betriebssystem ist getauscht (virtuelles Gamepad über OpenJoystickDriver statt vJoy, Fenster, Bildschirmaufnahme). Start per Doppelklick (§20.7).
+- **Eigener Freiflug-Simulator:** eigener Simulator mit drei Physik-Modellen, fünf Strecken, Spielmodi für Besucher:innen, denselben Autopiloten wie in Liftoff, einem lernenden Netz-Piloten und Fernsteuerung aus dem Studio (§20.7).
 - **Test-Harness:** automatische Serienflüge mit Reset, Messung von Rundenzeit, Torquote, Abstand zum Torrand und Abstürzen. Läuft über Nacht, bei steigender Geschwindigkeit bis 100 % (§13, §20.3).
 
 ## Capabilities
@@ -30,6 +32,8 @@ Der Liftoff-Hover (§11) zeigt schon, dass Telemetrie und Regelung in Liftoff fu
 - `gate-racing`: Tore finden (Datei + Kamera), Ideallinie, Renn-Regler, Zeitmessung (§20.2, §20.3, US-11, US-14)
 - `waypoint-navigation`: GPS-Ziel, Hinderniskarte, kollisionsfreier Tiefflug (§20.4, US-13)
 - `race-event`: Rennmodus, Bestenliste, Ablauf am Tag der offenen Tür (§20.5, US-12)
+- `autopilot-macos`: Autopilot und Studio auf macOS (§20.7)
+- `freefly-simulator`: eigener Freiflug-Simulator mit Physik-Modellen, Strecken, Spielmodi und Autopiloten (§20.7)
 
 ### Modified Capabilities
 - keine. `liftoff-hover` bleibt erhalten; der Hover-Regler zieht in den gemeinsamen Kern um, Verhalten unverändert.

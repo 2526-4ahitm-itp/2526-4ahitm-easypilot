@@ -83,3 +83,14 @@ Aufteilung (Vorschlag, vom Team zu bestätigen): **A** = Regelung, Planung, Lift
 - [ ] 6.2 [GAP] Checkliste für den Tag: Liftoff-Version, vJoy-Setup, Controller, Bildschirme, Reset-Taste, Backup-PC.
 - [ ] 6.3 [SPEC] Hugo-Doku: Erklärung (Erkennung, Ideallinie, Renn-Regler, Planung), Anleitung „TdoT aufbauen“, C4-Komponenten aktualisieren, Präsentation ergänzen.
 - [ ] 6.4 [SPEC] Specs `gate-racing`, `waypoint-navigation`, `race-event` auf den echten Stand setzen, Change archivieren.
+
+## 7. macOS und eigener Freiflug-Simulator (nach M12, Stand 20.11.2026)
+
+- [x] 7.1 [GAP] Autopilot auf macOS: OpenJoystickDriver-Gamepad (`mac/ojdpad.py`), `window_mac.py`, `capture_mac.py`, `paths.py`, Anleitung `simulator/mac/README.md`.
+- [x] 7.2 [GAP] Studio auf macOS: getrennte Fenster, Start per Doppelklick, Präsentationsmodus, Controller-Erkennung, Kiosk-Ausgang.
+- [x] 7.3 [GAP] Vision-Modi im Studio: „Erkunden“ und „Nur Kamera“ (`visionfly.py`).
+- [x] 7.4 [GAP] Eigener Freiflug-Simulator (`autopilot/freefly`) mit Liftoff-naher Physik, Autopiloten und Studio-Anbindung (`freefly/remote.py`, `studio_sim.py`).
+- [x] 7.5 [GAP] KI-Showcase: Netz-Pilot, Lernen aus eigenen Flügen, Zeitraffer.
+- [x] 7.6 [GAP] Physik „Realistisch“ und fünf Strecken mit Schwierigkeitsstufen; Tests `test_physics_real.py`, `test_freefly_tracks.py`.
+- [x] 7.7 [GAP] Spielmodi (Geist, Ringe, Paket, Freestyle), FPV-Look, Grafik-Stufen; Tests `test_freefly_modes.py`, `test_freefly_look.py`.
+- [ ] 7.8 [SPEC] Specs `autopilot-macos` und `freefly-simulator` nach dem Archivieren unter `openspec/specs/` prüfen.
