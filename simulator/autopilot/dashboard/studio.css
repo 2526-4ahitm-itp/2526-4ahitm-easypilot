@@ -281,3 +281,49 @@ body.studio .countdown { position: fixed; inset: 0; z-index: 5; display: none; f
 .board #dbgChart { height: 100%; }
 
 @media (prefers-reduced-motion: reduce) { body.studio * { transition: none !important; } }
+
+/* ------------------------------------------------------------------ separate windows (macOS) */
+body.studio.view-right, body.studio.view-panel { grid-template-rows: 1fr; }
+body.studio.view-right .bottom, body.studio.view-panel .top, body.studio.view-right .slot { display: none; }
+body.studio.view-right .top { grid-template-columns: 1fr; }
+body.studio.view-panel .bottom { padding-top: 0; }
+
+/* ------------------------------------------------------------------ EasyPilot-Sim (sim.js, studio_sim.py) */
+body.studio:not(.simmode) .sim-only { display: none !important; }
+body.studio.simmode .lo-only { display: none !important; }
+body.simmode #tab-live.on, body.simmode #tab-results.on { display: none; }
+body.simmode #tab-live.on ~ #tab-sim, body.simmode #tab-results.on ~ #tab-simresults { display: block; }
+body.simmode .tabs button[data-tab="maps"] { display: none; }
+body.simmode #liveImg, body.simmode #botVideo, body.simmode #bigMap, body.simmode #halfEmpty, body.simmode #dbg,
+body.simmode #rightClock { display: none !important; }
+.simsw { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--deep); box-shadow: inset 0 0 0 1px var(--hair); }
+.simsw button { height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2);
+  cursor: pointer; white-space: nowrap; font-size: 13px; }
+.simsw button:hover { color: var(--text); }
+.simsw button.on { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.simhalf { position: absolute; inset: 0; z-index: 2; background: var(--deep); }
+.simhalf canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.simstat { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.simstat span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.simstat button.small:hover { color: var(--text); }
+#simHumanBox { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
+#simName { width: 100%; height: 40px; padding: 0 12px; border-radius: 8px; border: 0; background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--hair); color: var(--text); font-size: 15px; }
+#simName::placeholder { color: var(--muted); }
+#tab-sim .seg { margin-bottom: 4px; }
+#tab-sim .start { gap: 6px; }
+#simKRow b { min-width: 32px; }
+body.studio .progress > i.miss { background: var(--bad); }
+#tab-sim .board h3.sub { margin-top: 12px; }
+body.studio table.splits td { height: 26px; font-size: 13px; }
+body.studio td.t.good { color: var(--good); } body.studio td.t.bad, body.studio td.bad { color: var(--bad); }
+#simRecent td:first-child .ic { color: var(--muted); margin: 0; }
+body.studio.view-right.simmode .top { grid-template-columns: 1fr; }
+@media (max-height: 820px) {
+  #tab-sim .start { gap: 2px; }
+  #tab-sim .seg button { height: 30px; }
+  #simName { height: 34px; }
+}
+.simrow { display: flex; align-items: center; gap: 16px; }
+.simrow .custom { flex: 1; min-width: 0; }
+#simLaps { -webkit-appearance: none; appearance: none; min-width: 48px; text-align: center; cursor: pointer; }

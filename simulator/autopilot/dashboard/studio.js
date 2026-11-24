@@ -2,6 +2,9 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const KEY = new URLSearchParams(location.search).get("key") || "";
+// ?view=right: only the autopilot half, ?view=panel: only the race control (separate windows on the Mac)
+const VIEW = new URLSearchParams(location.search).get("view") || "";
+if (VIEW) document.body.classList.add("view-" + VIEW);
 const ENV_NAMES = {StrawBale: "Straw Bale", AutumnFields: "Autumn Fields", BandoCity: "Bando City",
   BardwellsYard: "Bardwell's Yard", DubaiLegends: "Dubai Legends", Hall26: "Hall 26", HangarC03: "Hangar C03",
   Hannover: "Hannover", LiftoffArena: "Liftoff Arena", MarinaBay: "Marina Bay", MinusTwo: "Minus Two",
@@ -61,7 +64,7 @@ $("startBtn").onclick = () => {
     const c = EP.state && EP.state.controllers;
     if (!c || !c.connected.length || !c.calibrated) {
       alert("Kein kalibrierter Controller. Controller anstecken (oder über Parsec verbinden) und einmal " +
-            "python -m autopilot.pilot calibrate ausführen. Ohne Controller: „Autopilot fliegt“.");
+            "am Mac simulator/mac/Kalibrieren.command doppelklicken (Windows: python -m autopilot.pilot calibrate). Ohne Controller: „Autopilot fliegt“.");
       return;
     }
     cmd({action: "human", name, stage}).then(j => { if (j.ok) $("pilotName").value = ""; });
@@ -78,9 +81,12 @@ $("stopBtn").onclick = () => cmd({action: "abort"});
 $("lapsSel").onchange = () => cmd({action: "settings", laps: +$("lapsSel").value}).then(() => EP.loadTrack());
 $("timeoutSel").onchange = () => cmd({action: "settings", timeout: +$("timeoutSel").value});
 $("visionOn").onchange = () => cmd({action: "settings", vision: $("visionOn").checked});
+$("apMode").onchange = () => cmd({action: "settings", autopilot_mode: $("apMode").value});
 // live debug view during autopilot runs (on by default, remembered in this browser)
 try { $("dbgOn").checked = localStorage.getItem("ep-debug") !== "0"; } catch (e) {}
 $("dbgOn").onchange = () => { try { localStorage.setItem("ep-debug", $("dbgOn").checked ? "1" : "0"); } catch (e) {} };
+// the setting is clicked in the panel window, the autopilot window has to follow
+addEventListener("storage", e => { if (e.key === "ep-debug") $("dbgOn").checked = e.newValue !== "0"; });
 TV.attachDrag($("dbgPlan"));
 let showDbg = false;
 $("streamLeft").onchange = () => {
@@ -130,7 +136,7 @@ function renderCoverage() {
 function chip(el, ok, warn) { el.classList.toggle("ok", !!ok); el.classList.toggle("warn", !ok && !!warn); }
 
 function render(s) {
-  if (!EP.track) return;
+  if (!EP.track || document.body.classList.contains("simmode")) return;   // EasyPilot-Sim: sim.js
   if (trackRace !== s.race || (lastPhase !== s.phase && (s.phase === "finished" || s.phase === "idle"))) {
     trackRace = s.race;
     EP.loadTrack().then(renderStagePills);
@@ -144,12 +150,19 @@ function render(s) {
   chip($("chipCtl"), ctl.connected.length && ctl.calibrated, ctl.connected.length);
   $("chipCtl").title = ctl.connected.join(", ") || "kein Controller";
   $("ctlHint").textContent = ctl.connected.length ? (ctl.calibrated ? `Controller: ${ctl.connected[0]}` :
-    "Controller gefunden, aber noch nicht kalibriert") : "Kein Controller – anstecken oder über Parsec ein Gamepad verbinden";
+    "Controller gefunden, aber noch nicht kalibriert (mac/Kalibrieren.command)") : "Kein Controller – anstecken oder über Parsec ein Gamepad verbinden";
   $("ctlHint").classList.toggle("bad", !(ctl.connected.length && ctl.calibrated));
   $("ctlInfo").textContent = ctl.connected.length ? "Angeschlossen: " + ctl.connected.join(", ") : "Kein Controller angeschlossen.";
   $("lapsSel").value = String(s.settings.laps);
   $("timeoutSel").value = String(s.settings.timeout);
   $("visionOn").checked = !!s.settings.vision;
+  const apm = s.settings.autopilot_mode || (s.settings.vision ? "karte_kamera" : "karte");
+  if (document.activeElement !== $("apMode")) $("apMode").value = apm;
+  const camMode = apm !== "karte";
+  $("apModeHint").textContent = camMode && s.detector ? "⚠ " + s.detector :
+    (apm === "nur_kamera" ? "Tempo-Stufe 1–5 = 2–6 m/s. Die Streckendatei misst nur die Zeit." :
+     apm === "erkunden" ? "Erst eine langsame Kamera-Runde, dann Rennen auf der selbst gebauten Karte." : "");
+  $("apModeHint").classList.toggle("bad", !!(camMode && s.detector));
   if (lastPhase === null) { stage = s.settings.stage || 3; renderStagePills(); }
 
   // timing card
@@ -205,13 +218,13 @@ function render(s) {
   TV.update(s.debug);
   $("dbg").classList.toggle("hidden", !showDbg);
   const dimg = $("dbgImg");
-  if (showDbg && !dimg.getAttribute("src")) dimg.src = "/api/live.mjpg";
+  if (showDbg && VIEW !== "panel" && !dimg.getAttribute("src")) dimg.src = "/api/live.mjpg";
   if (!showDbg && dimg.getAttribute("src")) dimg.removeAttribute("src");
   $("map").classList.toggle("hidden", showDbg);
   $("dbgPlanBox").classList.toggle("hidden", !showDbg);
   $("dbgChart").classList.toggle("hidden", !showDbg);
   $("boardBody").classList.toggle("hidden", showDbg);
-  const showVideo = running && !!s.video && !showDbg;
+  const showVideo = running && !!s.video && !showDbg && VIEW !== "panel";
   const v = $("botVideo");
   v.style.display = showVideo ? "block" : "none";
   $("bigMap").style.display = showVideo || showDbg ? "none" : "block";
@@ -245,7 +258,7 @@ function render(s) {
 }
 
 function frame() {
-  if (EP.state) {
+  if (EP.state && !document.body.classList.contains("simmode")) {
     const t = EP.fmt(EP.elapsed());
     $("clock").textContent = t;
     const s = EP.state;

@@ -14,7 +14,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / "AppData/LocalLow/LuGus Studios/Liftoff/TelemetryConfiguration.json"
+from .paths import LIFTOFF_USER
+
+CONFIG_PATH = LIFTOFF_USER / "TelemetryConfiguration.json"
 FIELD_SIZES = {"Timestamp": 1, "Position": 3, "Attitude": 4, "Velocity": 3, "Gyro": 3,
                "Input": 4, "Battery": 2, "MotorRPM": 5}
 DEFAULT_FORMAT = ["Timestamp", "Position", "Attitude", "Gyro", "Input", "Velocity"]
@@ -57,6 +59,7 @@ class Telemetry(threading.Thread):
         self.sock.settimeout(0.2)
         self.on_state = on_state
         self.lock = threading.Lock()
+        self.fresh = threading.Event()  # set on every packet; Session waits on it on macOS
         self.state = None
         self.packets = 0
         self.resets = 0
@@ -108,6 +111,7 @@ class Telemetry(threading.Thread):
                 self.state = s
                 self.packets += 1
                 self.history.append(s)
+            self.fresh.set()
             if self.on_state:
                 self.on_state(s)
 

@@ -38,14 +38,46 @@ class Detection:
         return ((self.box[0] + self.box[2]) / 2, (self.box[1] + self.box[3]) / 2)
 
 
+class DetectorMissing(RuntimeError):
+    """No gate model or no ultralytics: the camera cannot see gates. Said out loud instead of a silent
+    fallback - on the Mac `--vision` ran without detection until 19.11. because the error was swallowed."""
+
+
+def _device():
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return 0
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
+def detector_status(model=MODEL):
+    """None if the detector can run, else the reason (for the Studio page)."""
+    if not Path(model).exists():
+        return f"Torerkennungs-Modell fehlt: {Path(model).name} nach {Path(model).parent} kopieren"
+    try:
+        import ultralytics  # noqa: F401
+    except ImportError:
+        return "Paket ultralytics fehlt in der Python-Umgebung"
+    return None
+
+
 class GateDetector:
     def __init__(self, model=MODEL, conf=0.35, imgsz=640):
+        why = detector_status(model)
+        if why:
+            raise DetectorMissing(why)
         from ultralytics import YOLO
         self.model = YOLO(str(model))
         self.conf, self.imgsz = conf, imgsz
+        self.device = _device()
 
     def detect(self, bgr):
-        r = self.model.predict(bgr, imgsz=self.imgsz, conf=self.conf, verbose=False, device=0)[0]
+        r = self.model.predict(bgr, imgsz=self.imgsz, conf=self.conf, verbose=False, device=self.device)[0]
         out = []
         if r.boxes is None or len(r.boxes) == 0:
             return out

@@ -29,8 +29,10 @@
   <div class="slot" id="slot">
     <img id="liveImg" alt="">
     <div class="slot-hint" id="slotHint">
-      <b>Liftoff-Fenster</b>
-      <span>Wird hier platziert – Einstellungen, Liftoff anordnen</span>
+      <b class="lo-only">Liftoff-Fenster</b>
+      <span class="lo-only">Wird hier platziert – Einstellungen, Liftoff anordnen</span>
+      <b class="sim-only">EasyPilot-Sim</b>
+      <span class="sim-only" id="simSlotText">Das Sim-Fenster liegt hier – „Sim starten“</span>
     </div>
     <div class="tag left"><i class="dot live"></i><span id="leftTag">Live</span></div>
   </div>
@@ -45,6 +47,7 @@
       <div class="dbg-pane"><img id="dbgImg" alt=""><canvas id="dbgCam"></canvas>
         <div class="dbg-cap">KI-Sicht · <i class="lg det"></i>erkanntes Tor <i class="lg ramp"></i>Linie <i class="lg dash"></i>Tor laut Karte</div></div>
     </div>
+    <div class="simhalf sim-only" id="simHalf"><canvas id="simTelCv"></canvas></div>
     <div class="tag right"><i class="dot bot"></i><span id="rightTag">Autopilot</span></div>
     <div class="mini-clock num" id="rightClock"></div>
   </div>
@@ -54,11 +57,17 @@
 <section class="bottom">
   <header class="bar">
     <div class="brand">EasyPilot <span>Studio</span></div>
+    <div class="simsw" id="simSwitch" title="Welcher Simulator">
+      <button data-sim="liftoff">Liftoff</button><button data-sim="sim">EasyPilot-Sim</button>
+    </div>
     <div class="map-title"><b id="mapTitle">–</b><span id="mapEnv"></span></div>
     <div class="chips">
-      <span class="chip" id="chipLiftoff"><i></i>Liftoff</span>
-      <span class="chip" id="chipTel"><i></i>Telemetrie</span>
-      <span class="chip" id="chipCtl"><i></i>Controller</span>
+      <span class="chip lo-only" id="chipLiftoff"><i></i>Liftoff</span>
+      <span class="chip lo-only" id="chipTel"><i></i>Telemetrie</span>
+      <span class="chip lo-only" id="chipCtl"><i></i>Controller</span>
+      <span class="chip sim-only" id="chipSim"><i></i>Sim</span>
+      <span class="chip sim-only" id="chipSimTel"><i></i>Telemetrie</span>
+      <span class="chip sim-only" id="chipSimCtl"><i></i>Controller</span>
     </div>
     <nav class="tabs">
       <button data-tab="live" class="on">Rennen</button>
@@ -148,21 +157,43 @@
   <!-- SETTINGS -->
   <div class="tab" id="tab-settings">
     <div class="settings-grid">
-      <div class="card">
+      <div class="card lo-only">
         <h3>Bildschirm</h3>
         <p class="muted">Liftoff liegt randlos oben links und bleibt im Vordergrund. Diese Seite im Vollbild (F11) daneben.</p>
         <div class="row-buttons">
-          <button onclick="cmd({action:'layout', mode:'quarter'})">Liftoff anordnen</button>
+          <button onclick="cmd({action:'layout', mode:'quarter', url: location.origin + '/' + (KEY ? '?key=' + encodeURIComponent(KEY) : '')})">Liftoff anordnen</button>
           <button onclick="cmd({action:'layout', mode:'full'})">Liftoff im Vollbild</button>
         </div>
         <label class="opt"><input type="checkbox" id="streamLeft"> Live-Bild als Stream zeigen, wenn Liftoff auf einem anderen Bildschirm läuft</label>
       </div>
-      <div class="card">
+      <div class="card lo-only">
         <h3>Rennen</h3>
         <label class="opt">Runden <select id="lapsSel"><option>1</option><option>2</option><option>3</option></select></label>
         <label class="opt">Zeitlimit Mensch <select id="timeoutSel"><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
-        <label class="opt"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
+        <label class="opt">Autopilot-Modus <select id="apMode">
+          <option value="karte">Karte (Tore aus der Streckendatei)</option>
+          <option value="karte_kamera">Karte + Kamera korrigiert</option>
+          <option value="erkunden">Erkunden + Rennen (erst Kamera-Runde, dann eigene Karte)</option>
+          <option value="nur_kamera">Nur Kamera (keine Karte, langsam)</option>
+        </select></label>
+        <div id="apModeHint" class="muted"></div>
+        <label class="opt hidden"><input type="checkbox" id="visionOn"> Kamera korrigiert die Torkarte beim Autopiloten</label>
         <label class="opt"><input type="checkbox" id="dbgOn" checked> Debug-Ansicht beim Autopiloten: KI-Sicht, Plan und Telemetrie</label>
+      </div>
+      <div class="card sim-only">
+        <h3>EasyPilot-Sim</h3>
+        <p class="muted">Der Sim läuft als eigenes Fenster oben links (halbe Bildschirmbreite, 16:9), die Studio-Fenster daneben und darunter.</p>
+        <div class="row-buttons">
+          <button onclick="cmd({action:'sim_layout', url: location.origin + '/' + (KEY ? '?key=' + encodeURIComponent(KEY) : '')})">Sim-Fenster anordnen</button>
+          <button onclick="cmd({action:'sim_start'})">Sim starten</button>
+          <button onclick="if(confirm('Sim beenden?')) cmd({action:'sim_stop'})">Sim beenden</button>
+        </div>
+        <label class="opt">Zeitlimit Mensch <select id="simTimeout"><option value="60">1 min</option><option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option></select></label>
+        <p class="muted">Läuft der Sim schon mit <code>--remote 8766</code>, verbindet sich das Studio von selbst. Log: <code>~/EasyPilot/runs/studio/sim/freefly.log</code></p>
+      </div>
+      <div class="card sim-only">
+        <h3>Sim-Telemetrie</h3>
+        <div id="simInfo" class="muted num"></div>
       </div>
       <div class="card">
         <h3>Controller</h3>
@@ -171,10 +202,111 @@
       </div>
     </div>
   </div>
+
+  <!-- EASYPILOT-SIM: race (sim.js) -->
+  <div class="tab simtab" id="tab-sim">
+    <div class="race-grid">
+      <div class="card start">
+        <div class="simstat"><span id="simStatus">Sim aus</span>
+          <button class="small" id="simStartBtn">Sim starten</button><button class="small" id="simStopBtn">Sim beenden</button></div>
+        <h3>Wer fliegt</h3>
+        <div class="seg" id="simWho">
+          <button data-who="bot" class="on"><svg class="ic"><use href="#i-bot"/></svg>Autopilot fliegt</button>
+          <button data-who="human"><svg class="ic"><use href="#i-user"/></svg>Mensch fliegt</button>
+        </div>
+        <div id="simHumanBox" class="hidden">
+          <input id="simName" maxlength="24" placeholder="Name" autocomplete="off">
+          <div class="hint" id="simCtlHint"></div>
+        </div>
+        <div class="seg" id="simModeSeg" style="grid-template-columns: repeat(3, 1fr)">
+          <button data-v="race" class="on">Rennen (Tore)</button><button data-v="bomb">Bomben-Ziele</button>
+          <button data-v="ringe" title="Leuchtende Ringe im Dorf einsammeln, Reihenfolge egal – Wertung: Zeit">Ringe</button>
+          <button data-v="paket" title="Pakete an der Station holen und an 5 Adressen sanft absetzen – Wertung: Punkte">Paket</button>
+          <button data-v="freestyle" title="90 s Tricks: Flip, Rolle, Power-Loop, Split-S, Durchflug … – Wertung: Punkte">Freestyle</button>
+        </div>
+        <div id="simGameBox" class="hidden">
+          <label class="opt" id="simRingRow">Ring-Set <select id="simRingSet"><option value="leicht">Leicht (14 große Ringe)</option><option value="schwer">Schwer (14 kleine, Scheunen, Brücke, Turm)</option></select></label>
+          <div class="hint" id="simGameDesc"></div>
+        </div>
+        <div id="simTrackBox">
+          <label class="opt">Strecke <select id="simTrack"></select> <b id="simTrackStars" style="letter-spacing: 1px"></b></label>
+          <div class="hint" id="simTrackDesc"></div>
+        </div>
+        <h3 id="simApHead">Autopilot</h3>
+        <div class="seg" id="simApSeg" style="grid-template-columns: repeat(3, 1fr)">
+          <button data-v="line" class="on">Rennlinie</button><button data-v="camera">Nur Kamera</button><button data-v="nn" title="lernt selbst, sieht nur das Kamerabild">Neuronales Netz</button>
+        </div>
+        <div id="simNN" class="hidden" style="margin-top: 8px">
+          <!-- KI-Showcase (freefly/nn_show.py): läuft im Sim-Fenster ohne Countdown, Versuch für Versuch -->
+          <div class="seg" id="simShowSeg" style="grid-template-columns: repeat(3, 1fr)">
+            <button data-v="learn" title="Das Netz fliegt, probiert aus und lernt aus jedem Versuch">Lernen zuschauen</button>
+            <button data-v="replay" title="Gespeicherte Versionen der Reihe nach: wie weit kam es nach 3, 10, 40 min Training?">Zeitraffer</button>
+            <button data-v="off">Showcase aus</button>
+          </div>
+          <div id="simShowBig" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; text-align: center">
+            <div><div style="font-size: 12px; opacity: 0.7">Versuch</div><b id="simShowAtt" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+            <div><div style="font-size: 12px; opacity: 0.7">Bester Versuch</div><b id="simShowBest" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+            <div><div style="font-size: 12px; opacity: 0.7">Heute gelernt</div><b id="simShowMin" style="font-size: clamp(22px, 2.6vw, 44px)">–</b></div>
+          </div>
+          <div id="simShowModel" style="font-size: clamp(13px, 1.1vw, 18px); margin: 4px 0 6px; text-align: center"></div>
+          <div style="font-size: 12px; opacity: 0.7">Lernkurve: Tore pro Versuch (Farbe wechselt mit jeder neuen Version)</div>
+          <canvas id="simShowCurve" width="640" height="200" style="width: 100%; height: auto; border-radius: 8px; background: rgba(0,0,0,0.25)"></canvas>
+          <img id="simNNCurve" alt="Lernkurve des Trainings" style="width: 100%; border-radius: 8px; background: #fff; margin-top: 6px">
+          <div id="simNNTxt" style="font-size: 12px; opacity: 0.8; margin-top: 4px"></div>
+        </div>
+        <div class="simrow">
+          <label class="custom" id="simKRow">Tempo k
+            <input type="range" id="simK" min="0.2" max="1.2" step="0.1" value="0.6">
+            <b class="num" id="simKVal">0,6</b></label>
+          <label class="opt" id="simLapsRow"><span id="simLapsLabel">Runden</span> <select id="simLaps"></select></label>
+        </div>
+        <div class="row-buttons">
+          <button class="go" id="simGoBtn"><svg class="ic"><use href="#i-play"/></svg>Start</button>
+          <button class="stop" id="simAbortBtn"><svg class="ic"><use href="#i-stop"/></svg>Stopp</button>
+        </div>
+        <div class="queue" id="simQueue"></div>
+      </div>
+
+      <div class="card timing">
+        <div class="timing-head">
+          <div class="pilot" id="simPilot">Bereit</div>
+          <div id="simBadge"></div>
+        </div>
+        <div class="clock num" id="simClock">0,00</div>
+        <div class="progress" id="simSectors"></div>
+        <div class="stats">
+          <div><div class="label" id="simGateLabel">Tor</div><div class="big-stat num" id="simGate">–</div></div>
+          <div><div class="label">Abstand</div><div class="big-stat num" id="simDelta">–</div></div>
+          <div><div class="label">Autopilot</div><div class="big-stat num" id="simRef">–</div></div>
+          <div><div class="label">km/h</div><div class="big-stat num" id="simSpeed">–</div></div>
+        </div>
+        <div class="banner" id="simBanner">Wer schlägt den Autopiloten</div>
+      </div>
+
+      <div class="card mapcard"><canvas id="simMap"></canvas></div>
+
+      <div class="card board">
+        <h3><span id="simSplitTitle">Torzeiten</span> <span class="muted" id="simSplitHead"></span></h3>
+        <table id="simSplits" class="splits"></table>
+        <h3 class="sub">Bestenliste <span class="muted" id="simBoardHead"></span></h3>
+        <table id="simRanking"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EASYPILOT-SIM: results -->
+  <div class="tab simtab" id="tab-simresults">
+    <div class="results-grid">
+      <div class="card"><h3>Bestenliste <span class="muted" id="simBoardHead2"></span></h3><table id="simRanking2"></table></div>
+      <div class="card"><h3>Letzte Läufe</h3><table id="simRecent"></table></div>
+      <div class="card"><h3>Autopilot-Bestzeiten je Art und Tempo</h3><table id="simRefs"></table></div>
+    </div>
+  </div>
 </section>
 
 <script src="/static/app.js"></script>
 <script src="/static/techview.js"></script>
 <script src="/static/studio.js"></script>
+<script src="/static/sim.js"></script>
 </body>
 </html>

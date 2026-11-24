@@ -17,6 +17,7 @@ What it does
 """
 import json
 import math
+import os
 import queue
 import re
 import subprocess
@@ -37,12 +38,20 @@ from .session import catalog, flush_laps, lap_counted, lap_record, load as load_
 from .tdot import STAGES, LapTimer, Leaderboard
 from .telemetry import Telemetry
 from .track import race_gates
+from .studio_sim import SimStudio
 
 WEB = Path(__file__).resolve().parent / "dashboard"
 DATA = RUNS / "studio"
 SETTINGS = DATA / "settings.json"
 DEFAULTS = {"race": "StrawBaleRace01", "laps": 1, "stage": 3, "custom_speed": None, "vision": False,
-            "liftoff_mode": "race", "timeout": 180}
+            "liftoff_mode": "race", "timeout": 180, "autopilot_mode": "karte",
+            "simulator": "liftoff"}   # "liftoff" or "sim" (own simulator, studio_sim.py)
+# Autopilot modes: "karte" = gates from the track file, "karte_kamera" = plus camera correction (old
+# "vision" switch), "erkunden" = camera-only scouting lap, then race on its own map, "nur_kamera" =
+# camera only, no map (visionfly.py). The track file then only scores the run (lap timer).
+AUTOPILOT_MODES = {"karte": "Karte", "karte_kamera": "Karte + Kamera", "erkunden": "Erkunden + Rennen",
+                   "nur_kamera": "Nur Kamera"}
+VISION_SPEED = {1: 2.0, 2: 3.0, 3: 4.0, 4: 5.0, 5: 6.0}     # m/s in "nur_kamera" per stage
 
 
 def board_path(race, laps):
@@ -70,6 +79,7 @@ class Studio:
         self.dbg_racer, self.dbg_state, self.dbg_plan = None, None, None
         self.dets = None              # (stamp, [[x0, y0, x1, y1, conf, 4 corners...]] normalised) of the live image
         self.det_thread = None
+        self.sim = SimStudio(DATA)       # second simulator choice: EasyPilot-Sim (autopilot/freefly)
         self._select(self.settings["race"], self.settings["laps"])
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -103,7 +113,7 @@ class Studio:
             delta = round(t.splits[-1] - bot["splits"][len(t.splits) - 1], 2)
         s = self.tel.latest(1.0)
         return {**self.live, "race": self.race, "title": self.info["name"], "env": self.info["env"],
-                "laps": self.laps, "settings": self.settings,
+                "laps": self.laps, "settings": self.settings, "detector": self.detector_status(),
                 "elapsed": round(t.t_now, 2) if (t.running or t.finished) else 0.0,
                 "gate": t.next, "gates_total": len(self.seq), "splits": t.splits, "delta": delta,
                 "bot_time": bot["time"] if bot else None,
@@ -207,8 +217,8 @@ class Studio:
 
     def controllers(self):
         try:
-            from .pilot import CONFIG, controllers
-            return {"connected": [n for _, n in controllers()], "calibrated": CONFIG.exists()}
+            from .pilot import calibrated, controllers
+            return {"connected": [n for _, n in controllers()], "calibrated": calibrated()}
         except Exception as exc:
             return {"connected": [], "calibrated": False, "error": repr(exc)}
 
@@ -235,6 +245,17 @@ class Studio:
     # ---------------------------------------------------------------- commands from the page
     def submit(self, cmd):
         a = cmd.get("action")
+        if a == "simulator":
+            self.settings["simulator"] = "sim" if cmd.get("which") == "sim" else "liftoff"
+            self.save_settings()
+            return {"ok": True}
+        if a == "sim_layout":
+            ok = self.sim.arrange()
+            if sys.platform == "darwin" and cmd.get("url"):
+                ok = arrange_studio_windows_mac(cmd["url"]) and ok
+            return {"ok": ok} if ok else {"ok": False, "error": "Sim läuft nicht oder Safari-Fenster gehen nicht"}
+        if str(a).startswith("sim_"):
+            return self.sim.submit(cmd)
         if a == "abort":
             self.abort.set()
             self.queue_list.clear()
@@ -243,15 +264,28 @@ class Studio:
             self.board.delete(cmd.get("id", ""))
             return {"ok": True}
         if a == "settings":
-            for k in ("laps", "stage", "custom_speed", "vision", "timeout"):
+            for k in ("laps", "stage", "custom_speed", "vision", "timeout", "autopilot_mode"):
                 if k in cmd:
                     self.settings[k] = cmd[k]
+            if "autopilot_mode" in cmd:          # the old checkbox follows the mode
+                self.settings["vision"] = cmd["autopilot_mode"] == "karte_kamera"
+            elif "vision" in cmd and self.settings.get("autopilot_mode") in ("karte", "karte_kamera"):
+                self.settings["autopilot_mode"] = "karte_kamera" if cmd["vision"] else "karte"
             self.save_settings()
             if int(self.settings["laps"]) != self.laps:
                 self._select(self.race, self.settings["laps"])
             return {"ok": True}
         if a == "layout":
-            return {"ok": arrange_liftoff(cmd.get("mode", "quarter"))}
+            mode = cmd.get("mode", "quarter")
+            self.settings["layout"] = mode
+            self.save_settings()
+            ok = arrange_liftoff(mode)
+            if sys.platform == "darwin" and mode == "quarter" and cmd.get("url"):
+                ok = arrange_studio_windows_mac(cmd["url"]) and ok
+            if not ok and sys.platform == "darwin":
+                return {"ok": False, "error": "Liftoff-Fenster lässt sich nicht verschieben: Liftoff läuft nicht, oder "
+                        "das Terminal braucht Bedienungshilfen (Systemeinstellungen > Datenschutz & Sicherheit)."}
+            return {"ok": ok}
         if a not in ("bot", "human", "map"):
             return {"ok": False, "error": "unknown action"}
         if a == "map" and not any(m["key"] == cmd.get("race") for m in self.catalog):
@@ -277,11 +311,12 @@ class Studio:
                 elif cmd["action"] == "bot":
                     self.run_bot(cmd.get("stage"), cmd.get("speed"))
                 else:
-                    self.run_human(cmd["name"], int(cmd.get("stage") or 1))
-            except Exception as exc:
+                    self.run_human(cmd["name"], int(cmd.get("stage") or 1), bool(cmd.get("practice")),
+                                   bool(cmd.get("infinite")))
+            except (Exception, SystemExit) as exc:   # SystemExit: vjoy/ojdpad missing - must not kill the worker
                 import traceback
                 traceback.print_exc()
-                self.live.update(phase="error", message=repr(exc)[:200])
+                self.live.update(phase="error", message=(str(exc) if isinstance(exc, SystemExit) else repr(exc))[:200])
 
     def load_map(self, race):
         self.live.update(phase="loading", message=f"Liftoff lädt {race} …", pilot=None, stage=None)
@@ -291,10 +326,27 @@ class Studio:
         ok, _ = load_liftoff(race, tel=self.tel, mode=self.settings.get("liftoff_mode", "race"))
         if ok:
             arrange_liftoff("quarter")
+            self._unpause()
         self.live.update(phase="idle" if ok else "error", loaded_race=race if ok else None,
                          message="" if ok else "Liftoff hat die Strecke nicht geladen")
 
     # ---------------------------------------------------------------- runs
+    def _unpause(self):
+        """macOS: after a track load Liftoff sometimes sits in its pause menu (19.11., twice in a row
+        on AutumnFieldsRace01 and StrawBaleRace01), so no telemetry comes and the reset does nothing.
+        Without telemetry click "Resume" once. Windows is left as it was (never seen there)."""
+        if sys.platform != "darwin" or self.tel.latest(0.5) is not None:
+            return
+        try:
+            from . import ui
+            window.focus_liftoff(hard=False)
+            ui.click_capture(648, 243)          # "Resume" in the pause menu, capture coordinates
+        except Exception as exc:
+            print("unpause:", repr(exc), flush=True)
+            return
+        time.sleep(1.5)
+        print("unpause:", "ok" if self.tel.latest(1.0) is not None else "still no telemetry", flush=True)
+
     def _reset(self, joy, settle):
         from .vjoy import BTN_RESET
         for attempt in range(3):
@@ -331,6 +383,7 @@ class Studio:
         self.timer.reset()
         self.live.update(phase="ready", pilot=name, kind=kind, stage=level, speed_pct=pct, countdown=0, message="")
         window.focus_liftoff(hard=False)
+        self._unpause()
         if not self._reset(joy, self._settle()):
             self.live.update(message="Reset kommt nicht an - ist Liftoff im Rennen?")
             return None
@@ -360,8 +413,99 @@ class Studio:
         print("result:", json.dumps(result, ensure_ascii=False), flush=True)
         return result
 
+    def detector_status(self):
+        if os.environ.get("EASYPILOT_TEST_DETECTOR"):
+            return "TEST-DETEKTOR aus der Streckendatei (nur Entwicklung, kein echter Kameratest)"
+        from .detector import detector_status
+        return detector_status()
+
+    def _vision_detect(self):
+        """Detector for the camera-only modes: YOLO, or (development only) the test detector."""
+        from . import visionfly
+        if os.environ.get("EASYPILOT_TEST_DETECTOR"):
+            from .sysid import load_camera
+            return visionfly.TestDetector(self.gates, load_camera(640))
+        return visionfly.yolo_detect()
+
+    def run_vision(self, mode, stage):
+        """Camera-only modes (visionfly.py). The track file is not used for flying, only the lap timer
+        (= the referee, like Liftoff's own checkpoints) and the map check afterwards."""
+        from . import visionfly
+        from .race import fly
+        level = int(stage or self.settings["stage"])
+        st = next(s for s in STAGES if s.level == level)
+        name = f"Autopilot – {AUTOPILOT_MODES[mode]}"
+        self.dbg_racer, self.dbg_plan = None, None
+        why = None if os.environ.get("EASYPILOT_TEST_DETECTOR") else self.detector_status()
+        if why:
+            self.live.update(phase="error", pilot=name, message=f"{AUTOPILOT_MODES[mode]} geht nicht: {why}")
+            return None
+        try:
+            detect = self._vision_detect()
+        except Exception as exc:
+            self.live.update(phase="error", pilot=name, message=f"Torerkennung: {exc}"[:200])
+            return None
+        stop = lambda: self.abort.is_set() or self.timer.finished      # noqa: E731
+        extra = {"mode": mode, "test_detector": bool(os.environ.get("EASYPILOT_TEST_DETECTOR"))}
+
+        def show(s, pilot):
+            self.dbg_state = s
+            t = pilot.target
+            self.live["message"] = (f"Ziel: Tor V{t.id} ({'trianguliert' if t.triangulated else 'geschätzt'})"
+                                    if t else "sucht ein Tor …")
+
+        if mode == "nur_kamera":
+            sess = Session(f"studio-vision-{self.race}-{level}", tel=self.tel)
+            time.sleep(0.5)
+            if self._prepare("bot", name, None, None, sess.joy) is None:
+                sess.close()
+                return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+            res = visionfly.fly_by_camera(sess, VISION_SPEED[level], detect, on_step=show,
+                                          max_time=float(self.settings.get("timeout", 180)) + 60, stop=stop)
+            sess.close()
+            extra["vision"] = {k: res[k] for k in ("reason", "passages", "gates_seen", "detections", "fps")}
+            why = "abgebrochen" if self.abort.is_set() else ("im Ziel" if self.timer.finished else res["reason"])
+            return self._finish("bot", name, None, why, extra)
+
+        # erkunden: scouting lap by camera, then race on the own map
+        sess = Session(f"studio-explore-{self.race}", tel=self.tel)
+        time.sleep(0.5)
+        if self._prepare("bot", f"{name}: Erkundungsrunde", None, None, sess.joy) is None:
+            sess.close()
+            return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+        res = visionfly.fly_by_camera(sess, 3.0, detect, explore=True, on_step=show,
+                                      max_time=float(self.settings.get("timeout", 180)) + 120,
+                                      stop=self.abort.is_set)
+        sess.close()
+        gmap = res.pop("map")
+        scout = {"time": self.timer.time, "gates": self.timer.next, "gates_total": len(self.seq),
+                 "reason": res["reason"], "mapped": len(gmap), "map_vs_track": visionfly.map_error(gmap, self.gates)}
+        extra["explore"] = scout
+        print("explore:", json.dumps(scout, ensure_ascii=False), flush=True)
+        if self.abort.is_set() or len(gmap) < 2:
+            return self._finish("bot", name, None, "abgebrochen" if self.abort.is_set() else
+                                f"Erkundung: nur {len(gmap)} Tor(e) gefunden ({res['reason']})", extra)
+        sess = Session(f"studio-explorerace-{self.race}-{level}", tel=self.tel)
+        time.sleep(0.5)
+        if self._prepare("bot", f"{name}: Rennen ({len(gmap)} Tore kartiert)", None, int(st.aggressiveness * 100),
+                         sess.joy) is None:
+            sess.close()
+            return self._finish("bot", name, None, self.live["message"] or "abgebrochen", extra)
+
+        def on_step(state, racer):
+            self.dbg_racer, self.dbg_state = racer, state
+            if self.abort.is_set() or self.timer.finished:
+                racer.progress.finished = True
+        r = fly(sess, gmap, 1, st.aggressiveness, vision=False, on_step=on_step, colliders=None)
+        extra["race_on_own_map"] = {k: r[k] for k in ("reason", "gates_passed", "gates_total", "planned_s")}
+        why = "abgebrochen" if self.abort.is_set() else ("im Ziel" if self.timer.finished else r.get("reason", ""))
+        return self._finish("bot", name, None, why, extra)
+
     def run_bot(self, stage=None, speed=None):
         from .race import fly
+        mode = self.settings.get("autopilot_mode") or ("karte_kamera" if self.settings.get("vision") else "karte")
+        if mode in ("erkunden", "nur_kamera") and not speed:
+            return self.run_vision(mode, stage)
         if speed:                                      # free speed in percent
             k, level = max(0.1, min(1.0, float(speed) / 100.0)), None
             name = f"Autopilot {int(float(speed))} %"
@@ -407,7 +551,12 @@ class Studio:
             mp4.unlink()
         return self._finish("bot", name, level, why, extra)
 
-    def run_human(self, name, level):
+    def run_human(self, name, level, practice=False, infinite=False):
+        """practice: a crash does not end the run. Liftoff respawns the drone at the start, the
+        timer starts again and the pilot keeps flying (Versuch 2, 3, ...) until the finish, Stop/F9
+        or practice_minutes (default 5) are over. infinite: practice without time limit, and after
+        the finish the drone is reset for the next lap too - it only ends with Stop/F9."""
+        practice = practice or infinite
         self.dbg_racer, self.dbg_plan = None, None     # the debug view belongs to autopilot runs
         from .pilot import Controller
         from .vjoy import VJoy
@@ -423,9 +572,29 @@ class Studio:
             if s is None:
                 return self._finish("human", name, level, self.live["message"] or "abgebrochen")
             resets0 = self.tel.resets
-            end = time.perf_counter() + float(self.settings.get("timeout", 180))
+            limit = float(self.settings.get("practice_minutes", 5)) * 60 if practice else float(self.settings.get("timeout", 180))
+            end = float("inf") if infinite else time.perf_counter() + limit
             why = "im Ziel"
-            while not self.timer.finished:
+            attempt = 1
+            if practice:
+                self.live.update(message="Übung: Versuch 1")
+            best = None
+            while infinite or not self.timer.finished:
+                if infinite and self.timer.finished:     # lap done: show it, back to the start
+                    best = self.timer.time if best is None else min(best, self.timer.time)
+                    joy.idle()
+                    self.live.update(message=f"Übung: Versuch {attempt} im Ziel {self.timer.time:.2f} s (Bestzeit {best:.2f} s)")
+                    if not self._reset(joy, self._settle()):
+                        why = "Reset kommt nicht an"
+                        break
+                    s = self.tel.wait(1.0)
+                    resets0 = self.tel.resets
+                    attempt += 1
+                    self.timer.reset()
+                    if s is not None:
+                        self.timer.go(s.t)
+                    self.live.update(phase="racing", message=f"Übung: Versuch {attempt} (Bestzeit {best:.2f} s)")
+                    continue
                 if self.abort.is_set() or key_down(VK_F9):
                     why = "abgebrochen"
                     break
@@ -433,8 +602,20 @@ class Studio:
                     why = "Zeitlimit"
                     break
                 if self.tel.resets != resets0:
-                    why = "Reset / Absturz"
-                    break
+                    if not practice:
+                        why = "Reset / Absturz"
+                        break
+                    joy.idle()                      # respawned: new attempt from the start
+                    time.sleep(self._settle())
+                    s = self.tel.wait(1.0)
+                    resets0 = self.tel.resets
+                    attempt += 1
+                    self.timer.reset()
+                    if s is not None:
+                        self.timer.go(s.t)
+                    tail = f" (Bestzeit {best:.2f} s)" if best is not None else ""
+                    self.live.update(phase="racing", message=f"Übung: Versuch {attempt}{tail}")
+                    continue
                 joy.sticks(*ctl.read())
                 time.sleep(0.004)
             return self._finish("human", name, level, why)
@@ -462,6 +643,8 @@ class Studio:
 
 def arrange_liftoff(mode="quarter"):
     """Borderless Liftoff window in the top-left quarter of the main screen, always on top."""
+    if sys.platform == "darwin":
+        return arrange_liftoff_mac(mode)
     import ctypes
     user32 = ctypes.windll.user32
     hwnd = window.find_window()
@@ -478,6 +661,64 @@ def arrange_liftoff(mode="quarter"):
     HWND_TOPMOST, SWP_FRAMECHANGED, SWP_SHOWWINDOW = -1, 0x0020, 0x0040
     user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW)
     return True
+
+
+def arrange_liftoff_mac(mode="quarter"):
+    """macOS: move/resize the window (no borderless/always-on-top from outside the app)."""
+    from . import window_mac
+    if window_mac.find_window() is None:
+        return False
+    sw, sh = window_mac._screen_size()
+    if mode == "full":
+        return window_mac.arrange(0, 0, int(sw), int(sh))
+    w = int(sw) // 2
+    target = (0, 25, w, w * 9 // 16 + window_mac.TITLE_BAR)
+    if window_mac.arrange(*target):
+        return True
+    # without the Accessibility permission macOS refuses the move; fine if Liftoff is already there
+    # (1920x1080 windowed in Liftoff's prefs gives exactly this window, mac/README.md)
+    b = window_mac.find_window()["kCGWindowBounds"]
+    return all(abs(a - t) <= 2 for a, t in zip((b["X"], b["Y"], b["Width"], b["Height"]), target))
+
+
+# macOS: Liftoff cannot be kept on top from outside, so one full-screen page would cover it.
+# Like on the Windows screen the three areas are separate windows instead: Liftoff top left,
+# the autopilot half top right (?view=right), the race control below (?view=panel).
+_SAFARI_WINDOW = """
+on run {u, x1, y1, x2, y2}
+  tell application "Safari"
+    set found to missing value
+    repeat with w in windows
+      try
+        if URL of current tab of w is u then set found to w
+      end try
+    end repeat
+    if found is missing value then
+      make new document with properties {URL:u}
+      set found to front window
+    end if
+    set bounds of found to {x1 as integer, y1 as integer, x2 as integer, y2 as integer}
+  end tell
+end run
+"""
+
+
+def arrange_studio_windows_mac(url):
+    """Open (or move back) the two Studio windows in Safari around the Liftoff quarter."""
+    from . import window_mac
+    import AppKit
+    sw, sh = (int(v) for v in window_mac._screen_size())
+    sh -= int(AppKit.NSScreen.mainScreen().visibleFrame().origin.y)   # stop above the Dock
+    split = 25 + (sw // 2) * 9 // 16 + window_mac.TITLE_BAR      # bottom edge of the Liftoff window
+    sep = "&" if "?" in url else "?"
+    ok = True
+    for view, box in (("right", (sw // 2, 25, sw, split)), ("panel", (0, split, sw, sh))):
+        r = subprocess.run(["osascript", "-e", _SAFARI_WINDOW, f"{url}{sep}view={view}", *map(str, box)],
+                           capture_output=True, text=True)
+        if r.returncode:
+            print("Safari-Fenster:", r.stderr.strip(), flush=True)
+            ok = False
+    return ok
 
 
 def make_handler(studio, admin_key):
@@ -541,6 +782,15 @@ def make_handler(studio, admin_key):
                 return self._send(200, json.dumps(studio.track_info(), ensure_ascii=False))
             if p == "/api/plan":
                 return self._send(200, json.dumps(studio.debug_plan()))
+            if p == "/api/sim":
+                return self._send(200, json.dumps({**studio.sim.state(), "selected": studio.settings.get("simulator")},
+                                                  ensure_ascii=False))
+            if p == "/api/sim/ghost":
+                return self._send(200, json.dumps(studio.sim.ghost()))
+            if p == "/api/sim/nn_curve.png":                  # Lernkurve des Netz-Piloten (freefly/train_nn.py)
+                from .freefly.nn import MODEL_DIR
+                if (MODEL_DIR / "curve.png").exists():
+                    return self._send(200, (MODEL_DIR / "curve.png").read_bytes(), "image/png")
             if p == "/api/maps":
                 return self._send(200, json.dumps(studio.maps(), ensure_ascii=False))
             m = re.match(r"/api/video/([^/]+)/(\d+)$", p)
@@ -580,6 +830,9 @@ def make_handler(studio, admin_key):
 
 def open_browser(url):
     """Edge/Chrome as an app window in fullscreen (kiosk-like), else the default browser."""
+    if sys.platform == "darwin":
+        if Path("/Applications/Safari.app").exists() and arrange_studio_windows_mac(url):
+            return
     for exe in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe"):
         if Path(exe).exists():
